@@ -1,0 +1,22 @@
+[agents]
+# Multi-agent permanece habilitado no runtime, mas a governança continua
+# decidindo quando DIRECT ou MULTIAGENT é apropriado.
+enabled = true
+
+# Orçamento LOCAL de concorrência. Não representa default normativo da OpenAI.
+max_concurrent_threads_per_session = 2
+
+# Mantém a interrupção visível ao modelo quando um agente é interrompido.
+interrupt_message = true
+
+# Intencionalmente NÃO fixamos:
+# default_subagent_model
+# default_subagent_reasoning_effort
+#
+# Quando um subagente não usa perfil especializado nem override explícito,
+# ele herda modelo/esforço do parent. Isso evita transformar um default global
+# em regra de roteamento e preserva:
+# ROLE != MODEL != EFFORT != TOOL_SURFACE.
+#
+# Perfis especializados em .codex/agents/ podem fixar modelo/esforço quando
+# isso fizer parte da configuração operacional daquele perfil.

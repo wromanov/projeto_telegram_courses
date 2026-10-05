@@ -1,0 +1,24 @@
+name = "luna_test_analyst"
+
+description = """
+DEPRECATED compatibility alias. Novo trabalho deve separar `validator` de `triage`.
+Mantido temporariamente apenas para prompts legados.
+"""
+
+model = "gpt-6-luna"
+model_reasoning_effort = "high"
+sandbox_mode = "read-only"
+
+developer_instructions = """
+DEPRECATED_COMPATIBILITY_PROFILE = YES
+LEGACY_MODEL_COUPLED_NAME = YES
+PREFERRED_VALIDATION_PROFILE = validator
+PREFERRED_TRIAGE_PROFILE = triage
+
+Se invocado, limite-se a análise read-only de testes, regressões e falhas.
+Não altere arquivos, não implemente e não crie outros subagentes.
+
+Para novos contratos:
+- checks objetivos -> validator;
+- diagnóstico/root-cause inicial -> triage.
+"""

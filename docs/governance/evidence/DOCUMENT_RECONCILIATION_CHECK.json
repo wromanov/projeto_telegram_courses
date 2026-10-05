@@ -1,0 +1,239 @@
+{
+  "project_id": "projeto_telegram_courses",
+  "recorded_at": "2026-10-05T16:24:40.4143552-03:00",
+  "checks": [
+    {
+      "id": "LOCAL_MARKDOWN_LINK_TARGETS",
+      "result": "PASS",
+      "count": 84,
+      "failures": [],
+      "recheck_basis": "Evidence report now persisted; links checked on final materialized artifact set"
+    },
+    {
+      "id": "REQUIREMENTS_ID_BASELINE",
+      "result": "PASS",
+      "fr_ids": [
+        "FR-01",
+        "FR-02",
+        "FR-03",
+        "FR-04",
+        "FR-05",
+        "FR-06",
+        "FR-07",
+        "FR-08",
+        "FR-09",
+        "FR-10",
+        "FR-11",
+        "FR-12",
+        "FR-13",
+        "FR-14",
+        "FR-15",
+        "FR-16"
+      ],
+      "nfr_ids": [
+        "NFR-01",
+        "NFR-02",
+        "NFR-03",
+        "NFR-04",
+        "NFR-05",
+        "NFR-06",
+        "NFR-07",
+        "NFR-08",
+        "NFR-09",
+        "NFR-10"
+      ]
+    },
+    {
+      "id": "ARCHITECTURE_ADR_BASELINE",
+      "result": "PASS",
+      "adr_ids": [
+        "ADR-001",
+        "ADR-002",
+        "ADR-003",
+        "ADR-004",
+        "ADR-005",
+        "ADR-006",
+        "ADR-007"
+      ]
+    },
+    {
+      "id": "SPRINT_SEQUENCE_BASELINE",
+      "result": "PASS",
+      "sprint_ids": [
+        "S0",
+        "S1",
+        "S2",
+        "S3",
+        "S4",
+        "S5",
+        "S6",
+        "S7",
+        "S8",
+        "S9",
+        "S10"
+      ]
+    },
+    {
+      "id": "FIRST_VERTICAL_SLICE_S4",
+      "result": "PASS",
+      "criteria": [
+        "AUTH",
+        "CHANNEL_DISCOVERY",
+        "RASMOO_PARSE",
+        "CATALOG_PERSISTENCE",
+        "SINGLE_DOWNLOAD",
+        "FILE_VALIDATION",
+        "PATH_ORGANIZATION",
+        "DEDUPLICATION",
+        "SECOND_RUN_NO_DUPLICATE"
+      ],
+      "evidence_type": "PLANNED_CRITERIA_ONLY_NOT_PRODUCT_TEST_RESULTS",
+      "missing": []
+    },
+    {
+      "id": "PROJECT_STATE_BASELINE",
+      "result": "PASS",
+      "missing": []
+    },
+    {
+      "id": "STALE_POLICY_REFERENCE_CHECK",
+      "result": "PASS_PROJECT_OPERATIONAL_DEFAULTS",
+      "old_version_mentions": [
+        {
+          "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\APPROVALS_AND_DECISIONS.md",
+          "line": "PM-04 v1.2 é canônica/ativa pela PM-00, operational_current_versions do Registry, cabeçalho da própria policy e GOV-10. O campo baseline_role do Registry está mal delimitado: a própria policy declara BASELINE = v1.1 e BASELINE_ROLE = SUPERSEDED_HISTORICAL_PREDECESSOR. Essa evidência permite identificar a v1.2 atual; o campo externo permanece visível como finding, sem ser corrigido aqui.",
+          "classification": "EXPLICIT_HISTORY_OR_SOURCE_FINDING_REVIEWED_NOT_OPERATIONAL_DEFAULT"
+        },
+        {
+          "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\AUTHORITY_MAP.md",
+          "line": "PM-04: a interpretação do papel histórico de sua baseline e fontes convergentes estão em APPROVALS_AND_DECISIONS. PM-02/PM-03 anteriores, PM-04 v1.1 e VP-01 v1.0 estão superseded/historical no Registry; não são defaults operacionais.",
+          "classification": "EXPLICIT_HISTORY_OR_SOURCE_FINDING_REVIEWED_NOT_OPERATIONAL_DEFAULT"
+        },
+        {
+          "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\AUTHORITY_MAP.md",
+          "line": "O CONTINUITY_MANIFEST contém PM-02 R2.5 e PM-03 R2.2 como dependências ativas antigas. Para primeira adoção, current global é resolvido por PM-00/Registry; essas dependências antigas não são usadas. Qualquer futuro binding já existente preserva seus pins até migração autorizada. Correção das referências externas não é autorizada nesta atividade.",
+          "classification": "EXPLICIT_HISTORY_OR_SOURCE_FINDING_REVIEWED_NOT_OPERATIONAL_DEFAULT"
+        },
+        {
+          "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\PROJECT_OPENING_GATE.md",
+          "line": "| Stale active references nas sources | Duas dependências antigas no CONTINUITY_MANIFEST: PM-02 R2.5 e PM-03 R2.2 marcadas CANONICAL/ACTIVE; não usadas |",
+          "classification": "EXPLICIT_HISTORY_OR_SOURCE_FINDING_REVIEWED_NOT_OPERATIONAL_DEFAULT"
+        },
+        {
+          "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\PROJECT_OPENING_GATE.md",
+          "line": "Findings externos não bloqueantes de identidade: metadata baseline_role de PM-04 no Registry carece de delimitação (policy BASELINE v1.1 esclarece); PM-03 contém prose residual “candidata” e PREVIOUS_BASELINE_ROLE anterior à promoção, mas cabeçalho canônico/Registry/GOV-10 confirmam v1.7-R2.3; notas históricas dos reports e palavras “candidate” em entrypoints não promovem versões antigas. Referências antigas do Continuity são drift externo visível, sem fallback e sem migration silenciosa.",
+          "classification": "EXPLICIT_HISTORY_OR_SOURCE_FINDING_REVIEWED_NOT_OPERATIONAL_DEFAULT"
+        }
+      ],
+      "source_active_stale_references": [
+        "CONTINUITY_MANIFEST external_dependencies PM-02 R2.5",
+        "CONTINUITY_MANIFEST external_dependencies PM-03 R2.2"
+      ],
+      "source_corrections": "NOT_AUTHORIZED_NOT_PERFORMED"
+    },
+    {
+      "id": "BINDING_SCHEMA_AND_PINS",
+      "result": "BLOCKED",
+      "binding_exists": false,
+      "reason": "GOV-B01 exact protocol and schema integrity failure; no instance validation run"
+    },
+    {
+      "id": "CONTINUITY_HANDOFF_AND_VP01",
+      "result": "BLOCKED",
+      "full_validation": "NOT_RUN",
+      "recovery_gate": "NOT_PASSED",
+      "handoff": "NOT_PASSED"
+    },
+    {
+      "id": "REQUIREMENTS_ARCHITECTURE_FOUNDATION_ROADMAP_SPRINTS_STATE",
+      "result": "PASS_DOCUMENTARY_REVIEW",
+      "basis": "Manual pairwise review against user Card B sections 3–7 and 11; meaningful future acceptance limits remain explicit",
+      "limitation": "Does not validate product/runtime; overall required artifact set blocked by absent verified binding"
+    }
+  ],
+  "document_core": "PASS",
+  "document_reconciliation": "FAIL_INCOMPLETE_REQUIRED_BINDING",
+  "project_opening_gate": "BLOCKED",
+  "activity_completion_percent": 70,
+  "completion_basis": "Five of seven material milestones complete; binding validation and full Continuity/VP-01 handoff blocked",
+  "files_created": [
+    "docs/START_HERE.md",
+    "docs/governance/CONTINUITY_RECORD.md",
+    "docs/governance/NEW_AGENT_BOOTSTRAP.md",
+    "docs/governance/evidence/SOURCE_INTEGRITY_CHECK.json",
+    "docs/governance/evidence/DOCUMENT_RECONCILIATION_CHECK.json"
+  ],
+  "files_updated": [
+    "docs/product/REQUIREMENTS.md",
+    "docs/architecture/ARCHITECTURE.md",
+    "docs/engineering/ENGINEERING_FOUNDATION.md",
+    "docs/planning/ROADMAP.md",
+    "docs/planning/SPRINTS.md",
+    "docs/governance/PROJECT_STATE.md",
+    "docs/governance/AUTHORITY_MAP.md",
+    "docs/governance/APPROVALS_AND_DECISIONS.md",
+    "docs/governance/PROJECT_OPENING_GATE.md"
+  ],
+  "git_actions": "READ_ONLY_INSPECTION_ONLY",
+  "dot_git_exists": false,
+  "product_implementation": "NOT_STARTED",
+  "s0_started": false,
+  "s0_authorized": false,
+  "implementation_authorization": "NOT_GRANTED",
+  "root_entries_outside_docs": [],
+  "artifact_hashes": [
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\START_HERE.md",
+      "sha256": "8f5d3dc962ef51cba75c3a61985bab504fbb1673d0f96d184b51ec8a97362ef9"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\architecture\\ARCHITECTURE.md",
+      "sha256": "ce1149d6f76e0ea248e5870849d2be1ce5fc642d87a213ad1299dc455085f304"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\engineering\\ENGINEERING_FOUNDATION.md",
+      "sha256": "5839b704524c7cf938acf624f509f5d895674495fdfa207844cf92189263985e"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\APPROVALS_AND_DECISIONS.md",
+      "sha256": "413c85fbe74e0ff2de0d90540970bfdd1f0df28049e56593f9b65cfe99174b1a"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\AUTHORITY_MAP.md",
+      "sha256": "f7581508a17f159903a2d764c56f1e7f521208a5b8ac47aa9746a5bdf1e6c0ce"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\CONTINUITY_RECORD.md",
+      "sha256": "d5009cb682b765d98708cfca82e4ff746e7401a46962e0c22808a087aad233d5"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\NEW_AGENT_BOOTSTRAP.md",
+      "sha256": "2db52cc0d291d7b4be70ce0401249da72613bf630561b274781ba0c2d711766a"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\PROJECT_OPENING_GATE.md",
+      "sha256": "6139091403222961831b9b1f707b729b2bda6b41fa755b27eb54f48f13d0686c"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\PROJECT_STATE.md",
+      "sha256": "6de4a393254c96a1a9d1bb6f842ccd590206dc28e5c600e40c32208fdcc78fec"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\governance\\evidence\\SOURCE_INTEGRITY_CHECK.json",
+      "sha256": "19ea2256cbbfd04c8a84aa05923a4d08baa4565e850d88b9a87ecd8163083706"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\planning\\ROADMAP.md",
+      "sha256": "78ad29ef0ef95fb44396a4434f2bb2b3b70058ea8e0f5452714cc6184533c07a"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\planning\\SPRINTS.md",
+      "sha256": "e55abafb0903cd391e62ede7a71cb4834149ffa65221127fc27dd616302b235a"
+    },
+    {
+      "path": "C:\\Users\\walacedelgado\\PycharmProjects\\projeto_telegram_courses\\docs\\product\\REQUIREMENTS.md",
+      "sha256": "f9b4f7ae0a5d0b85f8c61c2cdde3c1800e3a8fea4a19ee15f240a40ee37e9e45"
+    }
+  ],
+  "self_hash": "EXCLUDED_TO_AVOID_CIRCULAR_HASHING"
+}
