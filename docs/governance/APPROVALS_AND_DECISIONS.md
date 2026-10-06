@@ -36,3 +36,71 @@ PM-04 v1.2 é canônica/ativa pela PM-00, operational_current_versions do Regist
 O Card B autorizou materializar a primeira adoção. [PROJECT_GOVERNANCE_BINDING.json](PROJECT_GOVERNANCE_BINDING.json) registra GOVERNANCE_BASELINE V1 / contract 1 com PM-00–PM-05, VP-01 e Continuity 3.0, todos resolvidos por identidade, versão e SHA-256. Schema Draft 2020-12 e pins passaram. Migração não foi solicitada e nenhuma authority foi promovida.
 
 O estado corrente, readiness, autorização e ponto seguro têm authority única em [PROJECT_STATE.md](PROJECT_STATE.md). A abertura/handoff e evidências estão em [PROJECT_OPENING_GATE.md](PROJECT_OPENING_GATE.md); PASS não aprova execução de S0.
+
+## Aprovação do contrato de implementação S0 v1.0
+
+Fonte: decisão explícita do usuário no Card B de reconciliação documental, acompanhada do resultado informado da verificação final focada concluída fora do checkout atual.
+
+```text
+DECISION = APPROVE S0_IMPLEMENTATION_CONTRACT v1.0
+DECISION_MAKER = USER
+RESULT = APPROVED
+CONTRACT_ID = S0_IMPLEMENTATION_CONTRACT
+CONTRACT_VERSION = 1.0
+CONTRACT_CLOSURE_VERIFICATION = PASS
+CONTRACT_APPROVAL_READINESS = READY_FOR_USER_APPROVAL
+FINAL_FOCUSED_VERIFICATION = PASS
+CONTRACT_SEMANTIC_STATE = FROZEN
+S0_AUTHORIZED = NO
+IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+S0_STARTED = NO
+SP01_RUNTIME_VALIDATION = NOT_EXECUTED
+```
+
+A verificação focada confirmou MED-06–08 como `CLOSED_CONFIRMED`, preservou HIGH-01 e MED-01–05, e reportou zero regressões, decisões escondidas, liberdade semântica, gaps materiais ou issues estruturais fora do escopo. Este registro materializa o resultado fornecido pelo usuário; nenhuma nova auditoria foi executada. Aprovação contratual e autorização para implementar S0 são gates distintos.
+
+## Autorização corrente — execução integral S0
+
+Fonte: decisão explícita do usuário no Card B `1ba72eb6-adae-47b6-840d-da651c2a69b6`, fornecido em 2026-10-06.
+
+```text
+S0_EXECUTION_AUTHORIZED = YES
+BOUNDED_CYCLIC_EXECUTION_AUTHORIZED = YES
+AUTO_ADVANCE_BETWEEN_PASSED_SLICES = YES
+LOCAL_COMMIT_AUTHORIZATION = YES
+AUTO_LOCAL_COMMIT_ON_SLICE_PASS = YES
+AUTHORIZATION_SCOPE = S0_ONLY
+S1_AUTHORIZED = NO
+PUSH_AUTHORIZED = NO (AT CARD B AUTHORIZATION TIME; SUPERSEDED ON COMPLETION BY LATER USER DECISION)
+```
+
+Esta decisão concede execução da S0 e commits locais por slice que passe; não altera semanticamente o contrato congelado nem autoriza S1. Em instrução posterior, o usuário autorizou stage + commit + push quando a atividade estiver finalizada e deixou a semântica das mensagens de commit a critério do executor. Essa autorização de publicação somente se aplica ao encerramento da atividade e ainda não foi exercida, pois S0 está parada. O estado atual e o safe resume point ficam em [PROJECT_STATE](PROJECT_STATE.md).
+
+## Autorização posterior — publicação no encerramento da atividade
+
+```text
+PRIOR_STAGE_AUTHORIZATION = YES / WHEN_ACTIVITY_IS_FINISHED / SUPERSEDED
+PRIOR_COMMIT_AUTHORIZATION = YES / WHEN_ACTIVITY_IS_FINISHED / SUPERSEDED
+PRIOR_PUSH_AUTHORIZATION = YES / WHEN_ACTIVITY_IS_FINISHED / SUPERSEDED
+CURRENT_STAGE_AUTHORIZATION = YES / FOR_AUTHORIZED_LOCAL_CHECKPOINTS
+CURRENT_COMMIT_AUTHORIZATION = YES / LOCAL_ONLY
+CURRENT_PUSH_AUTHORIZATION = YES / ONE-TIME CONTINUITY PUSH ONLY / work/s0-bootstrap
+COMMIT_MESSAGE_SEMANTICS = DELEGATED_TO_EXECUTOR
+ORCHESTRATION_MODE = SINGLE_ACTIVITY
+BOUNDED_CYCLIC_EXECUTION = SUSPENDED
+S0_RESUME_AUTHORIZED = YES
+PUBLICATION_PERFORMED = NO
+```
+
+Em decisão posterior, o usuário autorizou a retomada de S0 em `SINGLE_ACTIVITY`, preservou SL01/SL02 e explicitamente definiu `PUSH = NOT_AUTHORIZED`, substituindo a autorização anterior de push para conclusão da S0. O Card B de continuidade mais recente concede uma exceção limitada: um único push de continuidade da S0 em `work/s0-bootstrap`, sem force/tags, somente para transferência entre computadores. Isso não fecha S0, não autoriza S1 e não autoriza continuação desta sessão após o push verificado.
+
+```text
+CONTINUITY_PUSH_AUTHORIZED = YES
+PURPOSE = MACHINE_TRANSFER
+BRANCH = work/s0-bootstrap
+FORCE_PUSH = PROHIBITED
+TAGS = PROHIBITED
+RELEASE = PROHIBITED
+MERGE = PROHIBITED
+STOP_AFTER_PUSH_VERIFIED = YES
+```

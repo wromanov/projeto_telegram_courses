@@ -65,9 +65,9 @@ Os manifests foram comparados com os bytes atuais sem normalização: Opening 13
 | BOOTSTRAP | [governance/NEW_AGENT_BOOTSTRAP.md](NEW_AGENT_BOOTSTRAP.md) |
 | PROJECT_GOVERNANCE_BINDING | [governance/PROJECT_GOVERNANCE_BINDING.json](PROJECT_GOVERNANCE_BINDING.json) — ACTIVE / VALIDATED |
 | Technical audit context (non-normative; time-bounded) | [AUDITORIA_TECNICA_2026-10-05](../audit/AUDITORIA_TECNICA_2026-10-05.md) |
-| Contrato de implementação S0 — draft para revisão, SEM authority operacional ativa | [S0_IMPLEMENTATION_CONTRACT](../contracts/S0_IMPLEMENTATION_CONTRACT.md), versão 1.0, DRAFT_BLOCKED; gaps CG-01–05 no §22; aprovação exclusiva do usuário |
+| Contrato de implementação S0 — aprovado e ativo; execução S0 autorizada pelo Card B corrente | [S0_IMPLEMENTATION_CONTRACT](../contracts/S0_IMPLEMENTATION_CONTRACT.md), versão 1.0, APPROVED / ACTIVE PARA S0; semanticamente FROZEN; execução S0 autorizada; push corrente autorizado uma vez para continuidade S0 em `work/s0-bootstrap`, sem fechamento ou S1 |
 
-O Card B atual autoriza autoria documental do contrato S0 e exige contrato aprovado antes de implementação. A entrada acima torna o draft descobrível; não promove seu status nem altera aprovações de arquitetura/fundação. Estado, gaps atuais, próximo passo e ponto seguro permanecem em [PROJECT_STATE](PROJECT_STATE.md). Nenhuma implementação ou publicação Git é autorizada pela existência do draft.
+O contrato S0 v1.0 foi aprovado explicitamente pelo usuário após verificação final focada PASS e permanece semanticamente FROZEN. Em decisão posterior registrada no [PROJECT_STATE](PROJECT_STATE.md), o usuário autorizou a execução de S0 por Card B. A autorização de push mais recente é limitada a um checkpoint de continuidade S0 na branch `work/s0-bootstrap`; não autoriza fechamento, release, deployment ou S1.
 
 ## Relação de baseline
 
