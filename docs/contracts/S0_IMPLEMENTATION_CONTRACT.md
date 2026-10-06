@@ -622,7 +622,7 @@ Validação: TOML malformado, seção/tipo/chave desconhecida, tipo não string,
 | S0-T10A | Venv instalado; arquivo válido; `subprocess.run([CliS0, 'smoke'], cwd=RepoRoot, env=SmokeEnv, text=True, capture_output=True, check=False)` | `telegram-courses 0.1.0 config=file log_level=INFO\n` | vazio | 0 / zero mutação conforme §22.4.1 |
 | S0-T10B | Cwd temporário vazio criado conforme abaixo; `subprocess.run([CliS0, 'smoke'], cwd=SmokeCwd, env=SmokeEnv, text=True, capture_output=True, check=False)`; caso adicional obrigatório `[PyS0, '-B', '-m', 'telegram_courses', 'smoke']` no mesmo cwd | `telegram-courses 0.1.0 config=defaults log_level=INFO\n` em ambos | vazio em ambos | 0 / zero mutação conforme §22.4.1 |
 | S0-T10C | Fixture TOML temporária com `level="WARNING"` selecionada por `--config`; env `TELEGRAM_COURSES_LOG_LEVEL=ERROR`; `--log-level DEBUG` | `telegram-courses 0.1.0 config=file log_level=DEBUG\n` | vazio | 0 / nenhum |
-| S0-T10D | `--config` para TOML inválido, ausente ou com chave sensível sintética | vazio | `configuration error\n` | 2 / nenhum |
+| S0-T10D | `--config` para caminho explícito ausente, TOML sintaticamente inválido ou conteúdo semanticamente inválido segundo §22.3 (incluindo nível inválido ou chave sensível sintética) | vazio | `configuration error\n` | 2 / nenhum |
 | S0-T10E | Erro interno sintético isolado em teste, sem expor causa | vazio | `internal error\n` | 1 / nenhum |
 
 `S0-T09` verifica a matriz integral, cada precedência isolada e rejeições da §22.3; `S0-T10` agrega os cinco casos acima e todos os subprocessos da matriz. Sem credenciais. Erro interno sintético é injeção de falha local no teste, não um modo de produção ou argumento CLI adicional.

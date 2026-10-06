@@ -3,7 +3,7 @@
 ```text
 DOCUMENT_ROLE = PROJECT_STATE
 STATE_VERSION = 2.0
-STATUS = ACTIVE / S0_STOPPED_AT_SP01_RUNTIME_PREFLIGHT_FAILURE
+STATUS = ACTIVE / S0_STOPPED_AT_SP01_10_CREATE_REPLAY_FAILURE
 LAST_UPDATED = 2026-10-06 / America/Sao_Paulo
 PROJECT_IDENTITY = projeto_telegram_courses
 PROJECT_ROOT = C:\Users\walacedelgado\PycharmProjects\projeto_telegram_courses
@@ -16,31 +16,31 @@ PRE_CHECKPOINT_HEAD = 6db0d9ae694ee98bc164c7c6a0c08012b1bb8cb7
 BASELINE_TRACEABILITY = S0-SL01_AND_SL02_CHECKPOINTS; verified baseline commit 1cde21d4d0f95b9b190c02f4a69a91c25485428c; current HEAD discovered at runtime
 CURRENT_PHASE = PHASE_0_PROJECT_FOUNDATION / S0
 CURRENT_DELIVERY_UNIT = S0 / SPRINT / IN_PROGRESS / 40%
-CURRENT_ACTIVITY = NONE / NO_FORMAL_IMPLEMENTATION_ACTIVITY_IN_PROGRESS
-CURRENT_ACTIVITY_STATE = CONTINUITY_PACKAGE_PUBLISHED / READY_TO_RESUME_AT_SP01_ROOT_PREFLIGHT
-ACTIVITY_COMPLETION_PERCENT = 100% / continuity package materialization and publication completed
+CURRENT_ACTIVITY = SP-01 / STACK WINDOWS / SP01-10 FAILED AT REPLAY CREATION
+CURRENT_ACTIVITY_STATE = SP01-01..09 = PASS / later execution facts supplied in the current authorized request and not re-evaluated; SP01-10 initial inventory, pip check and constraints generation PASS; replay venv creation returned native exit 1 and left a partial .venv-replay. No dependent replay step ran.
+ACTIVITY_COMPLETION_PERCENT = 56% / factual correction, initial inventory, pip check and constraints generation completed; replay creation failed and final reconciliation records the stop
 LAST_COMPLETED_ACTIVITY = S0-SL02_VERIFIED_CHECKPOINT
-NEXT_ACTIVITY = RETRY_SP01-PREFLIGHT-ROOT
-NEXT_ACTIVITY_READINESS = ROOT_PREFLIGHT_RETRY_REQUIRED; prior attempt failed at SP01-PREFLIGHT-ROOT and dependent steps did not run
-NEXT_ACTIVITY_AUTHORIZATION = S0_ONLY_AUTHORIZATION_RECORDED_IN_APPROVALS_AND_DECISIONS; this continuity activity grants no implementation or test authorization
+NEXT_ACTIVITY = RESOLVE_SP01_10_CREATE_REPLAY_FAILURE
+NEXT_ACTIVITY_READINESS = BLOCKED / `.venv-replay` exists partially after native exit 1; do not reuse, remove or retry automatically
+NEXT_ACTIVITY_AUTHORIZATION = CURRENT SP01-10 AUTHORIZATION WAS USED; the no-retry stop condition requires a new explicit instruction before recovery or another attempt
 CURRENT_SLICE = S0-SL03 implementation artifacts exist; verification is not established
 S0_SELECTED = YES
 S0_STARTED = YES
 S0_AUTHORIZED = YES / S0_ONLY / per recorded user decision
 S0_COMPLETION_PERCENT = 40% / last recorded value retained; SL03 is not credited as verified
-SP01_RUNTIME_VALIDATION = FAIL / SP01-PREFLIGHT-ROOT / no dependent steps executed
+SP01_RUNTIME_VALIDATION = FAIL / SP01-10-CREATE-REPLAY returned native exit 1 after initial inventory and constraints generation
 LAST_VALIDATED_INTEGRATED_BASELINE = S0-SL01_AND_SL02 / CLI acceptance pending / commit 1cde21d4d0f95b9b190c02f4a69a91c25485428c
 CURRENT_AUTHORITIES = ACTIVE_AUTHORITY_MAP.md; planning/ROADMAP.md; planning/SPRINTS.md; PROJECT_GOVERNANCE_BINDING.json; domain authorities listed in ACTIVE_AUTHORITY_MAP.md
 CURRENT_INVARIANTS = incremental canonical-flow integration; at most one active formal activity; readiness != authorization; implementation != integrated; gateway/adapters; pluggable parsers; three sources of truth; physical commit before DOWNLOADED; conditional resume; bounded workers; legitimate access only; CLI frontend-first rule not applicable
 OPEN_DECISIONS = NONE for the current continuity checkpoint; future technical decisions remain assigned to the entry conditions in planning/SPRINTS.md
-BLOCKERS = SP01 runtime validation is stopped at SP01-PREFLIGHT-ROOT; retry that preflight before dependent SP-01 steps or claiming SL03 verified
+BLOCKERS = SP01-10-CREATE-REPLAY returned native exit 1 with stderr present; cause not retained in sanitized evidence; partial `.venv-replay` remains and must not be reused, removed or retried automatically
 KNOWN_RISKS = S0 runtime compatibility remains unverified; future-unit risks and entry gates are in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
 DEFERRED_ITEMS = GUI, TDLib and additional support remain deferred; Windows distribution remains S10; other unit-specific items are in planning/SPRINTS.md
-IMPLEMENTATION_AUTHORIZATION_STATE = GRANTED_FOR_S0_ONLY / no authorization for S1; this activity is documentation-only
+IMPLEMENTATION_AUTHORIZATION_STATE = GRANTED_FOR_S0_ONLY / current request explicitly authorizes SP01-10; no authorization for S1
 GIT_PUBLICATION_AUTHORIZATION_STATE = NO_STANDING_AUTHORIZATION / ACTIVITY_SPECIFIC_AUTHORIZATION_REQUIRED
 NEXT_CONTINUITY_CHECKPOINT = NONE / future Git publication requires activity-specific authorization
 PROJECT_GOVERNANCE_BINDING = ACTIVE / VALIDATED / content preserved; JSON parse revalidated; schema PASS is recorded in OPENING_RECOVERY_VALIDATION.json
-SAFE_RESUME_POINT = Read this state and ACTIVE_AUTHORITY_MAP; verify the actual checkout; preserve the S0-SL01/SL02 validated baseline; do not repeat those slices. Retry SP01-PREFLIGHT-ROOT from the documented S0 setup procedure. Stop if it fails; only then continue with SP01-01. SL03 artifacts in commits 05b2658 and 0ba4fe5 are present but not verified by recorded evidence. Discover current HEAD, upstream synchronization, and worktree state at runtime; this document does not hard-code a self-referential checkpoint hash.
+SAFE_RESUME_POINT = SP01-10 stopped at replay venv creation: initial constraints were generated and validated; `.venv-replay` is partial after native exit 1. Do not reuse/remove it, retry automatically, or rerun SP01-01..09. Preserve the generated constraints and historical SP01-02 attempt/recovery records. Resume only after a new explicit user instruction authorizes failure recovery; reconcile only this state and SP01_STACK_WINDOWS.md, without changing code, tests or the frozen contract. SL03 artifacts in commits 05b2658 and 0ba4fe5 are present but are not verified by recorded evidence. Discover current HEAD, upstream synchronization, and worktree state at runtime; this document does not hard-code a self-referential checkpoint hash.
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
 NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES / verify remote availability at runtime
 ```
@@ -85,7 +85,7 @@ SUPERSEDED_AUTHORITY_USED_AS_CURRENT = NO
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
 NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES
 AGENT_HANDOFF_GATE = PASS
-SP01_EXECUTED = NO
+SP01_EXECUTED = YES / SP01-01..09 PASS per later execution facts supplied in the current request; SP01-10 initial inventory and constraints PASS; replay creation FAIL
 ```
 
 ## Factual basis

@@ -192,7 +192,7 @@ def test_t10c_cli_overrides_environment_and_file(
     [
         None,
         "[logging\n",
-        '[logging]\nlevel = "INFO"\n',
+        '[logging]\nlevel = "info"\n',
         "[telegram]\napi_hash = 'x'\n",
     ],
 )
