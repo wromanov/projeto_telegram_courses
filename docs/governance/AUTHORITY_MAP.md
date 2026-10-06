@@ -8,7 +8,7 @@ GOVERNANCE_BINDING_TARGET = docs/governance/PROJECT_GOVERNANCE_BINDING.json
 
 ## Convenção governada de continuidade
 
-Este projeto declara docs/ como raiz equivalente de continuidade, sob PM-01 §12.5 e Opening §5, para preservar os caminhos exigidos pelo usuário. Estado, mapa, record, bootstrap, binding e planejamento ficam dentro dessa raiz, em governance/ e planning/. [START_HERE.md](../START_HERE.md) é o entrypoint de navegação. Não existem segundas cópias ativas de estado/roadmap/sprints. O binding-alvo permanece pendente; Markdown não o substitui.
+Este projeto declara docs/ como raiz equivalente de continuidade, sob PM-01 §12.5 e Opening §5. Estado, mapa, record, bootstrap, binding e planejamento ficam nessa raiz, em governance/ e planning/. [START_HERE.md](../START_HERE.md) é o entrypoint de navegação. Não existem segundas cópias ativas de estado/roadmap/sprints. O binding JSON está materializado e validado.
 
 Identidade, roots dependentes do ambiente e fatos locais: [PROJECT_STATE.md](PROJECT_STATE.md). Authorities de domínio: product/, architecture/ e engineering/.
 
@@ -20,9 +20,7 @@ Fonte do pedido e aprovações: [APPROVALS_AND_DECISIONS.md](APPROVALS_AND_DECIS
 
 ## Resolver externo e baseline global
 
-Governance root WORK: C:/Users/walacedelgado/PycharmProjects/governanca_de_projetos. Resolver principal desta atividade: ZIPs entregues pelo usuário. Sintaxe archive::member indica a entrada exata no ZIP, sem cópia vendorizada.
-
-Matrix archive: Matriz Unificada de Políticas.zip. Member prefix: Matriz Unificada de Políticas/. Registry: POLICY_REGISTRY.json dentro desse prefixo. Caminhos são pistas de resolução, não identidade universal.
+Governance root verificado nesta atividade: `C:\Users\walac\desenvolvimento\governança_de_projetos`, branch `master`, HEAD e `origin/master` em `eb028a3b8ea1df906fd91578259791fcb8bd5b6c`. Resolver: `Matriz Unificada de Políticas/POLICY_REGISTRY.json` e suas current governed sources. Os paths são pistas de resolução; identidade normativa é id + versão + SHA-256.
 
 | ID | Versão current | Papel / owner | Member relativo ao prefixo | Integridade |
 |---|---|---|---|---|
@@ -34,23 +32,21 @@ Matrix archive: Matriz Unificada de Políticas.zip. Member prefix: Matriz Unific
 | PM-05 | v1 | policy / independência analítica | policies/Independencia-Analitica-Agente-v1.md | PASS |
 | VP-01 | v2.0 | validation_protocol / VALIDATION_ONLY | validation/Gate-de-Internalizacao-Operacional-v2.0.md | PASS |
 
-Todos são CANONICAL / ACTIVE, contract 1. Baseline global = GOVERNANCE_BASELINE V1. Os sete hashes exatos conferem com sha256/current_governed_hash do Registry: [SOURCE_INTEGRITY_CHECK.json](evidence/SOURCE_INTEGRITY_CHECK.json). A lista é descoberta global e intenção de adoção; não é substitute do binding nem lista de pins adotados.
+Todos são CANONICAL / ACTIVE, contract 1. Baseline global e adotado = GOVERNANCE_BASELINE V1. Os sete bytes foram calculados e conferem com identidade, versão e SHA-256 do Registry; os pins adotados estão em [PROJECT_GOVERNANCE_BINDING.json](PROJECT_GOVERNANCE_BINDING.json). [OPENING_RECOVERY_VALIDATION.json](evidence/OPENING_RECOVERY_VALIDATION.json) registra os resultados. PM-04 permanece CANONICAL/ACTIVE v1.2; a metadata `baseline_role` do Registry é um finding e não muda a authority confirmada pelo conteúdo e pelos demais campos normativos.
 
 PM-04: a interpretação do papel histórico de sua baseline e fontes convergentes estão em APPROVALS_AND_DECISIONS. PM-02/PM-03 anteriores, PM-04 v1.1 e VP-01 v1.0 estão superseded/historical no Registry; não são defaults operacionais.
 
 ## Protocolos e schema
 
-ZIPs sob Protocolos para Projetos - Vigente/ no governance root:
+Pacotes canônicos sob Protocolos para Projetos - Vigente/ no governance root:
 
 | ID / papel | Versão declarada | Entrada principal | Estado verificado |
 |---|---|---|---|
-| PROJECT_OPENING / abertura | 3.0 CANONICAL / ACTIVE | Protocolo Inicio de Abertura de Projeto 3.0/OPENING_PROTOCOL.md | Texto disponível; exact-byte integrity FAIL |
-| CONTINUITY / recuperação | 3.0 CANONICAL / ACTIVE | Protocolo Continuidade Projeto Em Andamento Com Novo Agente 3.0/CONTINUITY_PROTOCOL.md | Texto disponível; exact-byte integrity FAIL |
-| Binding schema / contract 1 | schema_version 1.0, Draft 2020-12 | Protocolo Continuidade Projeto Em Andamento Com Novo Agente 3.0/schemas/PROJECT_GOVERNANCE_BINDING.schema.json | JSON parse PASS; exact-byte integrity FAIL |
+| PROJECT_OPENING / abertura | 3.0 CANONICAL / ACTIVE | Protocolo Inicio de Abertura de Projeto 3.0/OPENING_PROTOCOL.md | 13/13 entradas do manifest íntegros; usado nesta abertura, não é pin operacional corrente após handoff |
+| CONTINUITY / recuperação | 3.0 CANONICAL / ACTIVE | Protocolo Continuidade Projeto Em Andamento Com Novo Agente 3.0/CONTINUITY_PROTOCOL.md | 4/4 entradas do manifest íntegros; pin adotado e validado |
+| Binding schema / contract 1 | schema_version 1.0, Draft 2020-12 | Protocolo Continuidade Projeto Em Andamento Com Novo Agente 3.0/schemas/PROJECT_GOVERNANCE_BINDING.schema.json | Hash/tamanho do manifest PASS; 9/9 refs resolvidas; binding validado |
 
-As cópias extraídas foram verificadas como alternativa de resolução e também divergem dos manifests. Diferença CRLF/LF explica o diagnóstico, mas não satisfaz hash dos bytes exatos. Não houve normalização, atualização de manifest ou adoção silenciosa de hash diferente.
-
-O CONTINUITY_MANIFEST contém PM-02 R2.5 e PM-03 R2.2 como dependências ativas antigas. Para primeira adoção, current global é resolvido por PM-00/Registry; essas dependências antigas não são usadas. Qualquer futuro binding já existente preserva seus pins até migração autorizada. Correção das referências externas não é autorizada nesta atividade.
+Os manifests foram comparados com os bytes atuais sem normalização: Opening 13/13 e Continuity 4/4 passaram. O schema atual foi validado como Draft 2020-12 e seus nove refs locais resolveram. O CONTINUITY_MANIFEST lista PM-02 1.7-R2.6 e PM-03 1.7-R2.3; `STALE_ACTIVE_DEPENDENCY_REFERENCES = 0`.
 
 ## Authorities específicas do projeto
 
@@ -65,15 +61,19 @@ O CONTINUITY_MANIFEST contém PM-02 R2.5 e PM-03 R2.2 como dependências ativas 
 | ACTIVE_AUTHORITY_MAP | Este documento |
 | APPROVALS_AND_DECISIONS | [governance/APPROVALS_AND_DECISIONS.md](APPROVALS_AND_DECISIONS.md) |
 | PROJECT_OPENING_GATE_RECORD / FOUNDATION_REVIEW | [governance/PROJECT_OPENING_GATE.md](PROJECT_OPENING_GATE.md) |
-| CONTINUITY_RECORD / LAST_HANDOFF_ATTEMPT | [governance/CONTINUITY_RECORD.md](CONTINUITY_RECORD.md) |
+| CONTINUITY_RECORD / LAST_HANDOFF | [governance/CONTINUITY_RECORD.md](CONTINUITY_RECORD.md) |
 | BOOTSTRAP | [governance/NEW_AGENT_BOOTSTRAP.md](NEW_AGENT_BOOTSTRAP.md) |
-| PROJECT_GOVERNANCE_BINDING | governance/PROJECT_GOVERNANCE_BINDING.json — pendente, sem substitute |
+| PROJECT_GOVERNANCE_BINDING | [governance/PROJECT_GOVERNANCE_BINDING.json](PROJECT_GOVERNANCE_BINDING.json) — ACTIVE / VALIDATED |
+| Technical audit context (non-normative; time-bounded) | [AUDITORIA_TECNICA_2026-10-05](../audit/AUDITORIA_TECNICA_2026-10-05.md) |
+| Contrato de implementação S0 — draft para revisão, SEM authority operacional ativa | [S0_IMPLEMENTATION_CONTRACT](../contracts/S0_IMPLEMENTATION_CONTRACT.md), versão 1.0, DRAFT_BLOCKED; gaps CG-01–05 no §22; aprovação exclusiva do usuário |
+
+O Card B atual autoriza autoria documental do contrato S0 e exige contrato aprovado antes de implementação. A entrada acima torna o draft descobrível; não promove seu status nem altera aprovações de arquitetura/fundação. Estado, gaps atuais, próximo passo e ponto seguro permanecem em [PROJECT_STATE](PROJECT_STATE.md). Nenhuma implementação ou publicação Git é autorizada pela existência do draft.
 
 ## Relação de baseline
 
-PROJECT_ADOPTED_GOVERNANCE = NOT_MATERIALIZED  
-GLOBAL_BASELINE_RELATION = UNKNOWN_UNTIL_ADOPTION  
+PROJECT_ADOPTED_GOVERNANCE = GOVERNANCE_BASELINE V1 / contract 1
+GLOBAL_BASELINE_RELATION = CURRENT
 MIGRATION = NOT_REQUESTED  
 NO_SILENT_FALLBACK_TO_OLD_VERSION = YES
 
-O protocolo Opening é necessário para reproduzir esta avaliação ainda aberta. Depois do handoff aceito poderá ser preservado como evidência histórica; Continuity permanece como pin operacional pertinente. Não derivar resultado do gate pelo status declarado do pacote.
+O binding adota os sete authorities PM-00–PM-05 e VP-01; Continuity 3.0 é o protocolo operacional adotado. Opening 3.0 foi aplicado e permanece evidência histórica após o handoff, conforme Opening §6. A relação global/adotada é CURRENT.

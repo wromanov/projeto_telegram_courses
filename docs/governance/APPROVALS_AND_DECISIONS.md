@@ -33,6 +33,6 @@ DELIVERY_UNIT = SPRINT; integração incremental; máximo de atividades formais 
 
 PM-04 v1.2 é canônica/ativa pela PM-00, operational_current_versions do Registry, cabeçalho da própria policy e GOV-10. O campo baseline_role do Registry está mal delimitado: a própria policy declara BASELINE = v1.1 e BASELINE_ROLE = SUPERSEDED_HISTORICAL_PREDECESSOR. Essa evidência permite identificar a v1.2 atual; o campo externo permanece visível como finding, sem ser corrigido aqui.
 
-Não há baseline previamente adotado em binding neste root. A intenção de primeira adoção é a baseline atual solicitada no Card B. Ela não está materializada como binding enquanto bytes de protocolos/schema não conferirem. Não foi iniciada migração nem promovida authority.
+O Card B autorizou materializar a primeira adoção. [PROJECT_GOVERNANCE_BINDING.json](PROJECT_GOVERNANCE_BINDING.json) registra GOVERNANCE_BASELINE V1 / contract 1 com PM-00–PM-05, VP-01 e Continuity 3.0, todos resolvidos por identidade, versão e SHA-256. Schema Draft 2020-12 e pins passaram. Migração não foi solicitada e nenhuma authority foi promovida.
 
-O estado corrente, autorização e ponto seguro têm authority única em PROJECT_STATE. Resultado/restrições desta revisão são evidência em [PROJECT_OPENING_GATE.md](PROJECT_OPENING_GATE.md), não aprovação de execução.
+O estado corrente, readiness, autorização e ponto seguro têm authority única em [PROJECT_STATE.md](PROJECT_STATE.md). A abertura/handoff e evidências estão em [PROJECT_OPENING_GATE.md](PROJECT_OPENING_GATE.md); PASS não aprova execução de S0.

@@ -4,94 +4,71 @@
 DOCUMENT_ROLE = PROJECT_OPENING_GATE_RECORD + FOUNDATION_REVIEW
 PROJECT_ID = projeto_telegram_courses
 RECORDED_AT = 2026-10-05 / America/Sao_Paulo
-OPENING_PROTOCOL = PROJECT_OPENING 3.0 / DECLARED_CANONICAL_ACTIVE
-PROJECT_OPENING_GATE = BLOCKED
-FOUNDATION_REVIEW = BLOCKED_ON_GOVERNANCE_INTEGRITY
-STATUS = BLOCKED
-ACTIVITY_COMPLETION_PERCENT = 70%
-PROJECT_GOVERNANCE_BINDING = BLOCKED
-DOCUMENT_RECONCILIATION = FAIL
-OPENING_CONTINUITY_HANDOFF = NOT_PASSED
-CONTINUITY_RECOVERY_GATE = NOT_PASSED
-AGENT_HANDOFF_GATE = FAIL
+OPENING_PROTOCOL = PROJECT_OPENING 3.0 / CANONICAL_ACTIVE
+PROJECT_OPENING_GATE = PASS
+FOUNDATION_REVIEW = PASS
+STATUS = PASS
+ACTIVITY_COMPLETION_PERCENT = 100%
+PROJECT_GOVERNANCE_BINDING = ACTIVE / VALIDATED
+BINDING_SCHEMA_VALIDATION = PASS / DRAFT_2020_12
+ADOPTED_PINS = 7/7 PASS
+DOCUMENT_RECONCILIATION = PASS
+CONTINUITY_MODE = FIRST_ADOPTION_OR_AGENT_CHANGE
+CONTINUITY_RECOVERY_GATE = PASS
+OPENING_CONTINUITY_HANDOFF = PASS
+AGENT_HANDOFF_GATE = PASS
+VP01_VALIDATION = PASS / VALIDATION_ONLY
+S0_SELECTED = YES
+S0_READY = NO
+S0_STARTED = NO
+S0_AUTHORIZED = NO
+IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
 ~~~
 
-## Critérios reais e evidências
+## Critérios e evidências
 
-Opening §6 exige revisão aplicável da fundação, artifacts descobríveis, aprovação explícita e handoff pronto. §§2 e 5 exigem resolução verificável e binding validado. PM-01 §12.3 exige continuidade/pins atuais e ausência de estado contraditório. Continuity §§3 e 6 exige schema/pins íntegros, fatos e validação pertinente antes de PASS. Templates não introduzem novos critérios.
+Opening 3.0 §§2, 5–6 exige authorities identificadas, binding e pins verificáveis, artifacts descobríveis, aprovação explícita da fundação e handoff pronto à Continuity. Continuity 3.0 §§3–6 exige validação do binding/pins, fatos do projeto, validação aplicável, contradições reportadas e safe resume point. PM-01 continua sendo a authority de conduta, prontidão, autorização e handoff.
 
 | Condição | Resultado | Evidência |
 |---|---|---|
-| Identidade/root factual e limites de autorização | PASS | PROJECT_STATE e auditoria local |
-| Baseline current por Matrix/Registry | PASS com finding de metadata | 7/7 authorities com hash exato; PM-04 esclarecida pelo conteúdo/Matrix/GOV-10 |
-| Protocolos e schema disponíveis/lidos | PASS de disponibilidade | Ambos ZIPs e cópias extraídas, incluindo schema real |
-| Integridade exata dos protocols/schema | FAIL | 0/17 entradas conferem com manifests; GOV-B01 |
-| Intenção, FR/NFR, escopo e acesso | PASS documental | REQUIREMENTS reconciliado com Card B §4 |
-| Arquitetura e decisões duráveis | PASS documental | ARCHITECTURE, sete ADRs, aprovação direta Card B §§3 e 5 |
-| Engenharia, dados, testes, operações e limites | PASS documental | ENGINEERING_FOUNDATION, aprovação Card B §§3 e 6; testes futuros explícitos |
-| Roadmap e delivery unit escolhida | PASS documental | PHASE 0–8/S0–S10; S4 com nove critérios; SPRINTS |
-| Raiz, navegação e papéis de continuidade | PASS de discoverability, binding pendente | docs/ como equivalente governado; START_HERE, mapa, record, bootstrap e plans |
-| Binding real, estruturalmente validado e pins reproduzíveis | BLOCKED | Schema lido; binding não materializado devido a integridade de authority, sem substitute Markdown |
-| VP-01 / Continuity recovery completa | BLOCKED | Discovery/reconciliation read-only; validação integral/handoff não declarados como executados |
-| Aprovação explícita de fundação | PASS | Card B §3 FOUNDATION_APPROVAL = APPROVED; provenance em APPROVALS_AND_DECISIONS |
-| Prontidão de handoff sob PM-01 | FAIL | Binding e integridade dos pins pendentes; AGENT_HANDOFF_GATE não passa |
-| S0/implementação/Git mutável não iniciados | PASS | Inventário contém somente documentação/evidência; sem init/clone/stage/commit/push |
+| Root, branch, HEAD, upstream e remote do projeto | PASS | HOME; `master`; HEAD/upstream/remoto verificados após fetch; checkout sem alterações locais antes desta atividade |
+| Governança global e unicidade de versões | PASS | Registry em GOVERNANCE_BASELINE V1/contract 1; uma versão operacional atual por ID |
+| Bytes das authorities adotadas | PASS | PM-00–PM-05 e VP-01 conferem por id + versão + SHA-256; 7/7 |
+| Opening 3.0 | PASS | 13/13 entradas do manifest conferem tamanho e SHA-256 |
+| Continuity 3.0 e schema | PASS | 4/4 entradas do manifest conferem tamanho e SHA-256; schema canônico Draft 2020-12; 9/9 referências internas resolvidas |
+| Stale active dependencies no Continuity Manifest | PASS | PM-02 1.7-R2.6 e PM-03 1.7-R2.3; nenhuma referência ativa stale |
+| Binding | PASS | JSON parse PASS; schema Draft 2020-12 PASS; contract 1 suportado; 7/7 pins e pin Continuity 3.0 PASS |
+| Requisitos ↔ arquitetura | PASS | Reconciliação documental prévia permanece válida |
+| Arquitetura ↔ fundação | PASS | Stack, limites e controles permanecem alinhados |
+| Fundação ↔ roadmap | PASS | Controles e riscos permanecem nas unidades pertinentes |
+| Roadmap ↔ sprints | PASS | PHASE 0–8, S0–S10 e dependências consistentes |
+| Sprints ↔ requisitos | PASS | FR-01–FR-16 e NFR-01–NFR-10 rastreados |
+| Auditoria técnica independente | REVIEWED / NON-NORMATIVE | AUD-HIGH-01/02/03 e AUD-MED-06/08 são findings de risco/decisão para unidades/componentes posteriores; nenhum bloqueia o handoff de Opening, e a prontidão pré-S0 permanece explicitamente pendente |
+| PROJECT_STATE ↔ artifacts | PASS | Snapshot atualizado; approvals e safe resume descobríveis |
+| AUTHORITY_MAP ↔ authorities adotadas | PASS | Resolver e baseline reconciliados com binding e sources atuais |
+| Continuity ↔ PROJECT_STATE | PASS | Modo FIRST_ADOPTION_OR_AGENT_CHANGE; root e Git verificados; gate PASS; safe resume documentado |
+| VP-01 aplicável | PASS | 18/18 cenários adversariais, dry-run operacional e dry-run de execução PASS; evidence record dedicado |
+| Aprovação da fundação | PASS | Aprovação explícita anterior do usuário mantida; nenhuma decisão reaberta |
+| Limites de execução e publicação | PASS | S0 não iniciado/não autorizado; implementação e publicação sem autorização |
 
-Foundation approval permanece aprovada; a revisão documental atual não reabre a decisão técnica. Review de código/runtime, smoke Windows, download, resume e Telegram não são claimed nesta abertura. Não há requisito aplicável de reviewer independente para este delta documental; houve self-review do agente, sem alegação de independência.
+`GOV-B01` permanece somente como finding histórico resolvido: as conditions que o criaram foram satisfeitas por manifests e bytes canônicos. Não é blocker ativo. O produto não foi implementado, e não houve validação de runtime, smoke Windows, Telegram, download ou resume.
 
-## Git: CASE A
+## Estado Git e sincronização
 
-LOCAL_GIT_REPOSITORY = NOT_INITIALIZED. Branch, HEAD, upstream, index/staging e worktree não foram inventados. URL remoto é configuração declarada, sem origin configurado.
+Projeto: `master`, origin e upstream corretos; HEAD antes da atividade e `origin/master` após fetch são `a00f325df45f3adad13b3a99d00c3230f913b282`. Não houve necessidade de fast-forward. Após as edições autorizadas, o worktree fica dirty; nada foi staged. Um relatório não rastreado em `docs/audit/AUDITORIA_TECNICA_2026-10-05.md` apareceu depois do preflight, pertence a uma materialização documental separada e foi preservado sem alteração. Ele não é tratado como authority normativa desta abertura.
 
-Opening §§2 e 5–6/Wizard §§0 e 6–8 não exigem repositório Git materializado para Opening Gate. PM-01 §12.1 condiciona HEAD a Git disponível; Continuity §4 condiciona inspeção Git à disponibilidade. A S0 do baseline usuário §7 é Repository / Project Bootstrap. Ausência de .git é condição inicial factual e não blocker desta abertura. Não houve init/clone.
+Governança: branch `master`, HEAD local e `origin/master` após fetch iguais a `eb028a3b8ea1df906fd91578259791fcb8bd5b6c`. `git status` falhou com “this operation must be run in a work tree”; `git ls-files --others --exclude-standard`, `--modified` e `--deleted` não retornaram caminhos. Não houve pull, pois HEAD já correspondia ao remoto. Nenhum arquivo de conteúdo da governança foi alterado. Os sete pins, quatro arquivos Continuity e treze arquivos Opening foram verificados diretamente contra Registry/manifests.
 
-## Blocker remanescente
+## VP-01 — validação somente
 
-~~~text
-BLOCKER_ID = GOV-B01
-SOURCE = OPENING_PROTOCOL §2; CONTINUITY_PROTOCOL §3 passos 3–4; manifests dos dois pacotes
-REQUIRED_CONDITION = Resolver bytes exatos canônicos dos protocols e schema que confiram com seus manifests, sem normalização/substituição silenciosa.
-CURRENT_EVIDENCE = 13/13 entradas Opening e 4/4 Continuity divergem em SHA-256 e tamanho; cópias extraídas também divergem. Conversão CRLF→LF em memória confere 17/17 apenas como diagnóstico; nenhum source foi alterado.
-NEXT_REQUIRED_ACTION = Restaurar/exportar fontes canônicas com bytes íntegros, ou corrigir/reemitir manifests/pacotes por atividade de governança explicitamente autorizada; depois reexecutar checks e materializar/validar binding.
-~~~
+VP-01 v2.0 foi aplicado como `VALIDATION_ONLY`. Os 18 cenários (A–R) passaram: escala não força modelo/delegação; criticidade não determina modelo; disponibilidade não autoriza subagente/plugin; ações externas consequenciais exigem autorização; versão canônica prevalece sobre candidata; expansão de escopo para em limite seguro; capability Git não concede commit/push; implementação sem integração e big-bang não são `DONE`; checkpoints exigem estado e handoff reconciliados; chat não é source of truth; gaps do ROOT não são contornados por subagente; front/back devem integrar incrementalmente.
 
-Exemplos exatos, com todos os arquivos/tamanhos/hashes em [SOURCE_INTEGRITY_CHECK.json](evidence/SOURCE_INTEGRITY_CHECK.json):
+O dry-run simples permaneceu DIRECT, com modelo/esforço proporcionais, sem Skills/Plugins e sem publicação. O dry-run cross-layer seguiu DoR → implementação → validação de módulo → integração canônica → validação integrada/fluxo acumulado/regressão → reconciliação de estado → handoff/fechamento, mantendo readiness separada de autorização. Os resultados detalhados estão em [OPENING_RECOVERY_VALIDATION](evidence/OPENING_RECOVERY_VALIDATION.json).
 
-| Authority | Hash esperado | Hash observado |
-|---|---|---|
-| Opening protocol | 6fa7c89a6481547123b8d904d65d8e553b259f944507d34ca6ba5c265fbc35ad | 6e74d4330e65982584411c8eb53253275268aabc06c7b86e3361380fd0204848 |
-| Continuity protocol | 262997f3509a856ed450654c9e5c9b9128beb3f57e1092bc87967ded42d0b5f3 | 5343a7b1ae9c344afad6bf118103ebf6b986605eea44f94a1d520a0207628b69 |
-| Binding schema | b2983cbad8fa2616325eb3ad6c8cb2b280c0f44942ac469fcf7749bea2ae5a22 | f6691930c1d5c0c47a39f4e9a7cb7ab5042e3eaabe4ad84d4ca8aa968a3fc943 |
+## Safe resume point e limites
 
-GOV-B01 impede materialização segura do binding, validação estrutural de sua instância e handoff completo. O schema não está ausente: parse JSON PASS; identidade dos bytes entregues contra manifest FAIL. Não foram fabricados pins, hash adotado diferente nem resultado de JSON Schema validator. Não houve correção no governance root externo, fora do escopo.
+`PROJECT_OPENING_GATE = PASS` transfere a recuperação operacional à Continuity; não aprova a atividade seguinte. `CONTINUITY_RECOVERY_GATE = PASS` estabelece safe resume point, mas não concede execução. S0 segue selecionado; seu DoR/readiness específico e autorização explícita permanecem pendentes. Não iniciar S0, produto, commit ou push por força deste gate.
 
-## Reconciliação e stale references
+Finding não bloqueante: o Registry mantém metadata `baseline_role` de PM-04 pouco delimitada, embora Registry status/lifecycle, Matrix, cabeçalho e bytes confirmem PM-04 1.2 CANONICAL/ACTIVE. Foi preservado como finding, sem alteração da governança.
 
-| Relação | Resultado |
-|---|---|
-| Requirements ↔ architecture | PASS documental: produto genérico, parser suportado, CLI, gateway, acesso |
-| Architecture ↔ engineering | PASS documental: stack, schema, estados, finalização/resume e workers |
-| Foundation ↔ roadmap | PASS documental: controles/testes/riscos nas unidades pertinentes |
-| Roadmap ↔ sprints | PASS documental: PHASE 0–8, S0–S10, S4, sequência/dependências |
-| Sprints ↔ requirements | PASS documental: FR-01–FR-16/NFR-01–NFR-10 com evidências planejadas |
-| PROJECT_STATE ↔ artifacts | PASS documental: aprovações, estado Git, blockers, safe resume e não autorização |
-| Binding ↔ schema / adopted pins ↔ Registry | BLOCKED por GOV-B01; não executado como validação de instância |
-| Roots ↔ ambiente | PASS factual: WORK presente/ativo; HOME ausente/configurado |
-| Stale active policy references no projeto | NONE; versões antigas citadas somente como finding/histórico |
-| Stale active references nas sources | Duas dependências antigas no CONTINUITY_MANIFEST: PM-02 R2.5 e PM-03 R2.2 marcadas CANONICAL/ACTIVE; não usadas |
-
-DOCUMENT_RECONCILIATION = FAIL refere-se ao conjunto obrigatório completo, que inclui binding. O núcleo de documentos de produto/planejamento/estado passa; não elevar esse resultado parcial ao aceite global.
-
-Findings externos não bloqueantes de identidade: metadata baseline_role de PM-04 no Registry carece de delimitação (policy BASELINE v1.1 esclarece); PM-03 contém prose residual “candidata” e PREVIOUS_BASELINE_ROLE anterior à promoção, mas cabeçalho canônico/Registry/GOV-10 confirmam v1.7-R2.3; notas históricas dos reports e palavras “candidate” em entrypoints não promovem versões antigas. Referências antigas do Continuity são drift externo visível, sem fallback e sem migration silenciosa.
-
-## Estado separado, limites e completion basis
-
-Estado corrente, próximos passos, readiness, autorização e SAFE_RESUME_POINT têm authority única em [PROJECT_STATE.md](PROJECT_STATE.md). Esta avaliação é evidência do gate, não segunda authority de estado.
-
-COMPLETION_BASIS = 5 de 7 marcos materiais concluídos (aproximação arredondada 70%): leitura/resolução de fontes; fatos de root/Git; auditoria de integridade e stale refs; reconciliação documental; registro de revisão/gate e evidências. Materialização/validação do binding e validação completa VP-01/Continuity/handoff permanecem bloqueadas. A porcentagem mede esta atividade, sem crédito de conclusão do produto/S0.
-
-POLICIES_READ = PM-00 1.0; PM-01 1.0; PM-02 1.7-R2.6; PM-03 1.7-R2.3; PM-04 1.2; PM-05 v1; VP-01 v2.0; também todos os membros textuais dos três ZIPs entregues. VP-01 é VALIDATION_ONLY: fase read-only de descoberta/reconciliação, com saída antecipada pelo blocker sob PM-03 §21; suíte adversarial/dry-runs e gate integral não foram claimed como concluídos.
-
-CURRENT_POLICY_BASELINE = GOVERNANCE_BASELINE V1 / contract 1, versões acima. SKILL = NONE; PLUGIN = NONE; EXECUTION_MODE = DIRECT; SUBAGENTS = NONE. Capacidade nativa de arquivos/hashes foi suficiente.
-
-A abertura permanece BLOCKED com blocker evidencial concreto. Fontes/schema antes ditos indisponíveis agora foram encontrados. Não se mantém blocker por falta de .git, histórico de chat ou necessidade de nova aprovação de arquitetura/fundação. S0 e implementação continuam sem autorização.
+O relatório técnico [AUDITORIA_TECNICA_2026-10-05](../audit/AUDITORIA_TECNICA_2026-10-05.md) é evidência contextual não normativa e declara que seus fatos são do estado anterior à recuperação. Seus três findings altos delimitam pré-condições de S2/S4/S6/S7; a recomendação identifica que eles não bloqueiam o bootstrap técnico de S0, mas a prontidão formal de S0 não estava demonstrada. Este registro preserva `S0_READY = NO`; a revisão pré-S0 deverá decidir as condições antes de iniciar a unidade e não usar esta abertura como autorização.

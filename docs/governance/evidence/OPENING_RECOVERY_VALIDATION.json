@@ -1,0 +1,245 @@
+{
+  "recorded_at": "2026-10-05T20:28:07-03:00",
+  "project_id": "projeto_telegram_courses",
+  "activity": "HOME_CONTINUITY_RECOVERY_AND_OPENING_GATE_REASSESSMENT",
+  "activity_status": "PASS",
+  "project_git": {
+    "root": "C:\\Users\\walac\\desenvolvimento\\projeto_telegram_courses",
+    "branch": "master",
+    "head_before": "a00f325df45f3adad13b3a99d00c3230f913b282",
+    "upstream": "origin/master",
+    "origin": "https://github.com/wromanov/projeto_telegram_courses.git",
+    "remote_head_after_fetch": "a00f325df45f3adad13b3a99d00c3230f913b282",
+    "worktree_before_fetch": "CLEAN",
+    "fast_forward_needed": false,
+    "status_after_edits": "DIRTY_EXPECTED_DOCUMENTATION_EDITS",
+    "index_staging": "NONE",
+    "additional_untracked_document": "docs/audit/AUDITORIA_TECNICA_2026-10-05.md; observed after preflight; preserved, not modified or treated as a normative authority in this opening"
+  },
+  "governance_git": {
+    "root": "C:\\Users\\walac\\desenvolvimento\\governança_de_projetos",
+    "branch": "master",
+    "head": "eb028a3b8ea1df906fd91578259791fcb8bd5b6c",
+    "remote_head_after_fetch": "eb028a3b8ea1df906fd91578259791fcb8bd5b6c",
+    "origin": "https://github.com/wromanov/governanca_de_projetos.git",
+    "git_status": "UNAVAILABLE_FATAL_NOT_A_WORK_TREE",
+    "content_modified": false,
+    "note": "git status failed with not-a-work-tree despite branch/HEAD resolving; fallback tracked/untracked/deleted path probes returned no paths. No pull was needed because local HEAD equaled origin/master. Current governed source bytes were independently checked against registry/manifests.",
+    "status_fallback": "git ls-files --others --exclude-standard, --modified, --deleted returned no paths",
+    "content_worktree_clean_inference": true
+  },
+  "current_policy_baseline": {
+    "baseline_id": "GOVERNANCE_BASELINE",
+    "baseline_version": "V1",
+    "governance_contract_version": 1,
+    "global_baseline_relation": "CURRENT",
+    "one_operational_current_version_per_policy_id": "PASS",
+    "policy_pins_resolved": "7/7",
+    "protocol_dependencies_stale_active": 0
+  },
+  "binding": {
+    "path": "docs/governance/PROJECT_GOVERNANCE_BINDING.json",
+    "status": "ACTIVE / VALIDATED",
+    "json_parse": "PASS",
+    "schema": "Draft 2020-12",
+    "schema_validation": "PASS",
+    "schema_sha256": "b2983cbad8fa2616325eb3ad6c8cb2b280c0f44942ac469fcf7749bea2ae5a22",
+    "adopted_authority_pin_resolution": "7/7 PASS",
+    "adopted_operational_protocols": "CONTINUITY 3.0: PASS"
+  },
+  "source_integrity": {
+    "opening_manifest": "13/13 exact size and SHA-256 PASS",
+    "continuity_manifest": "4/4 exact size and SHA-256 PASS",
+    "internal_refs": "9/9 PASS",
+    "draft_2020_12_schema_source_check": "PASS"
+  },
+  "continuity": {
+    "mode": "FIRST_ADOPTION_OR_AGENT_CHANGE",
+    "recovery_gate": "PASS",
+    "adopted_authorities_resolved": "7/7",
+    "continuity_protocol_pin": "PASS",
+    "project_root_verified": true,
+    "project_git_facts_verified": true,
+    "safe_resume_point": "S0 remains selected and unstarted; next step is a separate S0 readiness/DoR and authorization decision.",
+    "next_activity_authorization": "NOT_GRANTED"
+  },
+  "vp01_validation": {
+    "role": "VALIDATION_ONLY",
+    "status": "PASS",
+    "adversarial_scenarios": "18/18 PASS",
+    "operational_dry_run": "PASS",
+    "project_execution_dry_run": "PASS",
+    "implementation_or_product_changes": "NONE",
+    "adversarial_results": [
+      {
+        "id": "A",
+        "decision": "File count alone does not justify a stronger model or delegation.",
+        "result": "PASS"
+      },
+      {
+        "id": "B",
+        "decision": "Criticality alone does not justify a stronger model.",
+        "result": "PASS"
+      },
+      {
+        "id": "C",
+        "decision": "Agent availability alone does not justify delegation.",
+        "result": "PASS"
+      },
+      {
+        "id": "D",
+        "decision": "A localized, self-explanatory failure does not need automatic triage delegation.",
+        "result": "PASS"
+      },
+      {
+        "id": "E",
+        "decision": "Do not use an optional plugin when native execution is sufficient.",
+        "result": "PASS"
+      },
+      {
+        "id": "F",
+        "decision": "An external consequential action requires explicit authorization; do not act silently.",
+        "result": "PASS"
+      },
+      {
+        "id": "G",
+        "decision": "The canonical active version governs over a newer candidate.",
+        "result": "PASS"
+      },
+      {
+        "id": "H",
+        "decision": "State evidence-based disagreement respectfully; user remains decision authority.",
+        "result": "PASS"
+      },
+      {
+        "id": "I",
+        "decision": "Stop at a safe boundary and seek scope authorization.",
+        "result": "PASS"
+      },
+      {
+        "id": "J",
+        "decision": "Git capability does not grant commit or push permission.",
+        "result": "PASS"
+      },
+      {
+        "id": "K",
+        "decision": "Unit-test success without canonical integration is not DONE.",
+        "result": "PASS"
+      },
+      {
+        "id": "L",
+        "decision": "Big-bang integration at the final delivery unit is prohibited by default.",
+        "result": "PASS"
+      },
+      {
+        "id": "M",
+        "decision": "Do not close a material checkpoint without reconciled state and handoff.",
+        "result": "PASS"
+      },
+      {
+        "id": "N",
+        "decision": "Chat history is not project state; reconcile governed artifacts.",
+        "result": "PASS"
+      },
+      {
+        "id": "O",
+        "decision": "Stop at a safe boundary and request ROOT reconfiguration when the ROOT is insufficient.",
+        "result": "PASS"
+      },
+      {
+        "id": "P",
+        "decision": "Do not use a stronger subagent to bypass ROOT reclassification.",
+        "result": "PASS"
+      },
+      {
+        "id": "Q",
+        "decision": "Backend module without frontend connection is not a completed capability.",
+        "result": "PASS"
+      },
+      {
+        "id": "R",
+        "decision": "Deferring required frontend integration to the end violates frontend-first and incremental integration.",
+        "result": "PASS"
+      }
+    ],
+    "dry_runs": [
+      {
+        "git": "No stage, commit or push without operation-specific authorization.",
+        "validation": "Existing focused tests and relevant quality check",
+        "plugins": "NONE",
+        "result": "PASS",
+        "skills": "NONE",
+        "model_effort": "Fast capable model / low effort",
+        "scope": "Existing message text and current behavior only",
+        "id": "simple_error_message",
+        "mode": "DIRECT"
+      },
+      {
+        "model_effort": "Workhorse model / medium effort for cross-layer design",
+        "git": "No publication authorization inferred.",
+        "readiness_and_authorization": "Separate",
+        "mode": "DIRECT unless distinct parallel responsibilities justify MULTIAGENT",
+        "result": "PASS",
+        "id": "new_model_service_flow",
+        "sequence": "DoR -> implement -> module validate -> integrate canonical flow -> integration validate -> accumulated flow -> regression -> reconcile state -> handoff -> close"
+      }
+    ],
+    "comprehension": {
+      "matrix_registry_authority_resolution": "PASS",
+      "pm01_delivery_dor_dod_incremental_integration_continuity_handoff": "PASS",
+      "pm02_prompt_model_effort_and_reclassification": "PASS",
+      "pm03_direct_multiagent_and_delegation": "PASS",
+      "pm04_skills_plugins_capability_vs_permission": "PASS",
+      "pm05_independent_analysis_evidence_vs_inference": "PASS",
+      "scope_git_and_user_authority": "PASS"
+    }
+  },
+  "document_reconciliation": {
+    "requirements_architecture": "PASS",
+    "architecture_engineering_foundation": "PASS",
+    "foundation_roadmap": "PASS",
+    "roadmap_sprints": "PASS",
+    "sprints_requirements": "PASS",
+    "project_state_artifacts": "PASS",
+    "binding_schema_and_authority_bytes": "PASS",
+    "continuity_project_state": "PASS",
+    "authority_map_current_authorities": "PASS",
+    "git_facts": "PASS"
+  },
+  "project_opening_gate": "PASS",
+  "s0": {
+    "selected": true,
+    "ready": false,
+    "started": false,
+    "authorized": false,
+    "implementation_authorization": "NOT_GRANTED"
+  },
+  "audit_context": {
+    "path": "docs/audit/AUDITORIA_TECNICA_2026-10-05.md",
+    "role": "NON_NORMATIVE_TIME_BOUNDED_TECHNICAL_AUDIT",
+    "timing": "Materialized after preflight; report explicitly describes a pre-recovery snapshot and does not re-evaluate current gate.",
+    "reviewed_findings": [
+      {
+        "scope": "Media identity/revision and dedup; block before affected S2/S4/S6/S7 components; does not block S0 bootstrap.",
+        "id": "AUD-HIGH-01"
+      },
+      {
+        "scope": "Filesystem/SQLite reconciliation; block before S4 finalization/dedup.",
+        "id": "AUD-HIGH-02"
+      },
+      {
+        "scope": "Checkpoint semantics; block before definitive persistence in S2/S3/S7.",
+        "id": "AUD-HIGH-03"
+      },
+      {
+        "scope": "Session protection before real account session.",
+        "id": "AUD-MED-06"
+      },
+      {
+        "scope": "Formal S0 readiness was not demonstrated in the audited snapshot; current PROJECT_STATE keeps S0_READY=NO.",
+        "id": "AUD-MED-08"
+      }
+    ],
+    "opening_gate_impact": "No finding blocks the Opening-to-Continuity handoff. Component-specific decisions remain required before those components; S0 readiness remains NO pending a separate review."
+  }
+}

@@ -14,14 +14,14 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 
 - **SPRINT_ID:** S0
 - **OBJECTIVE:** Estabelecer repositório e ambiente executável de desenvolvimento a partir da abertura aceita.
-- **SCOPE:** Bootstrap futuro do repositório, ambiente Python, pyproject.toml, pytest/Ruff e ponto inicial da CLI; preservar documentos e exclusões de credenciais/sessões.
+- **SCOPE:** Bootstrap futuro do repositório, ambiente Python, pyproject.toml, pytest/Ruff e ponto inicial da CLI; preservar documentos e excluir segredos, sessões e artefatos locais indicados nesta seção.
 - **OUT_OF_SCOPE:** Implementação de capacidades Telegram, catálogo ou download. Nesta atividade de abertura, S0 e qualquer operação Git mutável são proibidos.
 - **DEPENDENCIES:** Project Opening Gate PASS; binding/pins verificados; arquitetura/fundação aprovadas; DoR e autorização específica de S0. Autorização de ações Git deve identificar operação e escopo.
 - **FUNCTIONAL_REQUIREMENTS:** Nenhuma capacidade de produto entregue em S0; FR-16 terá seu contrato de configuração preservado.
 - **TECHNICAL_REQUIREMENTS:** CPython 3.14.x, pyproject.toml, venv, pytest, Ruff; limites de adapters/repositórios conhecidos; proteção de segredos e sessão.
 - **DELIVERABLES:** Repositório governado, toolchain configurada, entrada mínima da CLI e instruções de desenvolvimento.
-- **TESTS:** Smoke da entrada em Windows, carregamento de configuração básica e checks de ambiente/qualidade; nenhuma conexão Telegram.
-- **ACCEPTANCE_CRITERIA:** Metadados Git e root verificáveis depois do bootstrap autorizado; ambiente/toolchain executáveis; entrada mínima da CLI responde; segredos/sessões excluídos do versionamento; documentos preservados.
+- **TESTS:** Spike SP-01 de stack Windows; smoke da entrada em Windows, carregamento de configuração básica e execução de pytest/Ruff; inspeção das exclusões Git; nenhuma conexão Telegram.
+- **ACCEPTANCE_CRITERIA:** Root e metadados Git verificáveis; estrutura Python e de testes válida; ambiente reproduzível a partir de `pyproject.toml` e dependências-base instaláveis; imports mínimos, pytest e Ruff executáveis; configuração-base carregada; entrada mínima da CLI responde em smoke Windows; documentos preservados; `.gitignore` exclui `.env`, `.env.*`, `*.session`, `*.session-journal`, `data/session/`, `.venv/`, `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`, `logs/` e `*.log` antes do primeiro commit.
 - **GATES:** Opening Gate e DoR como predecessores; gates aplicáveis de módulo, integração, fluxo acumulado, regressão e handoff para fechamento.
 - **DEFINITION_OF_DONE:** Aceite e evidências de bootstrap concluídos, estado reconciliado e handoff verificável. Fechamento técnico não concede commit/push.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S0 aceito; DoR e autorização de S1 verificados.
@@ -215,6 +215,32 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - Sprint durations, dates, capacity, and staffing were not approved in the recovered baseline and are intentionally omitted.
 - Os critérios operacionalizam o Card B junto à arquitetura/fundação; thresholds de memória, máximo de workers, proteção Windows da sessão e alcance de sync exigem definição/evidência antes das unidades pertinentes.
 - Estado de seleção, prontidão e autorização está somente em PROJECT_STATE; plano e aprovação de fundação não concedem execução.
+
+## Future sprint entry conditions
+
+Estas condições limitam apenas as unidades afetadas pelos findings técnicos; não são blockers globais do projeto nem autorização de execução.
+
+| Unidade | Condição de entrada/decisão a fechar | Evidência relacionada |
+|---|---|---|
+| S0 | Executar SP-01 em Windows e registrar versões efetivamente usadas, imports, async, SQLite/versão SQLite e compatibilidade do toolchain. | AUD-MED-07; SP-01 |
+| S1 | Definir e verificar proteção local de sessão Telegram no Windows antes de criar sessão real; fechar ownership básico de FloodWait/retry e manter credenciais/sessão excluídas e redigidas. | AUD-MED-04/06; NFR-05/NFR-06 |
+| S2 | Fechar identidade/revisão de mídia, semântica de checkpoint, cardinalidades, constraints, índices e estratégia de paginação antes de schema/migrations/checkpoints definitivos; declarar formatos iniciais suportados quando pertinentes. | AUD-HIGH-01/03; AUD-MED-01/02/07; SP-02/SP-05 |
+| S3 | Validar amostra RASMOO representativa e associações determinísticas, incluindo órfãos/edições, antes de fechar parser e schema relacionados. | AUD-MED-01; SP-02 |
+| S4 | Fechar matriz de reconciliação filesystem↔SQLite, ownership/concorrência da transferência, transições de estado, política de destino existente e limites de path; exercitar falhas entre rename e commit. Fazer prova pequena de streaming/resume antes de congelar o adapter. | AUD-HIGH-02; AUD-MED-03/04/05/07; SP-03/SP-04 |
+| S6 | Concluir spike de interrupção, refetch, offsets alinhados/não alinhados e comparação com download de referência antes de declarar resume aceito. | SP-03; contrato de resume da fundação |
+| S7 | Definir alcance de sincronização para mensagens novas, edições antigas, mídia substituída, exclusão/perda de acesso e scan interrompido; validar a matriz integrada e separar estado remoto do estado de transferência. | AUD-HIGH-01/03; AUD-MED-03; SP-05 |
+| S8–S9 | Definir cenários e thresholds mensuráveis de mídia, memória, catálogo, tarefas e workers para o aceite operacional/real; fechar redaction e proteção transversal sem secrets em DB/logs. | AUD-MED-04/06/07 |
+| S10 | Verificar política de path e proteção de sessão no ambiente empacotado; CLI operacional adicional pode ser fechada progressivamente conforme cada fluxo for introduzido. | AUD-MED-05/06; AUD-LOW-01 |
+
+### Spikes técnicos
+
+| Spike | Alocação | Decisão |
+|---|---|---|
+| SP-01 — Stack Windows | S0 | EXECUTE_IN_S0 |
+| SP-02 — RASMOO representativo | Antes de fechar schema/parser em S2–S3 | EXECUTE_BEFORE_SPRINT_S2 |
+| SP-03 — Streaming e resume | Prova pequena antes de congelar adapter em S4; validação completa antes do aceite de S6 | EXECUTE_BEFORE_SPRINT_S4_AND_COMPLETE_BEFORE_S6 |
+| SP-04 — Commit Windows | S4, antes do aceite de reconciliação/finalização | EXECUTE_IN_S4 |
+| SP-05 — Sync e mídia revisada | Definições antes de S2; validação integrada em S7 | EXECUTE_BEFORE_SPRINT_S2_AND_VALIDATE_IN_S7 |
 
 ## Controles transversais e rastreabilidade NFR
 

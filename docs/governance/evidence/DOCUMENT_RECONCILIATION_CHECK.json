@@ -235,5 +235,8 @@
       "sha256": "f9b4f7ae0a5d0b85f8c61c2cdde3c1800e3a8fea4a19ee15f240a40ee37e9e45"
     }
   ],
-  "self_hash": "EXCLUDED_TO_AVOID_CIRCULAR_HASHING"
+  "self_hash": "EXCLUDED_TO_AVOID_CIRCULAR_HASHING",
+  "status": "HISTORICAL_DOCUMENT_RECONCILIATION",
+  "superseded_by": "docs/governance/evidence/OPENING_RECOVERY_VALIDATION.json",
+  "current_status_note": "Snapshot from before HOME recovery; its blocked gate and stale external dependency findings are superseded by OPENING_RECOVERY_VALIDATION.json. Retained as history."
 }

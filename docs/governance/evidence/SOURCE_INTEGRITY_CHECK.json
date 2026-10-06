@@ -461,5 +461,8 @@
     "role": "USER_EXECUTOR_PAYLOAD",
     "current_instruction": "continue with three named ZIP source paths"
   },
-  "matrix_archive_sha256": "610a398a1dd143bd9955ddb50195432fff7b8c17e3b52980a11e0c91e861b307"
+  "matrix_archive_sha256": "610a398a1dd143bd9955ddb50195432fff7b8c17e3b52980a11e0c91e861b307",
+  "status": "HISTORICAL_SOURCE_AUDIT",
+  "superseded_by": "docs/governance/evidence/OPENING_RECOVERY_VALIDATION.json",
+  "current_status_note": "Snapshot from before HOME recovery; its protocol-integrity and Git-root findings are superseded by OPENING_RECOVERY_VALIDATION.json. Retained to preserve the original GOV-B01 finding."
 }
