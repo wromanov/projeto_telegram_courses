@@ -15,13 +15,11 @@ ou de produto.
    [SAFE_RESUME_POINT](PROJECT_STATE.md). Preserve os checkpoints válidos e
    decisões fechadas.
 5. Para S0, consulte o contrato aprovado e
-   [S0_SETUP](../development/S0_SETUP.md). Refaça
-   `SP01-PREFLIGHT-ROOT`; se passar, siga somente para SP01-01. Qualquer
-   falha encerra os passos dependentes.
-6. Continue somente dentro da autorização vigente. O Card B atual autoriza
-   um stage seletivo, um commit e um push somente para este checkpoint de
-   continuidade; não autoriza implementação, testes, SP-01 ou publicação
-   adicional.
+   [S0_SETUP](../development/S0_SETUP.md) e execute
+   `SP01-PREFLIGHT-ROOT`; qualquer falha encerra os passos dependentes.
+6. Somente com PASS no preflight, prossiga para SP01-01.
+7. Para qualquer publicação Git, exija autorização específica para a
+   atividade e operação.
 
 Histórico de chat pode servir como contexto adicional, mas não é necessário
 para descobrir o estado e retomar a partir das authorities governadas.

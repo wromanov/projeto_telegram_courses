@@ -16,11 +16,11 @@ PRE_CHECKPOINT_HEAD = 6db0d9ae694ee98bc164c7c6a0c08012b1bb8cb7
 BASELINE_TRACEABILITY = S0-SL01_AND_SL02_CHECKPOINTS; verified baseline commit 1cde21d4d0f95b9b190c02f4a69a91c25485428c; current HEAD discovered at runtime
 CURRENT_PHASE = PHASE_0_PROJECT_FOUNDATION / S0
 CURRENT_DELIVERY_UNIT = S0 / SPRINT / IN_PROGRESS / 40%
-CURRENT_ACTIVITY = CONTINUITY_PACKAGE_MATERIALIZATION_AND_RECONCILIATION
-CURRENT_ACTIVITY_STATE = DOCUMENTATION_COMPLETE / ONE_CONTINUITY_CHECKPOINT_AUTHORIZED
-ACTIVITY_COMPLETION_PERCENT = 100% / continuity package complete; the current authorization covers its single Git checkpoint
+CURRENT_ACTIVITY = NONE / NO_FORMAL_IMPLEMENTATION_ACTIVITY_IN_PROGRESS
+CURRENT_ACTIVITY_STATE = CONTINUITY_PACKAGE_PUBLISHED / READY_TO_RESUME_AT_SP01_ROOT_PREFLIGHT
+ACTIVITY_COMPLETION_PERCENT = 100% / continuity package materialization and publication completed
 LAST_COMPLETED_ACTIVITY = S0-SL02_VERIFIED_CHECKPOINT
-NEXT_ACTIVITY = RETRY_SP01-PREFLIGHT-ROOT; then run SP01-01 only if the root preflight passes
+NEXT_ACTIVITY = RETRY_SP01-PREFLIGHT-ROOT
 NEXT_ACTIVITY_READINESS = ROOT_PREFLIGHT_RETRY_REQUIRED; prior attempt failed at SP01-PREFLIGHT-ROOT and dependent steps did not run
 NEXT_ACTIVITY_AUTHORIZATION = S0_ONLY_AUTHORIZATION_RECORDED_IN_APPROVALS_AND_DECISIONS; this continuity activity grants no implementation or test authorization
 CURRENT_SLICE = S0-SL03 implementation artifacts exist; verification is not established
@@ -37,8 +37,8 @@ BLOCKERS = SP01 runtime validation is stopped at SP01-PREFLIGHT-ROOT; retry that
 KNOWN_RISKS = S0 runtime compatibility remains unverified; future-unit risks and entry gates are in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
 DEFERRED_ITEMS = GUI, TDLib and additional support remain deferred; Windows distribution remains S10; other unit-specific items are in planning/SPRINTS.md
 IMPLEMENTATION_AUTHORIZATION_STATE = GRANTED_FOR_S0_ONLY / no authorization for S1; this activity is documentation-only
-GIT_PUBLICATION_AUTHORIZATION_STATE = GRANTED_FOR_THIS_CONTINUITY_CHECKPOINT_ONLY / verify actual publication state in Git at runtime
-NEXT_CONTINUITY_CHECKPOINT = NONE / this packet has a one-time checkpoint authorization; no other Git publication is authorized
+GIT_PUBLICATION_AUTHORIZATION_STATE = NO_STANDING_AUTHORIZATION / ACTIVITY_SPECIFIC_AUTHORIZATION_REQUIRED
+NEXT_CONTINUITY_CHECKPOINT = NONE / future Git publication requires activity-specific authorization
 PROJECT_GOVERNANCE_BINDING = ACTIVE / VALIDATED / content preserved; JSON parse revalidated; schema PASS is recorded in OPENING_RECOVERY_VALIDATION.json
 SAFE_RESUME_POINT = Read this state and ACTIVE_AUTHORITY_MAP; verify the actual checkout; preserve the S0-SL01/SL02 validated baseline; do not repeat those slices. Retry SP01-PREFLIGHT-ROOT from the documented S0 setup procedure. Stop if it fails; only then continue with SP01-01. SL03 artifacts in commits 05b2658 and 0ba4fe5 are present but not verified by recorded evidence. Discover current HEAD, upstream synchronization, and worktree state at runtime; this document does not hard-code a self-referential checkpoint hash.
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
@@ -51,11 +51,14 @@ NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES / verify remote avail
 CONTINUITY_ROOT_EXISTS = YES
 START_HERE_CURRENT = YES
 PROJECT_STATE_CURRENT = YES
+NEW_AGENT_BOOTSTRAP_CURRENT = YES
 ROADMAP_CURRENT = YES
 EXECUTION_PLAN_CURRENT = YES
 ACTIVE_AUTHORITY_MAP_CURRENT = YES
 CONTINUITY_RECORD_CURRENT = YES
+LAST_HANDOFF_CURRENT = YES
 GOVERNANCE_BINDING_CURRENT = YES
+GOVERNANCE_BINDING_PRESENT = YES
 CURRENT_STATE_DISCOVERABLE = YES
 LAST_COMPLETED_ACTIVITY_DISCOVERABLE = YES
 NEXT_ACTIVITY_DISCOVERABLE = YES
@@ -75,25 +78,25 @@ CURRENT_INVARIANTS_DISCOVERABLE = YES
 LAST_VALIDATED_INTEGRATED_BASELINE_DISCOVERABLE = YES
 KNOWN_STALE_STATE = NO
 CONTRADICTORY_ACTIVE_STATE = NO
+DUPLICATE_ACTIVE_PROJECT_STATE = NO
+DUPLICATE_ACTIVE_ROADMAP = NO
+DUPLICATE_ACTIVE_EXECUTION_PLAN = NO
 SUPERSEDED_AUTHORITY_USED_AS_CURRENT = NO
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
 NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES
 AGENT_HANDOFF_GATE = PASS
+SP01_EXECUTED = NO
 ```
 
 ## Factual basis
 
-The current Git snapshot was read at runtime: branch `work/s0-bootstrap`, HEAD
-`6db0d9ae694ee98bc164c7c6a0c08012b1bb8cb7`, upstream
-`origin/work/s0-bootstrap`, ahead 0 / behind 0. The checkout was clean before
-this documentation activity. The remote-tracking branch was fetched and used
-to create the local tracking branch; no fast-forward was needed.
+The continuity package was published in commit
+`2be283f04502ff2b6980831cec6445b0b64da102` on `work/s0-bootstrap`. Runtime Git
+facts must still be rediscovered when resuming; the package does not hard-code
+an exact current HEAD.
 
-The previous state named another checkout, an obsolete HEAD (`0ba4fe…`), no
-upstream, and a one-time continuity push authorization. Those facts were
-superseded by the runtime facts for this checkout. The prior materialization
-request prohibited publication; the current Card B authorizes one selective
-commit and push of this continuity delta only. The earlier validated S0
+An earlier checkpoint recorded a one-time publication authorization, which
+was consumed when the package commit was pushed. The earlier validated S0
 baseline and SL02 completion remain supported by project records. Commit
 history shows SL03 implementation/test artifacts, but there is no evidence
 here that their validation passed; `EXECUTED != VERIFIED`.
@@ -103,13 +106,12 @@ activity only. S0's 40% is the last documented delivery-unit measure and is
 retained because this activity did not verify additional S0 gates.
 
 `ACTIVITY_COMPLETION_PERCENT = 100%` measures the continuity package
-materialization: all nine required canonical artifacts exist, are reconciled,
-and passed the document checks. The current Card B authorizes one selective
-checkpoint for this package; publication success remains a runtime Git fact.
+materialization and publication: all required canonical artifacts exist, are
+reconciled, and the checkpoint commit is
+`2be283f04502ff2b6980831cec6445b0b64da102`.
 
 ## Continuity and publication boundary
 
-This packet is the approved scope of the current one-time continuity
-checkpoint. Verify publication and synchronization from Git at runtime. This
-authorization does not extend to product changes, SP-01, other branches, or
-additional Git publication.
+The continuity package checkpoint is published. Verify current branch, HEAD,
+upstream synchronization, and worktree from Git at runtime. Any future Git
+publication requires activity-specific authorization.

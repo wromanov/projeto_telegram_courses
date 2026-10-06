@@ -13,11 +13,10 @@ baseline e safe resume são mantidos somente em
 assunto.
 
 Este checkpoint materializou o pacote canônico PM-01 em `docs/continuity/`.
-O checkout usado foi reconciliado de `master` para o tracking branch
-`work/s0-bootstrap`; branch e HEAD devem ser verificados em runtime. O
-worktree estava limpo na entrada. O pedido de materialização não autorizou
-publicação; o Card B atual autoriza um checkpoint Git seletivo e um push
-somente deste pacote. Confirme o resultado consultando Git em runtime.
+O pacote foi publicado no branch `work/s0-bootstrap`, commit
+`2be283f04502ff2b6980831cec6445b0b64da102`. A autorização transitória de
+publicação foi consumida. Branch, HEAD, upstream e worktree correntes devem
+ser descobertos em runtime; publicação futura exige autorização específica.
 
 O S0 permanece no último valor registrado de 40%. SL01/SL02 são o último
 baseline integrado validado; há artefatos de SL03 no histórico, sem validação
