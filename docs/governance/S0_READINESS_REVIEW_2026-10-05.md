@@ -25,7 +25,7 @@ Esta revisão avalia a prontidão formal de S0 a partir dos documentos atuais do
 | DOCUMENT_RECONCILIATION | PASS | Requirements↔Architecture, Architecture↔Foundation, Foundation↔Roadmap, Roadmap↔Sprints, Sprints↔Requirements e estado↔artefatos PASS na evidência de recuperação |
 | Requisitos | Aprovados e reconciliados | [REQUIREMENTS](../product/REQUIREMENTS.md), baseline aprovado e reconciliado |
 | Arquitetura / fundação | APPROVED / APPROVED | [ARCHITECTURE](../architecture/ARCHITECTURE.md), [ENGINEERING_FOUNDATION](../engineering/ENGINEERING_FOUNDATION.md) e [APPROVALS_AND_DECISIONS](APPROVALS_AND_DECISIONS.md) |
-| Roadmap | Baseline do usuário aprovado e reconciliado | [ROADMAP](../planning/ROADMAP.md), definido a partir do baseline aprovado e reafirmado pelo usuário |
+| Roadmap | Baseline do usuário aprovado e reconciliado | [ROADMAP](../continuity/planning/ROADMAP.md), definido a partir do baseline aprovado e reafirmado pelo usuário |
 
 ## Definition of Ready
 
@@ -37,7 +37,7 @@ Esta revisão avalia a prontidão formal de S0 a partir dos documentos atuais do
 | FOUNDATION_APPROVAL = APPROVED | PASS | Decisão explícita do usuário registrada |
 | REQUIREMENTS_GATE = PASS | PASS | Baseline de requisitos aprovado/reconciliado; sem requisito de produto a implementar em S0 |
 | ROADMAP = APPROVED | PASS | S0 é PHASE 0 no baseline aprovado; ROADMAP_STATUS = DEFINED_USER_BASELINE_RECONCILED |
-| SPRINT_S0 = DEFINED | PASS | Objetivo, escopo, não escopo, dependências, requisitos, entregáveis, testes, aceite, gates, DoD e saída estão em [SPRINTS — S0](../planning/SPRINTS.md#s0--repository--project-bootstrap) |
+| SPRINT_S0 = DEFINED | PASS | Objetivo, escopo, não escopo, dependências, requisitos, entregáveis, testes, aceite, gates, DoD e saída estão em [SPRINTS — S0](../continuity/planning/SPRINTS.md#s0--repository--project-bootstrap) |
 | PROJECT_ROOT = VALID | PASS | Raiz observada: `C:\Users\walac\desenvolvimento\projeto_telegram_courses` |
 | GIT_REPOSITORY = VALID | PASS | Raiz Git coincide com o projeto; branch `master`; HEAD `a00f325df45f3adad13b3a99d00c3230f913b282` |
 | REMOTE = VALID | PASS | `origin` é `https://github.com/wromanov/projeto_telegram_courses.git`; upstream `origin/master`; remoto e HEAD coincidiram na evidência de abertura |
@@ -79,7 +79,7 @@ As exclusões que o bootstrap deve testar antes do primeiro commit são: `.env`,
 | SP-04 — Commit Windows | EXECUTE_IN_S4 | Falhas de rename, DB, arquivo existente/bloqueado e espaço durante a unidade que implementa finalização |
 | SP-05 — Sync e mídia revisada | EXECUTE_BEFORE_SPRINT_S2; validar em S7 | Definições antes da persistência inicial e validação integrada na sincronização |
 
-O detalhamento das condições futuras está em [SPRINTS — Future sprint entry conditions](../planning/SPRINTS.md#future-sprint-entry-conditions). Os findings de componentes futuros não são promovidos a blockers globais de S0.
+O detalhamento das condições futuras está em [SPRINTS — Future sprint entry conditions](../continuity/planning/SPRINTS.md#future-sprint-entry-conditions). Os findings de componentes futuros não são promovidos a blockers globais de S0.
 
 ## Decisão
 

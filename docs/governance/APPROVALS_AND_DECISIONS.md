@@ -21,8 +21,8 @@ Autorizado: ler authorities, verificar fatos, corrigir documentos do projeto, ma
 | ARCHITECTURE_APPROVAL = APPROVED | §§3 e 5 | [ARCHITECTURE.md](../architecture/ARCHITECTURE.md), ADR-001–ADR-007 |
 | FOUNDATION_APPROVAL = APPROVED | §§3 e 6 | [ENGINEERING_FOUNDATION.md](../engineering/ENGINEERING_FOUNDATION.md) |
 | FR-01–FR-16 e NFR-01–NFR-10, escopo e acesso legítimo | §4 | REQUIREMENTS |
-| PHASE 0–8 e S0–S10; primeiro valor em S4 | §7 | [ROADMAP.md](../planning/ROADMAP.md) / [SPRINTS.md](../planning/SPRINTS.md) |
-| S0 selecionado, não iniciado e não autorizado | §§7 e 11 | [PROJECT_STATE.md](PROJECT_STATE.md) |
+| PHASE 0–8 e S0–S10; primeiro valor em S4 | §7 | [ROADMAP.md](../continuity/planning/ROADMAP.md) / [SPRINTS.md](../continuity/planning/SPRINTS.md) |
+| S0 selecionado; estado corrente e autorização em PROJECT_STATE | §§7 e 11 | [PROJECT_STATE.md](../continuity/PROJECT_STATE.md) |
 | Implementação sem autorização | §§1, 11 e 14 | PROJECT_STATE |
 
 As aprovações são reafirmadas diretamente pelo usuário nesta fonte; não dependem de recuperar a conversa “Projeto Telegram 1.0”. Registros anteriores da conversa são proveniência histórica, sem ampliar o baseline fornecido.
@@ -33,9 +33,9 @@ DELIVERY_UNIT = SPRINT; integração incremental; máximo de atividades formais 
 
 PM-04 v1.2 é canônica/ativa pela PM-00, operational_current_versions do Registry, cabeçalho da própria policy e GOV-10. O campo baseline_role do Registry está mal delimitado: a própria policy declara BASELINE = v1.1 e BASELINE_ROLE = SUPERSEDED_HISTORICAL_PREDECESSOR. Essa evidência permite identificar a v1.2 atual; o campo externo permanece visível como finding, sem ser corrigido aqui.
 
-O Card B autorizou materializar a primeira adoção. [PROJECT_GOVERNANCE_BINDING.json](PROJECT_GOVERNANCE_BINDING.json) registra GOVERNANCE_BASELINE V1 / contract 1 com PM-00–PM-05, VP-01 e Continuity 3.0, todos resolvidos por identidade, versão e SHA-256. Schema Draft 2020-12 e pins passaram. Migração não foi solicitada e nenhuma authority foi promovida.
+O Card B autorizou materializar a primeira adoção. [PROJECT_GOVERNANCE_BINDING.json](../continuity/PROJECT_GOVERNANCE_BINDING.json) registra GOVERNANCE_BASELINE V1 / contract 1 com PM-00–PM-05, VP-01 e Continuity 3.0, todos resolvidos por identidade, versão e SHA-256. Schema Draft 2020-12 e pins passaram. Migração não foi solicitada e nenhuma authority foi promovida.
 
-O estado corrente, readiness, autorização e ponto seguro têm authority única em [PROJECT_STATE.md](PROJECT_STATE.md). A abertura/handoff e evidências estão em [PROJECT_OPENING_GATE.md](PROJECT_OPENING_GATE.md); PASS não aprova execução de S0.
+O estado corrente, readiness, autorização e ponto seguro têm authority única em [PROJECT_STATE.md](../continuity/PROJECT_STATE.md). A abertura/handoff e evidências estão em [PROJECT_OPENING_GATE.md](PROJECT_OPENING_GATE.md); PASS não aprova execução de S0.
 
 ## Aprovação do contrato de implementação S0 v1.0
 
@@ -92,15 +92,24 @@ S0_RESUME_AUTHORIZED = YES
 PUBLICATION_PERFORMED = NO
 ```
 
-Em decisão posterior, o usuário autorizou a retomada de S0 em `SINGLE_ACTIVITY`, preservou SL01/SL02 e explicitamente definiu `PUSH = NOT_AUTHORIZED`, substituindo a autorização anterior de push para conclusão da S0. O Card B de continuidade mais recente concede uma exceção limitada: um único push de continuidade da S0 em `work/s0-bootstrap`, sem force/tags, somente para transferência entre computadores. Isso não fecha S0, não autoriza S1 e não autoriza continuação desta sessão após o push verificado.
+Em decisão posterior, o usuário autorizou a retomada de S0 em `SINGLE_ACTIVITY`, preservou SL01/SL02 e explicitamente definiu `PUSH = NOT_AUTHORIZED`, substituindo a autorização anterior de push para conclusão da S0. O Card B seguinte registrou uma exceção limitada para um único push de continuidade em `work/s0-bootstrap`; essa permissão histórica não autoriza publicação nesta atividade, pois a instrução mais recente a proíbe.
 
 ```text
-CONTINUITY_PUSH_AUTHORIZED = YES
+CONTINUITY_PUSH_AUTHORIZED = HISTORICAL / SUPERSEDED_FOR_CURRENT_ACTIVITY
 PURPOSE = MACHINE_TRANSFER
 BRANCH = work/s0-bootstrap
 FORCE_PUSH = PROHIBITED
 TAGS = PROHIBITED
 RELEASE = PROHIBITED
 MERGE = PROHIBITED
-STOP_AFTER_PUSH_VERIFIED = YES
+STOP_AFTER_PUSH_VERIFIED = HISTORICAL
 ```
+
+## Escopo Git vigente — reconciliação do pacote de continuidade
+
+Instrução direta do usuário no Card B posterior, em 2026-10-06: depois de
+confirmar branch, HEAD, upstream, delta e gates, executar staging seletivo,
+um único commit e `git push origin work/s0-bootstrap` exclusivamente para o
+pacote de continuidade. A autorização não cobre produto, testes, SP-01, merge,
+rebase, tags, force push ou publicação adicional. O resultado do push deve ser
+confirmado em runtime e não é antecipado neste registro.

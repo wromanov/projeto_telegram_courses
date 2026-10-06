@@ -11,7 +11,7 @@ Fonte: Card B do usuário, seções 3–6, referenciado em [APPROVALS_AND_DECISI
 
 ## Requisitos funcionais
 
-Prioridade inicial para todos os FRs; retomada em bytes continua condicional dentro de FR-12. Status: planejados, sem implementação. Dependências e unidades de entrega constam de [SPRINTS.md](../planning/SPRINTS.md).
+Prioridade inicial para todos os FRs; retomada em bytes continua condicional dentro de FR-12. Status: planejados, sem implementação. Dependências e unidades de entrega constam de [SPRINTS.md](../continuity/planning/SPRINTS.md).
 
 | ID | Título | Comportamento requerido | Evidência de aceite planejada |
 |---|---|---|---|
@@ -83,4 +83,4 @@ Somente conteúdo normalmente acessível à própria conta e permitido pelas int
 
 ## Rastreabilidade
 
-[ARCHITECTURE.md](../architecture/ARCHITECTURE.md) define limites/ADRs; [ENGINEERING_FOUNDATION.md](../engineering/ENGINEERING_FOUNDATION.md) define contratos; [ROADMAP.md](../planning/ROADMAP.md) e [SPRINTS.md](../planning/SPRINTS.md) definem sequência/evidências. O aceite real depende dos gates de cada unidade; este documento não inicia nem autoriza execução.
+[ARCHITECTURE.md](../architecture/ARCHITECTURE.md) define limites/ADRs; [ENGINEERING_FOUNDATION.md](../engineering/ENGINEERING_FOUNDATION.md) define contratos; [ROADMAP.md](../continuity/planning/ROADMAP.md) e [SPRINTS.md](../continuity/planning/SPRINTS.md) definem sequência/evidências. O aceite real depende dos gates de cada unidade; este documento não inicia nem autoriza execução.

@@ -39,16 +39,16 @@ As referências compactas usadas neste contrato são:
 | REQ | [REQUIREMENTS](../product/REQUIREMENTS.md) / REQUIREMENT | FR-15/FR-16; NFR-01/05/06/08/09/10; escopo e acesso |
 | ARC | [ARCHITECTURE](../architecture/ARCHITECTURE.md) / ARCHITECTURE | Product shape; Boundaries; ADR-001/002/003/004/006 |
 | ENG | [ENGINEERING_FOUNDATION](../engineering/ENGINEERING_FOUNDATION.md) / ENGINEERING_FOUNDATION | Runtime and toolchain; Configuration contract; Logging contract; Test strategy |
-| RM | [ROADMAP](../planning/ROADMAP.md) / ROADMAP | PHASE 0 e sequência S0–S10 |
-| SPR | [SPRINTS](../planning/SPRINTS.md) / SPRINT | S0; Future sprint entry conditions; Spikes; Controles transversais |
-| STATE | [PROJECT_STATE](../governance/PROJECT_STATE.md) / estado e autorização | Estado, ponto seguro e permissões correntes |
+| RM | [ROADMAP](../continuity/planning/ROADMAP.md) / ROADMAP | PHASE 0 e sequência S0–S10 |
+| SPR | [SPRINTS](../continuity/planning/SPRINTS.md) / SPRINT | S0; Future sprint entry conditions; Spikes; Controles transversais |
+| STATE | [PROJECT_STATE](../continuity/PROJECT_STATE.md) / estado e autorização | Estado, ponto seguro e permissões correntes |
 | OPEN | [PROJECT_OPENING_GATE](../governance/PROJECT_OPENING_GATE.md) / gate predecessor | Opening, recuperação e VP-01; fotografia anterior à revisão de prontidão |
 | READY | [S0_READINESS_REVIEW_2026-10-05](../governance/S0_READINESS_REVIEW_2026-10-05.md) / READINESS_DECISION | DoR, decisão, classificação dos findings e SP-01 |
 | AUD | [AUDITORIA_TECNICA_2026-10-05](../audit/AUDITORIA_TECNICA_2026-10-05.md) / AUDIT_FINDING | Contexto técnico não normativo; findings e spikes |
-| GOV | [AUTHORITY_MAP](../governance/AUTHORITY_MAP.md) e [binding](../governance/PROJECT_GOVERNANCE_BINDING.json) | Baseline GOVERNANCE_BASELINE V1 / contract 1; pins e precedência |
+| GOV | [AUTHORITY_MAP](../continuity/ACTIVE_AUTHORITY_MAP.md) e [binding](../continuity/PROJECT_GOVERNANCE_BINDING.json) | Baseline GOVERNANCE_BASELINE V1 / contract 1; pins e precedência |
 | EVID | [OPENING_RECOVERY_VALIDATION](../governance/evidence/OPENING_RECOVERY_VALIDATION.json) | Evidência histórica de schema, pins, Continuity e VP-01 |
 | APPROVALS | [APPROVALS_AND_DECISIONS](../governance/APPROVALS_AND_DECISIONS.md) | Aprovações de requisitos, arquitetura, fundação e plano |
-| NAV | [START_HERE](../START_HERE.md), [CONTINUITY_RECORD](../governance/CONTINUITY_RECORD.md), [NEW_AGENT_BOOTSTRAP](../governance/NEW_AGENT_BOOTSTRAP.md) | Descoberta e retomada; não substituem STATE |
+| NAV | [START_HERE](../continuity/START_HERE.md), [CONTINUITY_RECORD](../continuity/CONTINUITY_RECORD.md), [NEW_AGENT_BOOTSTRAP](../continuity/NEW_AGENT_BOOTSTRAP.md) | Descoberta e retomada; não substituem STATE |
 
 U é a fonte das atividades de autoria: anexo inicial `d94b27af-126b-4487-b20b-339d8bf373b5/Texto colado.txt` e Card B de fechamento `6ba65121-7fd4-4247-9f22-9e79880053f6/Texto colado.txt`. O conteúdo operacional necessário fica neste contrato e em STATE, sem depender dos anexos para futura retomada.
 
@@ -890,7 +890,7 @@ A reconciliação deste checkpoint significa tornar draft/gaps/ponto seguro desc
 
 ## 25. Registro histórico do fechamento de CG-01–05
 
-Este checkpoint registra o fechamento anterior de CG-01–05 e substituiu o status bloqueado histórico do §24. O status corrente após os dois ciclos de correção está no §27. O Card B de fechamento autorizou decisão/documentação de CG-01–05, sem implementação, instalação, bootstrap ou publicação Git. A revisão de completude está no §23 e a reconciliação do estado em [PROJECT_STATE](../governance/PROJECT_STATE.md). Fontes externas do §6 e §22.5 sustentam compatibilidade contratual esperada; não são evidência de execução Windows. `PROJECT_STATE_RECONCILIATION = PASS` foi registrado para ID, versão, status, gaps e próximo passo daquela atividade. `SP01_RUNTIME_VALIDATION = NOT_EXECUTED`.
+Este checkpoint registra o fechamento anterior de CG-01–05 e substituiu o status bloqueado histórico do §24. O status corrente após os dois ciclos de correção está no §27. O Card B de fechamento autorizou decisão/documentação de CG-01–05, sem implementação, instalação, bootstrap ou publicação Git. A revisão de completude está no §23 e a reconciliação do estado em [PROJECT_STATE](../continuity/PROJECT_STATE.md). Fontes externas do §6 e §22.5 sustentam compatibilidade contratual esperada; não são evidência de execução Windows. `PROJECT_STATE_RECONCILIATION = PASS` foi registrado para ID, versão, status, gaps e próximo passo daquela atividade. `SP01_RUNTIME_VALIDATION = NOT_EXECUTED`.
 
 ```text
 STATUS = PASS
