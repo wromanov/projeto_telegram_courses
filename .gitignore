@@ -1,0 +1,14 @@
+.env
+.env.*
+*.session
+*.session-journal
+data/session/
+.venv/
+.venv-replay/
+venv/
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+logs/
+*.log
+*.egg-info/
