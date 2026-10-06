@@ -243,6 +243,30 @@ def test_t09_configuration_matrix_runs_through_cli(
                 f"telegram-courses 0.1.0 config={indicator} log_level={level}",
             )
 
+    cli_fixture = tmp_path / "cli-selected.toml"
+    env_fixture = tmp_path / "env-selected.toml"
+    cli_fixture.write_text('[logging]\nlevel = "WARNING"\n', encoding="utf-8")
+    env_fixture.write_text('[logging]\nlevel = "ERROR"\n', encoding="utf-8")
+    environment = smoke_environment | {"TELEGRAM_COURSES_CONFIG": str(env_fixture)}
+    result = _invoke(
+        CliS0,
+        ["smoke", "--config", str(cli_fixture)],
+        cwd=RepoRoot,
+        tmp_path=tmp_path,
+        environment=environment,
+    )
+    _assert_success(result, "telegram-courses 0.1.0 config=file log_level=WARNING")
+
+    environment["TELEGRAM_COURSES_LOG_LEVEL"] = "invalid"
+    result = _invoke(
+        CliS0,
+        ["smoke", "--config", str(cli_fixture), "--log-level", "DEBUG"],
+        cwd=RepoRoot,
+        tmp_path=tmp_path,
+        environment=environment,
+    )
+    _assert_configuration_error(result)
+
 
 def test_t10e_internal_error_is_generic_and_has_no_side_effects(
     tmp_path: Path,
