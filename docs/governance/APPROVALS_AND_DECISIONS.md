@@ -53,6 +53,45 @@ S1_STARTED = NO
 
 This approval records architecture and security/runtime preparation only. It is not implementation evidence, S1 authorization, or a DoR PASS.
 
+## Autorização explícita — implementação da S1-A
+
+Fonte: instrução direta do usuário fornecida em 2026-10-07 no pedido
+`C:\Users\walacedelgado\.codex\attachments\af78adf4-4336-4600-a666-df3facbad8c4\Texto colado.txt`.
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-07
+S1_DOR = PASS / evidência derivada em docs/reports/S1_DOR_GAP_REVIEW_2026-10-07.md
+S1_IMPLEMENTATION_AUTHORIZATION = GRANTED
+AUTHORIZATION_SCOPE = S1-A — Protected Session Foundation
+S1_STARTED = NO UNTIL FIRST MATERIAL SOURCE CHANGE
+```
+
+A autorização cobre a fundação protegida e sua validação offline dentro dos
+invariantes e authorities aprovados. Não autoriza conexão Telegram, credenciais
+reais, criação de sessão real, expansão de escopo nem publicação Git. A
+autorização anterior de preparação arquitetural permanece como registro
+histórico; o estado corrente está em [PROJECT_STATE](../continuity/PROJECT_STATE.md).
+
+## Autorização explícita — S1-B offline authentication flow e Telegram gateway
+
+Fonte: instrução direta do usuário em 2026-10-07, atividade `S1-B — Offline Authentication Flow & Telegram Gateway`, fornecida em
+`C:\Users\walacedelgado\.codex\attachments\8d3ff736-b275-4bd1-a93c-1fa1a5eac824\Texto colado.txt`.
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-07
+S1_DOR = PASS
+S1_IMPLEMENTATION_AUTHORIZATION = GRANTED
+AUTHORIZATION_SCOPE = S1-B — Offline Authentication Flow & Telegram Gateway
+REAL_TELEGRAM_CONNECTION = PROHIBITED
+REAL_CREDENTIALS_OR_SESSION = PROHIBITED
+GIT_STAGE_COMMIT_PUSH = PROHIBITED
+RESULT = S1-B PASS / offline validation only
+```
+
+O contrato congelado é [S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT](../contracts/S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT.md). Esta autorização não inicia S1-C nem autoriza conexão, telefone, credenciais, OTP, senha 2FA ou sessão reais. Nenhuma operação Git mutável foi autorizada ou executada.
+
 ## Aplicação normativa e limites
 
 DELIVERY_UNIT = SPRINT; integração incremental; máximo de atividades formais simultâneas = 1, sob PM-01. FRONTEND_FIRST_RULE = NOT_APPLICABLE: CLI sem frontend gráfico/web; fluxos e UX CLI continuam integrados e validados por unidade.

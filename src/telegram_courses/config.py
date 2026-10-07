@@ -24,6 +24,28 @@ class Configuration:
     log_level: str
 
 
+@dataclass(frozen=True)
+class TelegramCredentials:
+    api_id: int
+    api_hash: str
+
+
+def load_telegram_credentials(
+    environ: Mapping[str, str] | None = None,
+) -> TelegramCredentials:
+    """Read credentials from the dedicated environment variables only."""
+    source = os.environ if environ is None else environ
+    raw_id = source.get("TELEGRAM_API_ID", "")
+    api_hash = source.get("TELEGRAM_API_HASH", "")
+    try:
+        api_id = int(raw_id)
+    except (TypeError, ValueError):
+        raise ConfigurationError from None
+    if api_id <= 0 or not api_hash.strip():
+        raise ConfigurationError from None
+    return TelegramCredentials(api_id=api_id, api_hash=api_hash)
+
+
 def _validate_sensitive_keys(value: Any) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
