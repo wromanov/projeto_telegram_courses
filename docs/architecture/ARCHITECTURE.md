@@ -113,6 +113,14 @@ The initial schema contains `schema_migrations`, `channels`, `catalog_nodes`, `m
 
 **Decision:** Default to two download workers and allow configuration. Unlimited concurrency is prohibited. Establish any operational maximum from benchmark/evidence rather than an invented universal cap.
 
+### ADR-008 — Telegram session protection and retry ownership
+
+**Decision:** Protect the at-rest representation of Telethon `StringSession` with Windows DPAPI in `CURRENT_USER` scope. Store it in a user-scoped application-data location outside the repository, with restrictive user-level filesystem access. `DPAPI_LOCAL_MACHINE` scope and plaintext session files are prohibited. Plaintext `StringSession` may exist only in memory inside `TelethonGateway`, and only for the minimum lifecycle needed by the adapter. Each machine requires its own authorization and session. Automatic session backup and export are not supported.
+
+Session lifecycle: create and persist the protected representation → reuse the protected representation → decrypt only when required inside the adapter → support explicit local removal. Treat remote revocation separately from deleting the local blob; local deletion does not imply remote revocation. Reauthenticate when the session is no longer valid.
+
+`APPLICATION` owns semantic retry policy, wait/cancellation budget decisions, and whether an operation may be retried. `TelethonGateway` owns Telethon transport mechanics and translates `FloodWait` into an application/domain error carrying `retry_after_seconds`. Telethon automatic FloodWait sleep is disabled for the S1 design. Any internal Telethon retries must be finite and bounded and must not mask FloodWait, authentication, access, or configuration failures. DC migration and other Telethon protocol details remain inside the adapter when transparent to application semantics. Telethon types and exception implementation details do not escape the adapter.
+
 ## Approval and reconciliation
 
-The user's Card B explicitly reaffirms `ARCHITECTURE_APPROVAL = APPROVED` and the decisions above; see [APPROVALS_AND_DECISIONS.md](../governance/APPROVALS_AND_DECISIONS.md). The baseline is reconciled with Requirements and Engineering Foundation. Dependency compatibility, large-file behavior, session protection and live Telegram acceptance remain future validation work. Governance integrity and the opening result are in [PROJECT_OPENING_GATE.md](../governance/PROJECT_OPENING_GATE.md).
+The user's Card B explicitly reaffirms `ARCHITECTURE_APPROVAL = APPROVED` and the decisions above; see [APPROVALS_AND_DECISIONS.md](../governance/APPROVALS_AND_DECISIONS.md). The baseline is reconciled with Requirements and Engineering Foundation. Dependency compatibility, large-file behavior, session-protection implementation and live Telegram acceptance remain future validation work. Governance integrity and the opening result are in [PROJECT_OPENING_GATE.md](../governance/PROJECT_OPENING_GATE.md).

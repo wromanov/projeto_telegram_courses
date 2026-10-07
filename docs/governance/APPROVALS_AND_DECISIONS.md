@@ -27,6 +27,32 @@ Autorizado: ler authorities, verificar fatos, corrigir documentos do projeto, ma
 
 As aprovações são reafirmadas diretamente pelo usuário nesta fonte; não dependem de recuperar a conversa “Projeto Telegram 1.0”. Registros anteriores da conversa são proveniência histórica, sem ampliar o baseline fornecido.
 
+## Aprovação explícita — proteção de sessão S1 e ownership de retry
+
+Fonte: decisão explícita do usuário em 2026-10-07, para preparação arquitetural e de segurança da S1.
+
+```text
+DECISION = S1 session protection + retry ownership
+DECISION_MAKER = USER
+USER_APPROVAL = APPROVED
+DATE = 2026-10-07
+DECISION_SCOPE = architecture/security/runtime preparation for S1
+DECISION_CONTENT =
+- DPAPI CURRENT_USER protects the at-rest representation of Telethon StringSession; DPAPI_LOCAL_MACHINE scope is prohibited.
+- Plaintext session is prohibited at rest and may exist only in memory inside the adapter for the minimum necessary lifecycle.
+- Store the protected representation in user-scoped application data outside the repository with restrictive user-level filesystem access.
+- Use an independent authorization/session per machine; no automatic backup or export.
+- Local session-blob deletion is distinct from remote revocation; reauthenticate when the session is no longer valid.
+- Application owns semantic retry policy, wait/budget/cancellation decisions; Telethon adapter owns transport mechanics.
+- Adapter translates FloodWait to an application/domain error carrying retry_after_seconds.
+- Disable Telethon automatic FloodWait sleep for the S1 design; internal Telethon retries are finite/bounded and must not mask FloodWait or authentication/access/configuration failures.
+- Keep DC migration/protocol details and Telethon types/exception implementation details inside the adapter when transparent to application semantics.
+IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+S1_STARTED = NO
+```
+
+This approval records architecture and security/runtime preparation only. It is not implementation evidence, S1 authorization, or a DoR PASS.
+
 ## Aplicação normativa e limites
 
 DELIVERY_UNIT = SPRINT; integração incremental; máximo de atividades formais simultâneas = 1, sob PM-01. FRONTEND_FIRST_RULE = NOT_APPLICABLE: CLI sem frontend gráfico/web; fluxos e UX CLI continuam integrados e validados por unidade.

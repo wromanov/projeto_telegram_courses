@@ -36,6 +36,9 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **DEPENDENCIES:** S0 accepted; Telegram credentials/session setup governed by the requirements; gateway boundary available.
 - **FUNCTIONAL_REQUIREMENTS:** FR-01, FR-02.
 - **TECHNICAL_REQUIREMENTS:** MTProto user account; Telethon 1.45.x adapter; asyncio; protect credentials/session; keep Telethon types inside adapter.
+- **SESSION_PROTECTION_DESIGN:** APPROVED; `DESIGN_DEFINED = YES`; `IMPLEMENTATION_VERIFIED = NO`.
+- **FLOODWAIT_RETRY_OWNERSHIP:** APPROVED (design decision only; no implementation evidence).
+- **S1_DOR:** NOT_PASS; this approval records design decisions only and does not establish implementation verification or all S1 entry evidence.
 - **DELIVERABLES:** Authenticated gateway path and channel discovery flow.
 - **TESTS:** Unit tests without Telegram login for application behavior; separate Telegram integration checks for authentication and channel discovery.
 - **ACCEPTANCE_CRITERIA:** FR-01/FR-02 passam pelo gateway com conta própria e canal acessível; falhas de autenticação/acesso são controladas; proteção de credenciais/sessão e testes separados atendem NFR-05/NFR-06/NFR-09/NFR-10.
@@ -223,7 +226,7 @@ Estas condições limitam apenas as unidades afetadas pelos findings técnicos; 
 | Unidade | Condição de entrada/decisão a fechar | Evidência relacionada |
 |---|---|---|
 | S0 | Executar SP-01 em Windows e registrar versões efetivamente usadas, imports, async, SQLite/versão SQLite e compatibilidade do toolchain. | AUD-MED-07; SP-01 |
-| S1 | Definir e verificar proteção local de sessão Telegram no Windows antes de criar sessão real; fechar ownership básico de FloodWait/retry e manter credenciais/sessão excluídas e redigidas. | AUD-MED-04/06; NFR-05/NFR-06 |
+| S1 | Verificar a implementação da proteção local de sessão Telegram já definida antes de criar sessão real; manter credenciais/sessão excluídas e redigidas. O ownership básico de FloodWait/retry foi fechado no desenho aprovado. | AUD-MED-04/06; NFR-05/NFR-06 |
 | S2 | Fechar identidade/revisão de mídia, semântica de checkpoint, cardinalidades, constraints, índices e estratégia de paginação antes de schema/migrations/checkpoints definitivos; declarar formatos iniciais suportados quando pertinentes. | AUD-HIGH-01/03; AUD-MED-01/02/07; SP-02/SP-05 |
 | S3 | Validar amostra RASMOO representativa e associações determinísticas, incluindo órfãos/edições, antes de fechar parser e schema relacionados. | AUD-MED-01; SP-02 |
 | S4 | Fechar matriz de reconciliação filesystem↔SQLite, ownership/concorrência da transferência, transições de estado, política de destino existente e limites de path; exercitar falhas entre rename e commit. Fazer prova pequena de streaming/resume antes de congelar o adapter. | AUD-HIGH-02; AUD-MED-03/04/05/07; SP-03/SP-04 |
