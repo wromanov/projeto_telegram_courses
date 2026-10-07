@@ -3,7 +3,7 @@
 **Delivery unit:** Sprint
 **Execution model:** Incremental vertical slices
 **Maximum active formal activities:** 1
-**Plan status:** Defined from the approved roadmap. S0 is in progress; current state and authorization are recorded only in PROJECT_STATE. S1–S10 are not authorized.
+**Plan status:** Defined from the approved roadmap. Current state and authorization are recorded only in PROJECT_STATE. S1–S10 are not authorized by this plan.
 
 DOCUMENT_ROLE = EXECUTION_PLAN
 RECONCILED_AT = 2026-10-05 / America/Sao_Paulo

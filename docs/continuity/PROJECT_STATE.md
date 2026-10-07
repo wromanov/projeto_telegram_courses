@@ -2,45 +2,46 @@
 
 ```text
 DOCUMENT_ROLE = PROJECT_STATE
-STATE_VERSION = 2.0
-STATUS = ACTIVE / S0_STOPPED_AT_SP01_10_CREATE_REPLAY_FAILURE
+STATE_VERSION = 2.1
+STATUS = ACTIVE / S0_CANONICALLY_CLOSED
 LAST_UPDATED = 2026-10-06 / America/Sao_Paulo
 PROJECT_IDENTITY = projeto_telegram_courses
-PROJECT_ROOT = C:\Users\walacedelgado\PycharmProjects\projeto_telegram_courses
-CURRENT_ENVIRONMENT = LOCAL_WORKSPACE
+PROJECT_ROOT = C:\Users\walac\desenvolvimento\projeto_telegram_courses
+CURRENT_ENVIRONMENT = HOME_COMPUTER / LOCAL_WORKSPACE
 REMOTE_ORIGIN = https://github.com/wromanov/projeto_telegram_courses.git
 CURRENT_BRANCH = work/s0-bootstrap
 UPSTREAM = origin/work/s0-bootstrap
 EXACT_CURRENT_HEAD = DISCOVER_AT_RUNTIME_WHEN_GIT_AVAILABLE
-PRE_CHECKPOINT_HEAD = 6db0d9ae694ee98bc164c7c6a0c08012b1bb8cb7
-BASELINE_TRACEABILITY = S0-SL01_AND_SL02_CHECKPOINTS; verified baseline commit 1cde21d4d0f95b9b190c02f4a69a91c25485428c; current HEAD discovered at runtime
-CURRENT_PHASE = PHASE_0_PROJECT_FOUNDATION / S0
-CURRENT_DELIVERY_UNIT = S0 / SPRINT / IN_PROGRESS / 40%
-CURRENT_ACTIVITY = SP-01 / STACK WINDOWS / SP01-10 FAILED AT REPLAY CREATION
-CURRENT_ACTIVITY_STATE = SP01-01..09 = PASS / later execution facts supplied in the current authorized request and not re-evaluated; SP01-10 initial inventory, pip check and constraints generation PASS; replay venv creation returned native exit 1 and left a partial .venv-replay. No dependent replay step ran.
-ACTIVITY_COMPLETION_PERCENT = 56% / factual correction, initial inventory, pip check and constraints generation completed; replay creation failed and final reconciliation records the stop
-LAST_COMPLETED_ACTIVITY = S0-SL02_VERIFIED_CHECKPOINT
-NEXT_ACTIVITY = RESOLVE_SP01_10_CREATE_REPLAY_FAILURE
-NEXT_ACTIVITY_READINESS = BLOCKED / `.venv-replay` exists partially after native exit 1; do not reuse, remove or retry automatically
-NEXT_ACTIVITY_AUTHORIZATION = CURRENT SP01-10 AUTHORIZATION WAS USED; the no-retry stop condition requires a new explicit instruction before recovery or another attempt
-CURRENT_SLICE = S0-SL03 implementation artifacts exist; verification is not established
+BASELINE_TRACEABILITY = prior S0-SL01/SL02 checkpoint 1cde21d4d0f95b9b190c02f4a69a91c25485428c; SP01-01..10 PASS in evidence; current HEAD discovered at runtime
+CURRENT_PHASE = PHASE_0_PROJECT_FOUNDATION / S0 CLOSED; S1 NOT STARTED
+CURRENT_DELIVERY_UNIT = S0 / COMPLETE / 100%
+CURRENT_ACTIVITY = S0 canonical documentary closure and Git checkpoint
+CURRENT_ACTIVITY_STATE = SP01-01..10 PASS; SP01_RESULT PASS; final home replay passed
+ACTIVITY_COMPLETION_PERCENT = 100% / applies to this closure only after validated checkpoint publication
+LAST_COMPLETED_ACTIVITY = SP01-10 final home replay PASS
+NEXT_ACTIVITY = PREPARE_S1_ENTRY_REVIEW
+NEXT_ACTIVITY_READINESS = REVIEW_REQUIRED / inspect current roadmap, sprint entry criteria and authority
+NEXT_ACTIVITY_AUTHORIZATION = NO_S1_IMPLEMENTATION_AUTHORIZATION_FROM_S0_CLOSURE
 S0_SELECTED = YES
 S0_STARTED = YES
-S0_AUTHORIZED = YES / S0_ONLY / per recorded user decision
-S0_COMPLETION_PERCENT = 40% / last recorded value retained; SL03 is not credited as verified
-SP01_RUNTIME_VALIDATION = FAIL / SP01-10-CREATE-REPLAY returned native exit 1 after initial inventory and constraints generation
-LAST_VALIDATED_INTEGRATED_BASELINE = S0-SL01_AND_SL02 / CLI acceptance pending / commit 1cde21d4d0f95b9b190c02f4a69a91c25485428c
+S0_AUTHORIZED = YES / S0 only, per recorded user decision
+S0_COMPLETION_PERCENT = 100%
+SP01_01..09 = PASS
+SP01_10 = PASS
+SP01_RESULT = PASS
+SP01_RUNTIME_VALIDATION = PASS / final home replay; see docs/engineering/evidence/SP01_STACK_WINDOWS.md
+PROJECT_COMPLETION_PERCENT = NOT_FORMALLY_DEFINED
 CURRENT_AUTHORITIES = ACTIVE_AUTHORITY_MAP.md; planning/ROADMAP.md; planning/SPRINTS.md; PROJECT_GOVERNANCE_BINDING.json; domain authorities listed in ACTIVE_AUTHORITY_MAP.md
-CURRENT_INVARIANTS = incremental canonical-flow integration; at most one active formal activity; readiness != authorization; implementation != integrated; gateway/adapters; pluggable parsers; three sources of truth; physical commit before DOWNLOADED; conditional resume; bounded workers; legitimate access only; CLI frontend-first rule not applicable
-OPEN_DECISIONS = NONE for the current continuity checkpoint; future technical decisions remain assigned to the entry conditions in planning/SPRINTS.md
-BLOCKERS = SP01-10-CREATE-REPLAY returned native exit 1 with stderr present; cause not retained in sanitized evidence; partial `.venv-replay` remains and must not be reused, removed or retried automatically
-KNOWN_RISKS = S0 runtime compatibility remains unverified; future-unit risks and entry gates are in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
+CURRENT_INVARIANTS = incremental canonical-flow integration; at most one active formal activity; readiness != authorization; implementation != integrated; gateway/adapters; pluggable parsers; three sources of truth; physical commit before DOWNLOADED; conditional resume; bounded workers; legitimate access only
+OPEN_DECISIONS = S1 entry review must establish objective, preconditions and authority before any S1 implementation
+BLOCKERS = NONE for S0 closure; prior ensurepip failure on another computer remains historical with undetermined root cause
+KNOWN_RISKS = Future-unit risks and entry gates remain in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
 DEFERRED_ITEMS = GUI, TDLib and additional support remain deferred; Windows distribution remains S10; other unit-specific items are in planning/SPRINTS.md
-IMPLEMENTATION_AUTHORIZATION_STATE = GRANTED_FOR_S0_ONLY / current request explicitly authorizes SP01-10; no authorization for S1
-GIT_PUBLICATION_AUTHORIZATION_STATE = NO_STANDING_AUTHORIZATION / ACTIVITY_SPECIFIC_AUTHORIZATION_REQUIRED
-NEXT_CONTINUITY_CHECKPOINT = NONE / future Git publication requires activity-specific authorization
-PROJECT_GOVERNANCE_BINDING = ACTIVE / VALIDATED / content preserved; JSON parse revalidated; schema PASS is recorded in OPENING_RECOVERY_VALIDATION.json
-SAFE_RESUME_POINT = SP01-10 stopped at replay venv creation: initial constraints were generated and validated; `.venv-replay` is partial after native exit 1. Do not reuse/remove it, retry automatically, or rerun SP01-01..09. Preserve the generated constraints and historical SP01-02 attempt/recovery records. Resume only after a new explicit user instruction authorizes failure recovery; reconcile only this state and SP01_STACK_WINDOWS.md, without changing code, tests or the frozen contract. SL03 artifacts in commits 05b2658 and 0ba4fe5 are present but are not verified by recorded evidence. Discover current HEAD, upstream synchronization, and worktree state at runtime; this document does not hard-code a self-referential checkpoint hash.
+IMPLEMENTATION_AUTHORIZATION_STATE = S0 only; S1 not authorized or started
+GIT_PUBLICATION_AUTHORIZATION_STATE = THIS S0 CLOSURE CHECKPOINT EXPLICITLY AUTHORIZED; no standing authorization afterward
+NEXT_CONTINUITY_CHECKPOINT = S1 entry review only after this checkpoint; no S1 implementation in this activity
+PROJECT_GOVERNANCE_BINDING = ACTIVE / content preserved
+SAFE_RESUME_POINT = After the S0 closure checkpoint, verify Git state at runtime, read the active roadmap and sprints, and prepare S1 entry review. Do not infer S1 authorization. Preserve frozen S0 contract, constraints and local ignored .venv-replay. Historical ensurepip failure requires no S0 recovery after the successful home replay.
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
 NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES / verify remote availability at runtime
 ```
@@ -85,33 +86,19 @@ SUPERSEDED_AUTHORITY_USED_AS_CURRENT = NO
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
 NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES
 AGENT_HANDOFF_GATE = PASS
-SP01_EXECUTED = YES / SP01-01..09 PASS per later execution facts supplied in the current request; SP01-10 initial inventory and constraints PASS; replay creation FAIL
+SP01_EXECUTED = YES / SP01-01..10 PASS
 ```
 
-## Factual basis
+## Factual basis and publication boundary
 
-The continuity package was published in commit
-`2be283f04502ff2b6980831cec6445b0b64da102` on `work/s0-bootstrap`. Runtime Git
-facts must still be rediscovered when resuming; the package does not hard-code
-an exact current HEAD.
+The final SP01-10 replay PASS on the home computer and S0 completion at 100%
+are the authoritative input to this reconciliation. The evidence record holds
+the sanitized replay details. The previous partial replay and `ensurepip`
+failure are historical observations, without a claimed root cause. Earlier
+40% and SL01/SL02 baseline statements described the previous checkpoint and
+are superseded by the S0 closure result. Project-wide completion has no
+formal percentage.
 
-An earlier checkpoint recorded a one-time publication authorization, which
-was consumed when the package commit was pushed. The earlier validated S0
-baseline and SL02 completion remain supported by project records. Commit
-history shows SL03 implementation/test artifacts, but there is no evidence
-here that their validation passed; `EXECUTED != VERIFIED`.
-
-`ACTIVITY_COMPLETION_PERCENT` measures this continuity-materialization
-activity only. S0's 40% is the last documented delivery-unit measure and is
-retained because this activity did not verify additional S0 gates.
-
-`ACTIVITY_COMPLETION_PERCENT = 100%` measures the continuity package
-materialization and publication: all required canonical artifacts exist, are
-reconciled, and the checkpoint commit is
-`2be283f04502ff2b6980831cec6445b0b64da102`.
-
-## Continuity and publication boundary
-
-The continuity package checkpoint is published. Verify current branch, HEAD,
-upstream synchronization, and worktree from Git at runtime. Any future Git
-publication requires activity-specific authorization.
+Git root, HEAD, upstream synchronization and worktree must be rediscovered
+at runtime. The S0 contract stays frozen. This closure grants no authority to
+start S1 or perform another Git publication.

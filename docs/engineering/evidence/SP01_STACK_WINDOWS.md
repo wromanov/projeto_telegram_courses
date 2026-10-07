@@ -1,5 +1,49 @@
 # SP-01 — Windows Stack Compatibility & Reproducibility
 
+## Canonical closure — 2026-10-06 / America/Sao_Paulo
+
+The final replay on the home computer passed. The facts below were supplied
+as the authoritative result of that run; this documentation checkpoint does
+not rerun SP-01. The earlier `ensurepip` failure on another computer remains
+historical context. Its root cause was not determined, and it is not a current
+S0 blocker after the successful home replay.
+
+```text
+SP01_01..09 = PASS
+SP01_10 = PASS
+SP01_RESULT = PASS
+S0_COMPLETION_PERCENT = 100%
+PROJECT_COMPLETION_PERCENT = NOT_FORMALLY_DEFINED
+REPLAY_ENVIRONMENT = home computer / Windows / PowerShell 7.6.6
+REPLAY_PYTHON = CPython 3.14.7 / AMD64 / 64-bit / standard build / GIL enabled
+REPLAY_VENV_CREATION = PASS / exit 0 / .venv-replay remains local and ignored
+REPLAY_ENVIRONMENT_ORACLE = PASS
+REPLAY_PIP = 25.2
+CONSTRAINED_EDITABLE_INSTALL = PASS
+REPLAY_PIP_CHECK = PASS
+REPLAY_IMPORTS = PASS
+DIRECT_VERSIONS = Telethon 1.45.0; cryptg 0.6.0; aiosqlite 0.22.1; rich 15.0.0; pytest 9.1.1; projeto-telegram-courses 0.1.0
+REPLAY_PYTEST = PASS
+REPLAY_RUFF = PASS
+REPLAY_CLI_SMOKE = PASS
+FULL_DISTRIBUTION_COMPARISON = PASS
+CONSTRAINTS_DISTRIBUTION_COMPARISON = PASS
+CONSTRAINTS_UNCHANGED = PASS
+CONSTRAINTS_FILE = requirements/s0-resolved-win-cp314.txt
+CONSTRAINTS_SHA256 = 7D79A4E2DCB2AFEFFC4BA79AF6F25CFE072A3C09E1584F7CC8098BFCFDCC0617
+TELEGRAM_NETWORK_USED = NO / no S1 execution in this checkpoint
+```
+
+No raw environment dumps, secrets, sessions or local replay artifacts are
+included in this record. The constraints hash was also verified during this
+documentation checkpoint. The replay's clean working tree is a reported
+post-validation fact; Git is checked again for the publication checkpoint.
+
+## Historical attempts — superseded as current state
+
+The following records describe earlier runs and their stop points. Their
+`FAIL`, blocker and safe-resume fields apply only to those earlier attempts.
+
 ```text
 SP01_RESULT = FAIL
 SP01_FAILURE_STEP = SP01-10-CREATE-REPLAY
@@ -63,7 +107,7 @@ cycle ran. This historical partial `.venv` was later removed by the user. It
 is distinct from the new `.venv` manually created and validated in a later
 execution. ATTEMPT-3 and CYCLE-03 onward were not executed in that earlier run.
 
-## Current factual reconciliation — 2026-10-06
+## Historical factual reconciliation — 2026-10-06
 
 ```text
 DOCUMENTATION_IS_STALE = YES / prior resume-preflight text contradicted later execution facts
