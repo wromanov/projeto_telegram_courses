@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from types import SimpleNamespace
 
 import pytest
@@ -49,18 +50,27 @@ class FakeClient:
         self.kwargs = kwargs
         self.me: object | None = None
         self.calls: list[tuple[object, ...]] = []
+        self.connect_error: Exception | None = None
+        self.me_error: Exception | None = None
+        self.disconnect_error: Exception | None = None
         self.code_error: Exception | None = None
         self.code_hash: str | None = "synthetic-hash"
         self.closed = 0
 
     async def connect(self) -> None:
         self.calls.append(("connect",))
+        if self.connect_error:
+            raise self.connect_error
 
     async def disconnect(self) -> None:
         self.closed += 1
+        if self.disconnect_error:
+            raise self.disconnect_error
 
     async def get_me(self) -> object | None:
         self.calls.append(("get_me",))
+        if self.me_error:
+            raise self.me_error
         return self.me
 
     async def send_code_request(self, phone: str) -> object:
@@ -173,6 +183,11 @@ def test_floodwait_has_duration_and_unknown_error_is_suppressed() -> None:
 
     with pytest.raises(NetworkError):
         TelethonGateway._translate(TimeoutError("synthetic transport canary"))
+    with pytest.raises(NetworkError) as incomplete_read:
+        TelethonGateway._translate(
+            asyncio.IncompleteReadError(partial=b"synthetic-transport", expected=8)
+        )
+    assert "synthetic-transport" not in str(incomplete_read.value)
     with pytest.raises(InvalidSession):
         TelethonGateway._translate(errors.AuthKeyUnregisteredError(request=None))
     with pytest.raises(InvalidSession):
@@ -186,6 +201,179 @@ def test_floodwait_has_duration_and_unknown_error_is_suppressed() -> None:
         TelethonGateway._translate(secret_error)
     assert "synthetic raw adapter canary" not in str(unknown.value)
     assert unknown.value.__cause__ is None
+
+
+def test_incomplete_read_during_connect_is_sanitized_network_diagnostic(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    adapter, clients = gateway(FakeVault())
+    original_factory = adapter._client_factory
+
+    def failing_connect_factory(*args: object, **kwargs: object) -> FakeClient:
+        client = original_factory(*args, **kwargs)
+        client.connect_error = asyncio.IncompleteReadError(
+            partial=b"synthetic-api-hash", expected=8
+        )
+        return client
+
+    adapter._client_factory = failing_connect_factory
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(NetworkError) as caught:
+            asyncio.run(adapter.restore())
+    assert type(caught.value) is NetworkError
+    assert caught.value.__cause__ is None
+    assert "FAILURE_STAGE=CONNECT" in caplog.text
+    assert "SANITIZED_EXCEPTION_CLASS=IncompleteReadError" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=NETWORK" in caplog.text
+    assert "synthetic-api-hash" not in caplog.text
+    assert len(clients[0].calls) == 1
+    asyncio.run(adapter.close())
+
+
+def test_incomplete_read_during_code_request_is_network_error_without_replay(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    adapter, clients = gateway(FakeVault())
+    asyncio.run(adapter.restore())
+    original_factory = adapter._client_factory
+
+    def failing_code_factory(*args: object, **kwargs: object) -> FakeClient:
+        client = original_factory(*args, **kwargs)
+        client.code_error = asyncio.IncompleteReadError(
+            partial=b"synthetic-otp", expected=8
+        )
+        return client
+
+    adapter._client_factory = failing_code_factory
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(NetworkError) as caught:
+            asyncio.run(adapter.begin("synthetic-phone"))
+    assert type(caught.value) is NetworkError
+    assert caught.value.__cause__ is None
+    assert "FAILURE_STAGE=REQUEST_CODE" in caplog.text
+    assert "SANITIZED_EXCEPTION_CLASS=IncompleteReadError" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=NETWORK" in caplog.text
+    assert "synthetic-phone" not in caplog.text
+    assert "synthetic-otp" not in caplog.text
+    assert sum(call[0] == "send_code_request" for call in clients[-1].calls) == 1
+    assert clients[-1].kwargs["request_retries"] == 1
+    assert clients[-1].kwargs["connection_retries"] == 1
+    assert clients[-1].kwargs["auto_reconnect"] is False
+    asyncio.run(adapter.close())
+
+
+def test_auth_rejection_remains_authentication_category_in_safe_diagnostics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    adapter, clients = gateway(FakeVault())
+    asyncio.run(adapter.restore())
+    original_factory = adapter._client_factory
+
+    def rejected_code_factory(*args: object, **kwargs: object) -> FakeClient:
+        client = original_factory(*args, **kwargs)
+        client.code_error = errors.PhoneNumberInvalidError(request=None)
+        return client
+
+    adapter._client_factory = rejected_code_factory
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(AuthRejected):
+            asyncio.run(adapter.begin("synthetic-phone"))
+    assert "FAILURE_STAGE=REQUEST_CODE" in caplog.text
+    assert "SANITIZED_EXCEPTION_CLASS=PhoneNumberInvalidError" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=AUTHENTICATION" in caplog.text
+    assert "synthetic-phone" not in caplog.text
+    asyncio.run(adapter.close())
+
+
+def test_failure_telemetry_tracks_otp_2fa_confirmation_persistence_and_disconnect(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    adapter, clients = gateway(FakeVault())
+    asyncio.run(adapter.restore())
+    asyncio.run(adapter.begin("synthetic-phone"))
+    clients[-1].code_error = errors.PhoneCodeInvalidError(request=None)
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(InvalidCode):
+            asyncio.run(adapter.submit_code("synthetic-otp"))
+    assert "FAILURE_STAGE=OTP_SUBMISSION" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=AUTHENTICATION" in caplog.text
+    asyncio.run(adapter.close())
+
+    adapter, clients = gateway(FakeVault())
+    asyncio.run(adapter.restore())
+    asyncio.run(adapter.begin("synthetic-phone"))
+    clients[-1].code_error = errors.SessionPasswordNeededError(request=None)
+    assert asyncio.run(adapter.submit_code("synthetic-otp")) is AuthState.PASSWORD_REQUIRED
+    clients[-1].code_error = errors.PasswordHashInvalidError(request=None)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(InvalidPassword):
+            asyncio.run(adapter.submit_password("synthetic-2fa"))
+    assert "FAILURE_STAGE=2FA_SUBMISSION" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=AUTHENTICATION" in caplog.text
+    assert "synthetic-2fa" not in caplog.text
+    asyncio.run(adapter.close())
+
+    adapter, clients = gateway(FakeVault())
+    asyncio.run(adapter.restore())
+    asyncio.run(adapter.begin("synthetic-phone"))
+    clients[-1].me_error = asyncio.IncompleteReadError(partial=b"", expected=8)
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(NetworkError):
+            asyncio.run(adapter.submit_code("synthetic-otp"))
+    assert "FAILURE_STAGE=AUTHORIZATION_CONFIRMATION" in caplog.text
+    asyncio.run(adapter.close())
+
+    class FailingVault(FakeVault):
+        def _save(self, value: str) -> None:
+            raise StorageError("synthetic-storage-canary")
+
+    adapter, _clients = gateway(FailingVault())
+    asyncio.run(adapter.restore())
+    asyncio.run(adapter.begin("synthetic-phone"))
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(AdapterError):
+            asyncio.run(adapter.submit_code("synthetic-otp"))
+    assert "FAILURE_STAGE=SESSION_PERSISTENCE" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=ADAPTER" in caplog.text
+    assert "synthetic-storage-canary" not in caplog.text
+    asyncio.run(adapter.close())
+
+    adapter, clients = gateway(FakeVault())
+    asyncio.run(adapter.restore())
+    clients[-1].disconnect_error = RuntimeError("synthetic-disconnect-canary")
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(AdapterError):
+            asyncio.run(adapter.close())
+    assert "FAILURE_STAGE=DISCONNECT" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=ADAPTER" in caplog.text
+    assert "synthetic-disconnect-canary" not in caplog.text
+
+
+def test_client_creation_failure_has_safe_diagnostic_and_boundary(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    def failing_factory(*_args: object, **_kwargs: object) -> FakeClient:
+        raise RuntimeError("synthetic-client-canary")
+
+    adapter = TelethonGateway(
+        TelegramCredentials(42, "synthetic-api-hash"),
+        client_factory=failing_factory,
+        session_factory=FakeSession,
+        vault=FakeVault(),
+    )
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+        with pytest.raises(AdapterError) as caught:
+            asyncio.run(adapter.restore())
+    assert type(caught.value) is AdapterError
+    assert "FAILURE_STAGE=CLIENT_CREATION" in caplog.text
+    assert "SANITIZED_EXCEPTION_CLASS=RuntimeError" in caplog.text
+    assert "PROJECT_ERROR_CATEGORY=ADAPTER" in caplog.text
+    assert "synthetic-client-canary" not in caplog.text
+    assert "synthetic-api-hash" not in caplog.text
 
 
 def test_2fa_challenge_and_password_submission() -> None:
