@@ -178,3 +178,119 @@ um único commit e `git push origin work/s0-bootstrap` exclusivamente para o
 pacote de continuidade. A autorização não cobre produto, testes, SP-01, merge,
 rebase, tags, force push ou publicação adicional. O resultado do push deve ser
 confirmado em runtime e não é antecipado neste registro.
+
+## Decisões aprovadas — S1-D descoberta e seleção
+
+Fonte: instrução direta do usuário em 2026-10-08, atividade `S1-D — Architectural Decision Closeout`, no arquivo `Texto colado.txt` anexado a esta atividade. Estas decisões aprovam somente os itens listados; o contrato continua DRAFT e não há autorização de implementação, freeze ou publicação.
+
+### DEC-S1D-01 — Payload incidental de mensagens
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-08
+STATUS = APPROVED
+SCOPE = S1-D channel/dialog discovery
+ENUMERATION = getDialogs / iter_dialogs permitido; payload incidental pode ser recebido pela biblioteca/adapter
+NO_MESSAGE_TRANSFER = NOT_GUARANTEED
+NO_MESSAGE_PROCESSING = REQUIRED / BY_APPLICATION
+NO_MESSAGE_PROCESSING_BY_APPLICATION = REQUIRED
+LIBRARY_INTERNAL_PROCESSING = MAY_OCCUR / PROTOCOL AND LIBRARY BEHAVIOR
+NO_MESSAGE_PERSISTENCE = REQUIRED
+NO_MESSAGE_EXPOSURE = REQUIRED
+NO_MESSAGE_LOGGING = REQUIRED
+EXPLICIT_HISTORY_READ = PROHIBITED
+```
+
+A biblioteca pode desserializar/manusear payload incidental como exigência do protocolo. A aplicação não interpreta conteúdo, não persiste, não registra em logs, não expõe na CLI e não retorna conteúdo pelos modelos do gateway. A decisão não afirma ausência de transferência nem impede o processamento interno necessário à biblioteca. Controles e fronteira estão especificados no contrato S1-D.
+
+### DEC-S1D-02 — Elegibilidade inicial de canais
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-08
+STATUS = REVISED_AND_APPROVED
+SUPERSEDES = DEC-S1D-02 / BROADCAST_ONLY proposal in prior S1-D draft
+ELIGIBLE = BROADCAST_CHANNEL, MEGAGROUP / SUPERGROUP
+NOT_ELIGIBLE = BASIC_GROUP, PRIVATE_USER_DIALOG, BOT_DIALOG, SECRET_CHAT
+PRIMARY_IDENTITY = telegram_chat_id
+SELECTION = LOCAL_BY_STABLE_ID
+CLASSIFICATION = EXPLICIT_PROJECT_OWNED_TYPES
+TELETHON_TYPES_OUTSIDE_ADAPTER = PROHIBITED
+ADMIN_OR_MEMBER_OPERATIONS = OUT_OF_SCOPE
+```
+
+A classificação de broadcast e megagroup é explícita em modelos próprios; títulos/usernames não são identidade primária. A inclusão de supergrupos não autoriza operações administrativas, de membros ou outras alterações remotas. A recomendação anterior de broadcast-only fica registrada como superseded; nenhum histórico foi apagado. `FUT-CHDISC-01` não foi criado como funcionalidade adiada.
+
+## Escolhas do usuário — S1-D Remaining Technical Decisions Closeout
+
+Fonte: respostas diretas do usuário nesta atividade em 2026-10-08. O detalhe
+técnico e os itens ainda OPEN ficam no [contrato S1-D](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md).
+
+```text
+OPEN-03_CHOICE = OPTION_1_APPROVED / complete discovery as objective, finite measured budgets, explicit partial result and cancellation
+OPEN-03_NUMERIC_BUDGETS = OPEN / real Telegram measurement requires separate authorization
+OPEN-04_CHOICE = PROVE_AVOIDANCE_OF_GETDIFFERENCE / approved
+OPEN-04_PAYLOAD_EXPANSION = NOT_APPROVED / no incidental difference payload authorization
+OPEN-04_TECHNICAL_SOLUTION = OPEN / offline proof required before discovery
+CONTRACT_STATUS = DRAFT / NOT_APPROVED / NOT_FROZEN
+IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+```
+
+## DEC-S1D-03 — lifecycle de diferenças internas
+
+Fonte: aprovação humana explícita em 2026-10-08, atividade `S1-D — DEC-S1D-03 Documentation & Reconciliation`, após a auditoria independente registrada em [S1D_INDEPENDENT_ARCHITECTURE_REVIEW_2026-10-08](../audit/S1D_INDEPENDENT_ARCHITECTURE_REVIEW_2026-10-08.md). A decisão aprova somente o escopo abaixo; não aprova o contrato inteiro, freeze, DoR, implementação, validação real ou publicação Git.
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-08
+STATUS = APPROVED
+ARCHITECTURE = D_PLUS_C
+SCOPE = incidental Telethon internal processing during bounded S1-D discovery lifecycle
+ALLOWED_INTERNAL_RPC = updates.GetDifference, updates.GetChannelDifference
+APPLICATION_EXPLICIT_DIFFERENCE_CALLS = PROHIBITED
+LIBRARY_INTERNAL_PROCESSING = ALLOWED
+APPLICATION_CONTENT_PROCESSING = PROHIBITED
+APPLICATION_CONTENT_PERSISTENCE = PROHIBITED
+APPLICATION_CONTENT_EXPOSURE = PROHIBITED
+NO_MESSAGE_TRANSFER = NOT_GUARANTEED
+PROVE_ZERO_GET_DIFFERENCE = SUPERSEDED
+DEC-S1D-03 = ACTIVE_APPROVED_DECISION
+CONTRACT_STATUS = DRAFT / NOT_APPROVED / NOT_FROZEN
+S1D_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+```
+
+O recebimento e processamento transitório desses RPCs pela biblioteca são aceitos somente durante o lifecycle delimitado da operação S1-D, inclusive inicialização e loop interno de updates. Isso não permite à aplicação solicitar diferenças para sincronização, scanner ou leitura de mensagens, interpretar payload incidental, encaminhar conteúdo ao domínio, persistir, registrar ou apresentar conteúdo, habilitar handlers, baixar mídia, ler histórico, entrar automaticamente em grupos ou executar ações remotas derivadas. O adapter expõe somente DTOs próprios e metadados autorizados.
+
+Não se garante zero RPCs de diferenças, apenas um `GetDifference`, ocorrência somente no restore, ausência absoluta de mensagens recebidas ou apagamento seguro de conteúdo em memória. `receive_updates=False` e `catch_up=False` são parâmetros do perfil aprovado, mas não provam ausência de `GetDifference` ou `GetChannelDifference`. A mitigação limita o uso e a exposição pela aplicação; não elimina a exposição transitória dentro do Telethon.
+
+A recomendação anterior `PROVE_ZERO_GET_DIFFERENCE` e as afirmações de que payload de diferenças não estava aprovado ficam superseded por DEC-S1D-03; permanecem como histórico da decisão anterior. DEC-S1D-01 e DEC-S1D-02 não são alteradas. OPEN-04 fica resolvida somente quanto à decisão arquitetural; validação técnica continua pendente. OPEN-03, GOV-01 e revalidação FULL_PYTEST permanecem pendentes.
+
+## S1-D — Final Contract Consolidation / sequenciamento autorizado
+
+Fonte: pedido explícito do usuário em 2026-10-08, anexo
+a304e9eb-2be7-4dc4-b596-ea5b7265d4fe/Texto colado.txt.
+Escopo exclusivamente documental, DIRECT; nenhuma alteração das decisões
+DEC-S1D-01/02/03 aprovadas.
+
+O pedido atual autoriza propor orçamento inicial no contrato, implementar
+posteriormente limites aprovados e medir/calibrar durante implementação/aceite
+com autorização Telegram específica; checkpoint documental consolidado após
+implementação/validação. Substitui a exigência anterior de medição real prévia
+ao contrato. Não aprova valores numéricos automaticamente.
+
+```text
+OPEN-03_SEQUENCE = INITIAL_CONTRACT_BUDGET -> AUTHORIZED_IMPLEMENTATION -> AUTHORIZED_MEASUREMENT_AND_CALIBRATION -> DELIVERY_CHECKPOINT
+OPEN-03_NUMERIC_BUDGETS = PROPOSED / NOT_APPROVED / see contract section 4
+OPEN-03_STATUS = PENDING_USER_APPROVAL / NOT_CLOSED
+OPEN-04_ARCHITECTURAL = RESOLVED_BY_DEC-S1D-03
+OPEN-04_VALIDATION = IMPLEMENTATION_GATE / acceptance evidence required
+GOV-01 = EXTERNAL_DEPENDENCY / unresolved normative freeze blocker
+FULL_PYTEST = PENDING
+CONTRACT_STATUS = READY_FOR_USER_REVIEW / DRAFT / NOT_APPROVED / NOT_FROZEN
+IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+```
+
+Gates de contrato, implementação e aceite estão separados na seção 19 do
+[contrato consolidado](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md).
+A aprovação contratual não requer funcionalidades concluídas; não dispensa
+validações de aceite. Policies, binding e evidência Astra não alterados.

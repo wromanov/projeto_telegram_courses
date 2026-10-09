@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from telegram_courses.config import ConfigurationError, load_configuration
+from telegram_courses.config import (
+    ConfigurationError,
+    TelegramCredentials,
+    load_configuration,
+    load_telegram_credentials,
+)
 
 
 class ConfigurationTests(unittest.TestCase):
@@ -90,6 +95,39 @@ class ConfigurationTests(unittest.TestCase):
                     ConfigurationError
                 ):
                     load_configuration()
+
+    def test_credential_environment_pair_precedes_vault_without_mixing_sources(self) -> None:
+        class Vault:
+            def load(self) -> TelegramCredentials:
+                return TelegramCredentials(9, "b" * 32)
+
+        environment_pair = {
+            "TELEGRAM_API_ID": "7",
+            "TELEGRAM_API_HASH": "a" * 32,
+        }
+        self.assertEqual(
+            load_telegram_credentials(environment_pair, vault=Vault()),
+            TelegramCredentials(7, "a" * 32),
+        )
+        self.assertEqual(
+            load_telegram_credentials({}, vault=Vault()),
+            TelegramCredentials(9, "b" * 32),
+        )
+
+    def test_incomplete_or_invalid_credential_environment_fails_without_vault(self) -> None:
+        class Vault:
+            def load(self) -> TelegramCredentials:
+                raise AssertionError("partial environment must not fall back")
+
+        for environment in (
+            {"TELEGRAM_API_ID": "7"},
+            {"TELEGRAM_API_HASH": "a" * 32},
+            {"TELEGRAM_API_ID": "7", "TELEGRAM_API_HASH": ""},
+        ):
+            with self.subTest(environment=environment), self.assertRaises(
+                ConfigurationError
+            ):
+                load_telegram_credentials(environment, vault=Vault())
 
 
 if __name__ == "__main__":

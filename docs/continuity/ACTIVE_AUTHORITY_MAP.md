@@ -29,6 +29,7 @@ POLICY = PM-01 v1.0 / CANONICAL / ACTIVE
 | Contrato de implementação S0 | [S0_IMPLEMENTATION_CONTRACT](../contracts/S0_IMPLEMENTATION_CONTRACT.md) | Contrato aprovado e congelado |
 | Contrato de implementação S1-A | [S1A_PROTECTED_SESSION_IMPLEMENTATION_CONTRACT](../contracts/S1A_PROTECTED_SESSION_IMPLEMENTATION_CONTRACT.md) | Proteção local de sessão; frozen for S1-A only |
 | Contrato de implementação S1-B | [S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT](../contracts/S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT.md) | Offline auth/gateway; frozen for S1-B only |
+| Contrato S1-D | [S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md) | Aprovado pelo usuário em 2026-10-09; implementação e revalidação offline PASS; NOT_FROZEN por GOV-01; aceite real/calibração pendentes e dependem de autorização específica |
 | Procedimento de ambiente S0 | [S0_SETUP](../development/S0_SETUP.md) | Instruções; execução exige readiness/autorização |
 | Findings técnicos | [AUDITORIA_TECNICA](../audit/AUDITORIA_TECNICA_2026-10-05.md) | Contexto não normativo; risks/gates correntes resolvidos pelo plano |
 

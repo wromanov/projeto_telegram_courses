@@ -32,18 +32,35 @@ class TelegramCredentials:
 
 def load_telegram_credentials(
     environ: Mapping[str, str] | None = None,
+    *,
+    vault: Any | None = None,
 ) -> TelegramCredentials:
-    """Read credentials from the dedicated environment variables only."""
+    """Resolve one complete environment pair, then the encrypted local vault."""
     source = os.environ if environ is None else environ
-    raw_id = source.get("TELEGRAM_API_ID", "")
-    api_hash = source.get("TELEGRAM_API_HASH", "")
+    has_id = "TELEGRAM_API_ID" in source
+    has_hash = "TELEGRAM_API_HASH" in source
+    if has_id or has_hash:
+        if not has_id or not has_hash:
+            raise ConfigurationError from None
+        try:
+            from telegram_courses.credentials import validate_credentials
+
+            return validate_credentials(
+                source["TELEGRAM_API_ID"], source["TELEGRAM_API_HASH"]
+            )
+        except Exception:
+            raise ConfigurationError from None
+
     try:
-        api_id = int(raw_id)
-    except (TypeError, ValueError):
+        from telegram_courses.credentials import CredentialVault
+
+        selected_vault = vault if vault is not None else CredentialVault()
+        credentials = selected_vault.load()
+    except Exception:
         raise ConfigurationError from None
-    if api_id <= 0 or not api_hash.strip():
+    if credentials is None:
         raise ConfigurationError from None
-    return TelegramCredentials(api_id=api_id, api_hash=api_hash)
+    return credentials
 
 
 def _validate_sensitive_keys(value: Any) -> None:

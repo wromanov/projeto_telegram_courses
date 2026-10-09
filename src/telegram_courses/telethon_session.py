@@ -396,14 +396,28 @@ class _DpapiProtector:
 
 
 class _ProtectedSessionVault:
-    """Private adapter vault; plaintext methods must not cross the adapter."""
+    """Private DPAPI-backed value vault; plaintext stays at its caller boundary."""
 
-    def __init__(self, *, _protector: _BytesProtector | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        _protector: _BytesProtector | None = None,
+        _api: _WindowsApi | None = None,
+        _artifact_name: str = "session.dpapi",
+        _magic: bytes = _MAGIC,
+        _temp_prefix: str = ".session-",
+        _overwrite_existing: bool = True,
+    ) -> None:
         _require_windows()
-        self._api = _WindowsApi()
+        self._api = _api or _WindowsApi()
         self._protector = _protector or _DpapiProtector(self._api)
         self._current_user_sid = self._api.current_user_sid()
+        self._magic = _magic
+        self._temp_prefix = _temp_prefix
+        self._overwrite_existing = _overwrite_existing
         self._path = self._session_path()
+        if _artifact_name != "session.dpapi":
+            self._path = self._path.with_name(_artifact_name)
 
     def _session_path(self) -> Path:
         raw = os.environ.get("LOCALAPPDATA")
@@ -532,10 +546,10 @@ class _ProtectedSessionVault:
             artifact = self._path.read_bytes()
         except OSError:
             raise StorageError from None
-        if len(artifact) <= len(_MAGIC) or not artifact.startswith(_MAGIC):
+        if len(artifact) <= len(self._magic) or not artifact.startswith(self._magic):
             raise IntegrityError from None
         try:
-            plaintext = self._protector.unprotect(artifact[len(_MAGIC) :])
+            plaintext = self._protector.unprotect(artifact[len(self._magic) :])
         except IntegrityError:
             raise IntegrityError from None
         except Exception:
@@ -561,7 +575,7 @@ class _ProtectedSessionVault:
             raise StorageError from None
         if not protected:
             raise StorageError from None
-        artifact = _MAGIC + protected
+        artifact = self._magic + protected
 
         directory = self._prepare_directory()
         self._existing_blob()
@@ -569,7 +583,7 @@ class _ProtectedSessionVault:
         descriptor: int | None = None
         try:
             descriptor, name = tempfile.mkstemp(
-                prefix=".session-", suffix=".tmp", dir=directory
+                prefix=self._temp_prefix, suffix=".tmp", dir=directory
             )
             temporary_path = Path(name)
             self._verify_acl(temporary_path, is_directory=False)
@@ -578,7 +592,10 @@ class _ProtectedSessionVault:
                 handle.write(artifact)
                 handle.flush()
                 os.fsync(handle.fileno())
-            os.replace(temporary_path, self._path)
+            if not self._overwrite_existing:
+                os.rename(temporary_path, self._path)
+            else:
+                os.replace(temporary_path, self._path)
             temporary_path = None
             self._verify_acl(self._path, is_directory=False)
         except StorageError:
@@ -608,6 +625,25 @@ class _ProtectedSessionVault:
         except OSError:
             raise StorageError from None
         return True
+
+
+class _ProtectedCredentialsVault(_ProtectedSessionVault):
+    """Separate non-overwriting DPAPI artifact for Telegram API credentials."""
+
+    def __init__(
+        self,
+        *,
+        _protector: _BytesProtector | None = None,
+        _api: _WindowsApi | None = None,
+    ) -> None:
+        super().__init__(
+            _protector=_protector,
+            _api=_api,
+            _artifact_name="credentials.dpapi",
+            _magic=b"TCC\x01",
+            _temp_prefix=".credentials-",
+            _overwrite_existing=False,
+        )
 
 
 __all__ = ["IntegrityError", "StorageError"]

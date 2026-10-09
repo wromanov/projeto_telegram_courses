@@ -6,6 +6,7 @@ import asyncio
 import logging
 import socket
 import ssl
+import time
 from importlib import import_module
 from typing import Any, Callable
 
@@ -21,6 +22,17 @@ from telegram_courses.auth import (
     NetworkError,
     RateLimited,
 )
+from telegram_courses.channel_discovery import (
+    ChannelDiscoveryError,
+    ChannelKind,
+    ChannelSummary,
+    DiscoveryErrorCategory,
+    DiscoveryLimits,
+    DiscoveryRequest,
+    DiscoveryResult,
+    DiscoveryStats,
+    DiscoveryStopReason,
+)
 from telegram_courses.config import ConfigurationError, TelegramCredentials
 
 _session_storage = import_module("telegram_courses.telethon_session")
@@ -29,6 +41,7 @@ StorageError = _session_storage.StorageError
 _ProtectedSessionVault = _session_storage._ProtectedSessionVault
 
 _DIAGNOSTIC_LOGGER = logging.getLogger(__name__)
+_DISCOVERY_LOGGER = logging.getLogger(__name__)
 _FAILURE_STAGES = frozenset({
     "CLIENT_CREATION",
     "CONNECT",
@@ -82,7 +95,15 @@ class TelethonGateway:
         client_factory: Callable[..., Any] | None = None,
         session_factory: Callable[[str], Any] | None = None,
         vault: Any | None = None,
+        receive_updates: bool | None = None,
+        catch_up: bool | None = None,
     ) -> None:
+        if (receive_updates is None) != (catch_up is None):
+            raise ValueError("discovery update profile must be complete")
+        if receive_updates is not None and (
+            type(receive_updates) is not bool or type(catch_up) is not bool
+        ):
+            raise ValueError("invalid update profile")
         if client_factory is None or session_factory is None:
             try:
                 from telethon import TelegramClient
@@ -96,6 +117,8 @@ class TelethonGateway:
         self._credentials = credentials
         self._client_factory = client_factory
         self._session_factory = session_factory
+        self._receive_updates = receive_updates
+        self._catch_up = catch_up
         try:
             self._vault = vault or _ProtectedSessionVault()
         except (StorageError, IntegrityError) as error:
@@ -109,17 +132,424 @@ class TelethonGateway:
         self._closed = False
 
     def _new_client(self, session: Any) -> Any:
+        settings: dict[str, Any] = {
+            "flood_sleep_threshold": 0,
+            "request_retries": 1,
+            "connection_retries": 1,
+            "raise_last_call_error": True,
+            "auto_reconnect": False,
+            "base_logger": _client_logger(),
+        }
+        if self._receive_updates is not None:
+            settings["receive_updates"] = self._receive_updates
+            settings["catch_up"] = self._catch_up
         return self._client_factory(
             session,
             self._credentials.api_id,
             self._credentials.api_hash,
-            flood_sleep_threshold=0,
-            request_retries=1,
-            connection_retries=1,
-            raise_last_call_error=True,
-            auto_reconnect=False,
-            base_logger=_client_logger(),
+            **settings,
         )
+
+    @staticmethod
+    def _peer_key(peer: Any) -> tuple[str, int] | None:
+        from telethon.tl.types import PeerChannel, PeerChat, PeerUser
+
+        if isinstance(peer, PeerChannel):
+            return ("channel", peer.channel_id)
+        if isinstance(peer, PeerChat):
+            return ("chat", peer.chat_id)
+        if isinstance(peer, PeerUser):
+            return ("user", peer.user_id)
+        return None
+
+    @staticmethod
+    def _entity_key(entity: Any) -> tuple[str, int] | None:
+        from telethon.tl import types
+
+        if isinstance(entity, (types.Channel, types.ChannelForbidden)):
+            return ("channel", entity.id)
+        if isinstance(entity, (types.Chat, types.ChatForbidden, types.ChatEmpty)):
+            return ("chat", entity.id)
+        if isinstance(entity, (types.User, types.UserEmpty)):
+            return ("user", entity.id)
+        return None
+
+    @staticmethod
+    def _discovery_failure(error: Exception) -> ChannelDiscoveryError:
+        try:
+            from telethon import errors
+        except Exception:
+            return ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+
+        if isinstance(error, errors.FloodWaitError):
+            seconds = getattr(error, "seconds", None)
+            if type(seconds) is int and seconds >= 0:
+                return ChannelDiscoveryError(
+                    DiscoveryErrorCategory.RATE_LIMITED,
+                    retry_after_seconds=seconds,
+                )
+            return ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+
+        access_error_types = tuple(
+            error_type
+            for error_type in (
+                getattr(errors, "ChannelPrivateError", None),
+                getattr(errors, "ChannelInvalidError", None),
+                getattr(errors, "ChannelPublicGroupNaError", None),
+                getattr(errors, "ChatIdInvalidError", None),
+            )
+            if isinstance(error_type, type)
+        )
+        if access_error_types and isinstance(error, access_error_types):
+            return ChannelDiscoveryError(DiscoveryErrorCategory.ACCESS_DENIED)
+
+        try:
+            TelethonGateway._translate(error)
+        except InvalidSession:
+            return ChannelDiscoveryError(DiscoveryErrorCategory.SESSION_INVALID)
+        except AuthRejected:
+            return ChannelDiscoveryError(DiscoveryErrorCategory.ACCESS_DENIED)
+        except NetworkError:
+            return ChannelDiscoveryError(DiscoveryErrorCategory.NETWORK)
+        except RateLimited as rate_limited:
+            return ChannelDiscoveryError(
+                DiscoveryErrorCategory.RATE_LIMITED,
+                retry_after_seconds=rate_limited.retry_after_seconds,
+            )
+        except Exception:
+            return ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+        return ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+
+    @staticmethod
+    def _channel_kind(entity: Any) -> ChannelKind | None:
+        from telethon.tl import types
+
+        if (
+            not isinstance(entity, types.Channel)
+            or getattr(entity, "left", False)
+            or getattr(entity, "restricted", False)
+        ):
+            return None
+        broadcast = getattr(entity, "broadcast", None)
+        megagroup = getattr(entity, "megagroup", None)
+        if broadcast is True and megagroup is False:
+            return ChannelKind.BROADCAST_CHANNEL
+        if broadcast is False and megagroup is True:
+            return ChannelKind.MEGAGROUP
+        return None
+
+    @staticmethod
+    def _valid_channel_id(entity: Any, marked_id: Any) -> bool:
+        from telethon import utils
+        from telethon.tl.types import PeerChannel
+
+        if type(marked_id) is not int or marked_id >= -1_000_000_000_000:
+            return False
+        try:
+            peer_id, peer_type = utils.resolve_id(marked_id)
+            return peer_type is PeerChannel and peer_id == entity.id
+        except Exception:
+            return False
+
+    @classmethod
+    def _cursor_for_page(
+        cls,
+        dialogs: list[Any],
+        messages: dict[tuple[tuple[str, int], int], Any],
+        entities: dict[tuple[str, int], Any],
+    ) -> tuple[int, Any, Any, tuple[str, int, int]] | None:
+        from telethon import utils
+
+        for dialog in reversed(dialogs):
+            peer_key = cls._peer_key(getattr(dialog, "peer", None))
+            message_id = getattr(dialog, "top_message", None)
+            if peer_key is None or type(message_id) is not int or message_id <= 0:
+                continue
+            message = messages.get((peer_key, message_id))
+            entity = entities.get(peer_key)
+            if message is None or entity is None:
+                continue
+            date = getattr(message, "date", None)
+            if date is None:
+                continue
+            try:
+                input_peer = utils.get_input_peer(entity)
+                date.timestamp()
+            except Exception:
+                continue
+            return message_id, date, input_peer, (peer_key[0], peer_key[1], message_id)
+        return None
+
+    @staticmethod
+    def _validate_limits(limits: DiscoveryLimits) -> None:
+        if not isinstance(limits, DiscoveryLimits):
+            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+
+    async def discover_channels(self, request: DiscoveryRequest) -> DiscoveryResult:
+        """Enumerate dialogs using bounded requests and return metadata-only DTOs."""
+        from telethon import utils
+        from telethon.tl.functions.messages import GetDialogsRequest
+        from telethon.tl.types import (
+            DialogFolder,
+            InputPeerEmpty,
+            PeerChannel,
+        )
+        from telethon.tl.types.messages import Dialogs as DialogsResult
+        from telethon.tl.types.messages import DialogsNotModified, DialogsSlice
+
+        if not isinstance(request, DiscoveryRequest):
+            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+        self._validate_limits(request.limits)
+        if self._state is AuthState.AUTH_REQUIRED:
+            raise ChannelDiscoveryError(DiscoveryErrorCategory.AUTH_REQUIRED)
+        if self._state is AuthState.SESSION_INVALID:
+            raise ChannelDiscoveryError(DiscoveryErrorCategory.SESSION_INVALID)
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+        if self._receive_updates is not False or self._catch_up is not False:
+            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+
+        limits = request.limits
+        deadline = request.deadline
+        pages_requested = 0
+        pages_received = 0
+        raw_dialogs_received = 0
+        candidates: dict[int, ChannelSummary] = {}
+        cursors: set[tuple[str, int, int]] = set()
+        offset_id = 0
+        offset_date = None
+        offset_peer: Any = InputPeerEmpty()
+        exclude_pinned = False
+        stop_reason: DiscoveryStopReason | None = None
+        complete = False
+
+        try:
+            while True:
+                remaining_raw = limits.max_raw_dialogs - raw_dialogs_received
+                if remaining_raw <= 0:
+                    stop_reason = DiscoveryStopReason.RAW_DIALOG_LIMIT
+                    break
+                if pages_requested >= limits.max_pages:
+                    stop_reason = DiscoveryStopReason.PAGE_LIMIT
+                    break
+                remaining_time = deadline - time.monotonic()
+                if remaining_time <= 0:
+                    stop_reason = DiscoveryStopReason.TIME_BUDGET
+                    break
+
+                requested_limit = min(limits.page_size, remaining_raw)
+                pages_requested += 1
+                rpc = GetDialogsRequest(
+                    offset_date=offset_date,
+                    offset_id=offset_id,
+                    offset_peer=offset_peer,
+                    limit=requested_limit,
+                    hash=0,
+                    exclude_pinned=exclude_pinned,
+                    folder_id=None,
+                )
+                try:
+                    response = await asyncio.wait_for(
+                        self._client(rpc), timeout=remaining_time
+                    )
+                except TimeoutError:
+                    stop_reason = DiscoveryStopReason.TIME_BUDGET
+                    break
+                pages_received += 1
+
+                if isinstance(response, DialogsNotModified):
+                    raise ChannelDiscoveryError(
+                        DiscoveryErrorCategory.ADAPTER_FAILURE
+                    )
+                if isinstance(response, DialogsResult):
+                    response_is_terminal = True
+                elif isinstance(response, DialogsSlice):
+                    response_is_terminal = False
+                else:
+                    raise ChannelDiscoveryError(
+                        DiscoveryErrorCategory.ADAPTER_FAILURE
+                    )
+
+                page_dialogs = getattr(response, "dialogs", None)
+                page_messages = getattr(response, "messages", None)
+                page_chats = getattr(response, "chats", None)
+                page_users = getattr(response, "users", None)
+                if not all(
+                    isinstance(items, (list, tuple))
+                    for items in (page_dialogs, page_messages, page_chats, page_users)
+                ):
+                    raise ChannelDiscoveryError(
+                        DiscoveryErrorCategory.ADAPTER_FAILURE
+                    )
+
+                raw_dialogs_received += len(page_dialogs)
+                page_overflow = len(page_dialogs) - requested_limit
+                pinned_dialogs = sum(
+                    getattr(dialog, "pinned", False) is True
+                    for dialog in page_dialogs
+                )
+                pinned_overflow = (
+                    not exclude_pinned
+                    and page_overflow > 0
+                    and page_overflow <= pinned_dialogs
+                )
+                raw_budget_exceeded = len(page_dialogs) > remaining_raw
+                if raw_budget_exceeded or (
+                    page_overflow > 0 and not pinned_overflow
+                ):
+                    reason = (
+                        "RAW_BUDGET_EXCEEDED"
+                        if raw_budget_exceeded
+                        else "UNSUPPORTED_PAGE_OVERFLOW"
+                    )
+                    _DISCOVERY_LOGGER.warning(
+                        "channel discovery FAILURE_STAGE=RESPONSE_VALIDATION "
+                        "REASON=%s REQUESTED_LIMIT=%d RECEIVED=%d "
+                        "PINNED_DIALOGS=%d RAW_DIALOGS_RECEIVED=%d",
+                        reason,
+                        requested_limit,
+                        len(page_dialogs),
+                        pinned_dialogs,
+                        raw_dialogs_received,
+                    )
+                    raise ChannelDiscoveryError(
+                        DiscoveryErrorCategory.ADAPTER_FAILURE
+                    )
+
+                entities: dict[tuple[str, int], Any] = {}
+                for entity in (*page_chats, *page_users):
+                    peer_key = self._entity_key(entity)
+                    if peer_key is not None:
+                        previous_entity = entities.get(peer_key)
+                        if previous_entity is not None and (
+                            type(previous_entity) is not type(entity)
+                            or self._channel_kind(previous_entity)
+                            is not self._channel_kind(entity)
+                        ):
+                            raise ChannelDiscoveryError(
+                                DiscoveryErrorCategory.ADAPTER_FAILURE
+                            )
+                        entities[peer_key] = entity
+
+                messages: dict[tuple[tuple[str, int], int], Any] = {}
+                for message in page_messages:
+                    peer_key = self._peer_key(getattr(message, "peer_id", None))
+                    message_id = getattr(message, "id", None)
+                    if peer_key is not None and type(message_id) is int:
+                        messages[(peer_key, message_id)] = message
+
+                for dialog in page_dialogs:
+                    if isinstance(dialog, DialogFolder):
+                        continue
+                    peer = getattr(dialog, "peer", None)
+                    if not isinstance(peer, PeerChannel):
+                        continue
+                    peer_key = self._peer_key(peer)
+                    entity = entities.get(peer_key) if peer_key is not None else None
+                    kind = self._channel_kind(entity)
+                    if kind is None:
+                        continue
+                    marked_id = utils.get_peer_id(entity)
+                    if not self._valid_channel_id(entity, marked_id):
+                        raise ChannelDiscoveryError(
+                            DiscoveryErrorCategory.ADAPTER_FAILURE
+                        )
+                    channel = ChannelSummary(
+                        telegram_chat_id=marked_id,
+                        title=entity.title,
+                        username=getattr(entity, "username", None),
+                        kind=kind,
+                    )
+                    previous = candidates.get(marked_id)
+                    if previous is not None and previous.kind is not kind:
+                        raise ChannelDiscoveryError(
+                            DiscoveryErrorCategory.ADAPTER_FAILURE
+                        )
+                    candidates.setdefault(marked_id, channel)
+
+                if time.monotonic() >= deadline:
+                    stop_reason = DiscoveryStopReason.TIME_BUDGET
+                    break
+                if response_is_terminal:
+                    complete = True
+                    break
+
+                if len(page_dialogs) < requested_limit:
+                    total_count = getattr(response, "count", None)
+                    if (
+                        type(total_count) is not int
+                        or total_count < 0
+                        or total_count > raw_dialogs_received
+                    ):
+                        raise ChannelDiscoveryError(
+                            DiscoveryErrorCategory.ADAPTER_FAILURE
+                        )
+                    complete = True
+                    break
+
+                if time.monotonic() >= deadline:
+                    stop_reason = DiscoveryStopReason.TIME_BUDGET
+                    break
+                if raw_dialogs_received >= limits.max_raw_dialogs:
+                    stop_reason = DiscoveryStopReason.RAW_DIALOG_LIMIT
+                    break
+                if pages_requested >= limits.max_pages:
+                    stop_reason = DiscoveryStopReason.PAGE_LIMIT
+                    break
+
+                cursor = self._cursor_for_page(page_dialogs, messages, entities)
+                if cursor is None:
+                    raise ChannelDiscoveryError(
+                        DiscoveryErrorCategory.ADAPTER_FAILURE
+                    )
+                offset_id, offset_date, offset_peer, fingerprint = cursor
+                if fingerprint in cursors:
+                    raise ChannelDiscoveryError(
+                        DiscoveryErrorCategory.ADAPTER_FAILURE
+                    )
+                cursors.add(fingerprint)
+                exclude_pinned = True
+
+            elapsed = max(0.0, time.monotonic() - request.started_at)
+            stats = DiscoveryStats(
+                pages_requested=pages_requested,
+                pages_received=pages_received,
+                raw_dialogs_received=raw_dialogs_received,
+                unique_candidates=len(candidates),
+                elapsed_seconds=elapsed,
+                limits=limits,
+            )
+            return DiscoveryResult(
+                channels=tuple(candidates.values()),
+                complete=complete,
+                stop_reason=None if complete else stop_reason,
+                stats=stats,
+            )
+        except asyncio.CancelledError:
+            raise
+        except ChannelDiscoveryError as error:
+            _DISCOVERY_LOGGER.warning(
+                "channel discovery CATEGORY=%s PAGES_REQUESTED=%d "
+                "PAGES_RECEIVED=%d RAW_DIALOGS_RECEIVED=%d",
+                error.category.value,
+                pages_requested,
+                pages_received,
+                raw_dialogs_received,
+            )
+            raise
+        except Exception as error:
+            project_error = self._discovery_failure(error)
+            _DISCOVERY_LOGGER.warning(
+                "channel discovery FAILURE_STAGE=REQUEST_OR_RESPONSE "
+                "CATEGORY=%s SANITIZED_EXCEPTION_CLASS=%s PAGES_REQUESTED=%d "
+                "PAGES_RECEIVED=%d RAW_DIALOGS_RECEIVED=%d",
+                project_error.category.value,
+                _sanitized_exception_class(error),
+                pages_requested,
+                pages_received,
+                raw_dialogs_received,
+            )
+            raise project_error from None
 
     @staticmethod
     def _record_failure(

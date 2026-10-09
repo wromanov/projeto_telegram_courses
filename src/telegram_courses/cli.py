@@ -5,7 +5,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import re
 import sys
+import unicodedata
 from collections.abc import Callable, Sequence
 
 from rich.console import Console
@@ -13,10 +15,24 @@ from rich.console import Console
 from telegram_courses import __version__
 from telegram_courses.auth import AuthenticationError
 from telegram_courses.auth_application import AuthenticationApplication
+from telegram_courses.channel_discovery import (
+    ChannelDiscoveryApplication,
+    ChannelDiscoveryError,
+    DiscoveryErrorCategory,
+    DiscoveryOutcomeState,
+    DiscoveryResult,
+    select_channel,
+)
 from telegram_courses.config import (
     ConfigurationError,
+    TelegramCredentials,
     load_configuration,
     load_telegram_credentials,
+)
+from telegram_courses.credentials import (
+    CredentialVault,
+    CredentialVaultError,
+    validate_credentials,
 )
 from telegram_courses.telethon_gateway import TelethonGateway
 
@@ -28,7 +44,12 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = _ArgumentParser(prog="telegram-courses", add_help=True)
-    parser.add_argument("command", choices=("smoke", "auth"))
+    parser.add_argument(
+        "command", choices=("smoke", "auth", "channels", "credentials")
+    )
+    parser.add_argument(
+        "credentials_action", nargs="?", choices=("setup", "status")
+    )
     parser.add_argument("--config", action="append")
     parser.add_argument("--log-level", action="append")
     args = parser.parse_args(argv)
@@ -38,6 +59,8 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         raise ConfigurationError
     args.config = args.config[0] if args.config else None
     args.log_level = args.log_level[0] if args.log_level else None
+    if (args.command == "credentials") != (args.credentials_action is not None):
+        raise ConfigurationError from None
     return args
 
 
@@ -54,6 +77,165 @@ def _secret_prompt(label: str) -> str:
 def _require_interactive() -> None:
     if not sys.stdin.isatty():
         raise ConfigurationError from None
+
+
+def _credentials_setup(
+    *,
+    api_id_prompt: Callable[[], str],
+    api_hash_prompt: Callable[[], str],
+    vault_factory: Callable[[], CredentialVault],
+) -> int:
+    _require_interactive()
+    api_id = api_id_prompt()
+    api_hash = api_hash_prompt()
+    credentials = validate_credentials(api_id, api_hash)
+    vault_factory().setup(credentials)
+    Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+        "credentials setup successful", markup=False, highlight=False
+    )
+    return 0
+
+
+def _credentials_status(
+    *, vault_factory: Callable[[], CredentialVault]
+) -> int:
+    available = vault_factory().status()
+    state = "yes" if available else "no"
+    Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+        f"credentials vault configured: {state}\ncredentials available: {state}",
+        markup=False,
+        highlight=False,
+    )
+    return 0
+
+
+def _discovery_gateway(credentials: TelegramCredentials) -> TelethonGateway:
+    return TelethonGateway(
+        credentials,
+        receive_updates=False,
+        catch_up=False,
+    )
+
+
+def _safe_terminal_text(value: str) -> str:
+    return "".join(
+        " " if character in "\r\n\t" else character
+        for character in value
+        if unicodedata.category(character) not in {"Cc", "Cf", "Cs"}
+    )
+
+
+def _render_discovery(result: DiscoveryResult) -> None:
+    console = Console(
+        file=sys.stdout,
+        force_terminal=False,
+        no_color=True,
+        color_system=None,
+        width=120,
+    )
+    if result.complete:
+        console.print("discovery complete", markup=False, highlight=False)
+    else:
+        console.print(
+            f"discovery partial: {result.stop_reason.value}",
+            markup=False,
+            highlight=False,
+        )
+    if not result.channels:
+        console.print(
+            "no eligible channels" if result.complete else "no candidates in partial discovery",
+            markup=False,
+            highlight=False,
+        )
+        return
+    for channel in result.channels:
+        title = _safe_terminal_text(channel.title)
+        username = (
+            f" @{_safe_terminal_text(channel.username)}"
+            if channel.username
+            else ""
+        )
+        console.print(
+            f"{channel.telegram_chat_id} | {channel.kind.value} | {title}{username}",
+            markup=False,
+            highlight=False,
+        )
+
+
+def _discover_channels(
+    *,
+    gateway_factory: Callable[[TelegramCredentials], object],
+    selection_prompt: Callable[[str], str],
+) -> int:
+    if not sys.stdin.isatty() and selection_prompt is input:
+        raise ConfigurationError from None
+    application = ChannelDiscoveryApplication(
+        gateway_factory,
+        load_telegram_credentials,
+    )
+    try:
+        outcome = asyncio.run(application.discover())
+    except KeyboardInterrupt:
+        Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+            "discovery cancelled", markup=False, highlight=False
+        )
+        return 130
+
+    if outcome.state is DiscoveryOutcomeState.AUTH_REQUIRED:
+        Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+            "run `telegram-courses auth` before channel discovery",
+            markup=False,
+            highlight=False,
+        )
+        return 3
+    if outcome.state is DiscoveryOutcomeState.SESSION_INVALID:
+        Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+            "session invalid; run `telegram-courses auth` before channel discovery",
+            markup=False,
+            highlight=False,
+        )
+        return 3
+
+    assert outcome.result is not None
+    result = outcome.result
+    _render_discovery(result)
+    if not result.channels:
+        return 0 if result.complete else 4
+    try:
+        selection = selection_prompt("Telegram chat ID (Enter or q to cancel): ")
+    except KeyboardInterrupt:
+        Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+            "selection cancelled", markup=False, highlight=False
+        )
+        return 0
+    if not isinstance(selection, str):
+        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
+    selected_text = selection.strip()
+    if not selected_text or selected_text.casefold() == "q":
+        Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+            "selection cancelled", markup=False, highlight=False
+        )
+        return 0
+    if re.fullmatch(r"-?[0-9]+", selected_text) is None:
+        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
+    try:
+        selected_id = int(selected_text)
+    except ValueError:
+        raise ChannelDiscoveryError(
+            DiscoveryErrorCategory.INVALID_SELECTION
+        ) from None
+    selected = select_channel(result, selected_id)
+    selected_summary = next(
+        item for item in result.channels
+        if item.telegram_chat_id == selected.telegram_chat_id
+    )
+    Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+        f"selected telegram_chat_id={selected.telegram_chat_id} "
+        f"kind={selected_summary.kind.value}",
+        markup=False,
+        highlight=False,
+    )
+    return 0
 
 
 def _authenticate(
@@ -90,9 +272,14 @@ def main(
     argv: Sequence[str] | None = None,
     *,
     gateway_factory: Callable[..., object] = TelethonGateway,
+    discovery_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
     phone_prompt: Callable[[], str] = _phone_prompt,
     code_prompt: Callable[[], str] | None = None,
     password_prompt: Callable[[], str] | None = None,
+    selection_prompt: Callable[[str], str] = input,
+    api_id_prompt: Callable[[], str] = lambda: input("Telegram API ID: "),
+    api_hash_prompt: Callable[[], str] = lambda: _secret_prompt("Telegram API HASH: "),
+    credential_vault_factory: Callable[[], CredentialVault] = CredentialVault,
 ) -> int:
     try:
         args = _parse_arguments(argv)
@@ -100,12 +287,27 @@ def main(
             config_path=args.config,
             log_level=args.log_level,
         )
+        if args.command == "credentials":
+            if args.credentials_action == "setup":
+                return _credentials_setup(
+                    api_id_prompt=api_id_prompt,
+                    api_hash_prompt=api_hash_prompt,
+                    vault_factory=credential_vault_factory,
+                )
+            return _credentials_status(vault_factory=credential_vault_factory)
         if args.command == "auth":
             return _authenticate(
                 gateway_factory=gateway_factory,
                 phone_prompt=phone_prompt,
                 code_prompt=code_prompt,
                 password_prompt=password_prompt,
+            )
+        if args.command == "channels":
+            return _discover_channels(
+                gateway_factory=(
+                    discovery_gateway_factory or _discovery_gateway
+                ),
+                selection_prompt=selection_prompt,
             )
         line = (
             f"telegram-courses {__version__} config={configuration.config} "
@@ -122,7 +324,13 @@ def main(
     except ConfigurationError:
         sys.stderr.write("configuration error\n")
         return 2
+    except CredentialVaultError:
+        sys.stderr.write("credentials vault error\n")
+        return 2
     except AuthenticationError as error:
+        sys.stderr.write(f"{error}\n")
+        return 3
+    except ChannelDiscoveryError as error:
         sys.stderr.write(f"{error}\n")
         return 3
     except Exception:
