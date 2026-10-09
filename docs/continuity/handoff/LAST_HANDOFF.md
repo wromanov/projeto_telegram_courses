@@ -198,6 +198,11 @@ numérica aprovada; (4) executar testes focados e regressão; (5) reavaliar o
 aceite final de S1-D. Validação real adicional somente se necessária e
 autorizada. Não iniciar S2 antecipadamente.
 
-Git não foi publicado nesta atividade. Não executar stage, commit ou push sem
-autorização explícita. Transferir o projeto pelo repositório Git; credenciais e
-sessão DPAPI permanecem locais e não devem ser copiadas entre computadores.
+Commit principal `6ffe1e8fbe2e483055e28ae43021fda9426e9ff5`
+(`feat(s1): add channel discovery and credentials vault`) contém os 26 arquivos
+do checkpoint. Após uma rejeição inicial do auto-review, o usuário autorizou
+explicitamente o destino `https://github.com/wromanov/projeto_telegram_courses.git`,
+branch `work/s0-bootstrap`, e o payload deste checkpoint. Este registro foi
+atualizado antes da tentativa de push autorizada; consultar o estado Git em
+runtime para confirmar a publicação. Credenciais e sessão DPAPI permanecem
+locais e não devem ser copiadas entre computadores.
