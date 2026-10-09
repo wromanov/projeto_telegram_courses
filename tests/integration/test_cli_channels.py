@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
+import pytest
 from telethon import types, utils
 
 from telegram_courses import cli
@@ -95,6 +96,29 @@ def snapshot(*, complete: bool = True) -> DiscoveryResult:
     )
 
 
+def multi_snapshot(*, complete: bool = True) -> DiscoveryResult:
+    limits = DiscoveryLimits()
+    return DiscoveryResult(
+        channels=(
+            ChannelSummary(
+                -1_000_000_000_123,
+                "Broadcast course",
+                "broadcast_course",
+                ChannelKind.BROADCAST_CHANNEL,
+            ),
+            ChannelSummary(
+                -1_000_000_000_456,
+                "Megagroup course",
+                None,
+                ChannelKind.MEGAGROUP,
+            ),
+        ),
+        complete=complete,
+        stop_reason=None if complete else DiscoveryStopReason.PAGE_LIMIT,
+        stats=DiscoveryStats(2, 2, 2, 2, 0.1, limits),
+    )
+
+
 class FakeGateway:
     def __init__(
         self,
@@ -129,9 +153,11 @@ def test_channels_command_lists_selects_locally_after_close(
         lambda: TelegramCredentials(7, "synthetic-api-hash"),
     )
     prompts_after_close: list[bool] = []
+    prompt_messages: list[str] = []
 
-    def selection_prompt(_message: str) -> str:
+    def selection_prompt(message: str) -> str:
         prompts_after_close.append(gateway.closed)
+        prompt_messages.append(message)
         return "-1000000000123"
 
     result = cli.main(
@@ -145,15 +171,22 @@ def test_channels_command_lists_selects_locally_after_close(
     assert gateway.discovery_calls == 1
     assert gateway.closed is True
     assert prompts_after_close == [True]
+    assert prompt_messages == ["Select a number or Q to cancel: "]
     assert "discovery complete" in captured.out
+    assert (
+        "[1] Course[31m [bold]Name[/bold] @safe_user | BROADCAST_CHANNEL"
+        in captured.out
+    )
     assert "selected telegram_chat_id=-1000000000123" in captured.out
     assert "\x1b" not in captured.out
     assert "[bold]" in captured.out
     assert "INCIDENTAL" not in captured.out
+    assert "synthetic-api-hash" not in captured.out + captured.err
 
 
+@pytest.mark.parametrize("selection", ["q", "Q", ""])
 def test_channels_command_displays_partial_and_cancel_has_no_selection(
-    monkeypatch, capsys
+    monkeypatch, capsys, selection
 ) -> None:
     gateway = FakeGateway(discovery=snapshot(complete=False))
     monkeypatch.setattr(
@@ -165,7 +198,7 @@ def test_channels_command_displays_partial_and_cancel_has_no_selection(
     result = cli.main(
         ["channels"],
         discovery_gateway_factory=lambda _credentials: gateway,
-        selection_prompt=lambda _message: "q",
+        selection_prompt=lambda _message: selection,
     )
 
     captured = capsys.readouterr()
@@ -173,6 +206,108 @@ def test_channels_command_displays_partial_and_cancel_has_no_selection(
     assert "discovery partial: PAGE_LIMIT" in captured.out
     assert "selection cancelled" in captured.out
     assert "selected telegram_chat_id" not in captured.out
+
+
+@pytest.mark.parametrize(
+    ("selection", "expected_id", "expected_kind"),
+    [
+        ("1", -1_000_000_000_123, "BROADCAST_CHANNEL"),
+        ("2", -1_000_000_000_456, "MEGAGROUP"),
+        ("-1000000000123", -1_000_000_000_123, "BROADCAST_CHANNEL"),
+        ("-1000000000456", -1_000_000_000_456, "MEGAGROUP"),
+    ],
+)
+def test_channels_command_selects_by_index_or_full_id_locally(
+    monkeypatch, capsys, selection, expected_id, expected_kind
+) -> None:
+    gateway = FakeGateway(discovery=multi_snapshot(complete=False))
+    monkeypatch.setattr(
+        cli,
+        "load_telegram_credentials",
+        lambda: TelegramCredentials(7, "synthetic-api-hash"),
+    )
+    prompts_after_close: list[bool] = []
+
+    def selection_prompt(message: str) -> str:
+        prompts_after_close.append(gateway.closed)
+        assert message == "Select a number or Q to cancel: "
+        return selection
+
+    result = cli.main(
+        ["channels"],
+        discovery_gateway_factory=lambda _credentials: gateway,
+        selection_prompt=selection_prompt,
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert gateway.discovery_calls == 1
+    assert gateway.closed is True
+    assert prompts_after_close == [True]
+    assert "discovery partial: PAGE_LIMIT" in captured.out
+    assert "[1] Broadcast course @broadcast_course | BROADCAST_CHANNEL" in captured.out
+    assert "[2] Megagroup course | MEGAGROUP" in captured.out
+    assert f"selected telegram_chat_id={expected_id} kind={expected_kind}" in captured.out
+    assert "synthetic-api-hash" not in captured.out + captured.err
+
+
+@pytest.mark.parametrize("selection", ["0", "3", "-1000000000", "abc"])
+def test_channels_command_rejects_invalid_or_partial_selection(
+    monkeypatch, capsys, selection
+) -> None:
+    gateway = FakeGateway(discovery=multi_snapshot())
+    monkeypatch.setattr(
+        cli,
+        "load_telegram_credentials",
+        lambda: TelegramCredentials(7, "synthetic-api-hash"),
+    )
+
+    result = cli.main(
+        ["channels"],
+        discovery_gateway_factory=lambda _credentials: gateway,
+        selection_prompt=lambda _message: selection,
+    )
+
+    captured = capsys.readouterr()
+    assert result == 3
+    assert gateway.discovery_calls == 1
+    assert gateway.closed is True
+    assert "invalid channel selection" in captured.err
+    assert "selected telegram_chat_id" not in captured.out
+    assert "synthetic-api-hash" not in captured.out + captured.err
+
+
+def test_channels_command_empty_snapshot_skips_selection_prompt(
+    monkeypatch, capsys
+) -> None:
+    empty = DiscoveryResult(
+        channels=(),
+        complete=True,
+        stop_reason=None,
+        stats=DiscoveryStats(0, 0, 0, 0, 0.1, DiscoveryLimits()),
+    )
+    gateway = FakeGateway(discovery=empty)
+    prompts: list[str] = []
+    monkeypatch.setattr(
+        cli,
+        "load_telegram_credentials",
+        lambda: TelegramCredentials(7, "synthetic-api-hash"),
+    )
+
+    result = cli.main(
+        ["channels"],
+        discovery_gateway_factory=lambda _credentials: gateway,
+        selection_prompt=lambda message: prompts.append(message) or "1",
+    )
+
+    captured = capsys.readouterr()
+    assert result == 0
+    assert gateway.discovery_calls == 1
+    assert gateway.closed is True
+    assert prompts == []
+    assert "no eligible channels" in captured.out
+    assert "selected telegram_chat_id" not in captured.out
+    assert "synthetic-api-hash" not in captured.out + captured.err
 
 
 def test_channels_command_requires_existing_authentication_flow(
@@ -259,6 +394,6 @@ def test_channels_command_lists_101_dialog_pinned_overflow_after_cleanup(
     assert [request.limit for request in client.requests] == [100, 100]
     assert [request.exclude_pinned for request in client.requests] == [False, True]
     assert "discovery complete" in captured.out
-    assert captured.out.count("| BROADCAST_CHANNEL | Synthetic ") == 101
+    assert captured.out.count(" | BROADCAST_CHANNEL") == 101
     assert f"selected telegram_chat_id={selected_id}" in captured.out
     assert client.closed == 1

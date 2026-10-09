@@ -230,3 +230,164 @@ ações remotas; testes devem ser offline. A melhoria está aprovada e não
 implementada. O safe resume é `S1-D — Regression Fix + CLI Numeric Selection`;
 detalhes vigentes em [PROJECT_STATE](PROJECT_STATE.md) e
 [LAST_HANDOFF](handoff/LAST_HANDOFF.md).
+
+## S1-D — Regression Fix + CLI Numeric Selection, 2026-10-09
+
+A falha foi reproduzida em
+`tests/unit/test_auth.py::test_credentials_are_environment_only_and_validated`:
+`Failed: DID NOT RAISE ConfigurationError`. O teste fornecia ambiente vazio,
+mas o loader usa o vault DPAPI como fallback; um vault configurado na máquina
+tornou o teste dependente do ambiente. O teste foi corrigido para injetar vault
+sintético vazio. A chamada pré-correção leu/descriptografou o vault local;
+nenhum valor foi exibido ou registrado, e `session.dpapi` não foi acessado.
+Esta ocorrência está reportada explicitamente na evidência e em
+[PROJECT_STATE](PROJECT_STATE.md).
+
+A CLI agora exibe canais numerados em ordem, aceita o índice local ou o ID
+completo exato, cancela com entrada vazia/Q e rejeita entradas inválidas. A
+identidade de domínio continua `telegram_chat_id`; a seleção usa o snapshot,
+inclusive em discovery `PARTIAL`, após o fechamento do gateway e sem nova
+chamada de descoberta.
+
+Validação local com Python 3.14.7: focused regression 3 passed; focused CLI 15
+passed; full pytest 121 passed e 11 subtests em 184.34s; Ruff PASS; `git diff
+--check` PASS. A tentativa inicial no executor isolado bloqueou no socketpair
+Proactor antes dos testes; o resultado conclusivo veio do PowerShell local
+funcional. Nenhuma conexão Telegram foi feita.
+
+O resultado técnico passou, mas a atividade fica `PARTIAL` porque o teste
+pré-correção acessou/descriptografou o vault local, contra a restrição do
+pedido. Nenhum valor foi exibido ou registrado. A revisão do incidente e o
+aceite final permanecem pendentes. S1-D segue `IMPLEMENTED /
+REAL_FUNCTIONAL_PASS / FINAL_ACCEPTANCE_PENDING`. DEC-S1D-01/02/03, OPEN-03 e
+GOV-01 não foram alterados. Não declarar fechamento, freeze, remediação,
+publicação Git ou início de S2. Evidência:
+[S1D_REGRESSION_CLI_NUMERIC_SELECTION_2026-10-09](../reports/S1D_REGRESSION_CLI_NUMERIC_SELECTION_2026-10-09.md).
+
+## S1-D — Credential Isolation Review & Final Acceptance, 2026-10-09
+
+### Incidente e isolamento
+
+O caminho acidental foi: `tests/unit/test_auth.py` chamou
+`load_telegram_credentials({})`; em `config.py`, ausência do par na mapping
+leva ao construtor padrão `CredentialVault`; esse cria
+`_ProtectedCredentialsVault`, que herda `_ProtectedSessionVault` e lê
+`credentials.dpapi` via `_load`/DPAPI. A fixture antiga não injetava storage
+vazio nesse caso. O teste corrigido injeta um vault sintético vazio.
+
+Busca estática dos demais testes não encontrou outra resolução padrão para o
+storage do usuário: usos de CredentialVault/TelethonGateway injetam fakes ou
+diretórios temporários; os testes Windows criam artefatos sintéticos em
+`tmp_path`; o teste do caminho do repositório espera rejeição. Para fechar a
+lacuna global, `tests/conftest.py` agora, por teste, remove
+`TELEGRAM_API_ID`, `TELEGRAM_API_HASH`, `TELEGRAM_COURSES_CONFIG` e
+`TELEGRAM_COURSES_LOG_LEVEL`, e define `LOCALAPPDATA` sob `tmp_path`. O
+`unittest` que limpa `os.environ` cria seu próprio `LOCALAPPDATA` temporário.
+Testes de regressão confirmam que os fallbacks de credential e session
+resolvem somente sob o diretório temporário; nenhum vault/session real é aberto.
+O fixture afeta pytest, não o runtime normal da CLI.
+
+O resultado capturado da falha foi apenas `DID NOT RAISE ConfigurationError`;
+nenhum valor apareceu no output pytest. A implementação observada sanitiza
+exceções e não há caminho de log/export nesse teste. O valor descriptografado
+foi materializado em memória no processo de teste, que terminou. Não houve
+inspeção forense de memória, crash dumps ou telemetria externa; esses pontos
+ficam como risco não verificado, não como evidência de divulgação.
+
+### Verificação da aceitação
+
+Critérios offline AC-01..12: cobertos por fakes, fixtures sintéticas e pela
+regressão completa. Seleção numérica e legacy ID estão offline PASS. Discovery
+real e seleção por ID real permanecem `PASS_USER_REPORTED`; nenhuma conexão foi
+feita nesta atividade. A evidência disponível não contém duração de restore,
+discovery/cleanup, contadores/cobertura observados nem comparação aos budgets
+aprovados (`page_size=100`, `max_raw_dialogs=1000`, `max_pages=20`, operação
+120s, cleanup 10s). O relatório existente da tentativa real anterior registra
+`OPERATIONAL_CALIBRATION = NOT_MEASURED`; não foi encontrado registro posterior
+com essas medições.
+
+```text
+ACTIVITY = S1-D Credential Isolation Review & Final Acceptance
+INCIDENT_REVIEW = PASS / root cause and test path identified; no repeat vault access
+TEST_ISOLATION = PASS / global pytest temp storage/env isolation + credential/session path regression tests
+FOCUSED_PYTEST = PASS / 42 passed, 11 subtests passed
+FULL_PYTEST = PASS / 123 passed, 11 subtests passed in 165.76s / Python 3.14.7
+RUFF = PASS
+DIFF_CHECK = PASS
+REAL_TELEGRAM_ACCESS = NO
+CREDENTIAL_ACCESS_THIS_ACTIVITY = NO
+SECRET_EXPOSURE_EVIDENCE = no values in captured failure/output; external OS telemetry not inspected
+RESIDUAL_RISK = prior test process materialized plaintext in memory; external crash/OS telemetry unknown
+S1D_OFFLINE_AC01_AC12 = PASS
+S1D_REAL_FUNCTIONAL_EVIDENCE = PASS_USER_REPORTED / discovery and ID selection
+OPERATIONAL_CALIBRATION = NOT_MEASURED_IN_AVAILABLE_EVIDENCE
+S1D_FINAL_VERDICT = NOT_ACCEPTED_YET / operational calibration is an explicit acceptance gate
+CONTRACTS_AND_GOVERNANCE = UNCHANGED
+GIT_ACTIONS = NONE
+```
+
+Conclusão: não declarar S1-D formalmente aceita ainda. Os resultados reais
+fornecidos pelo usuário cobrem discovery e seleção por ID, e todos os gates
+offline passaram. O aceite do contrato também exige calibração operacional;
+ela não está comprovada nos registros disponíveis. Primeiro procurar métricas
+sanitizadas da validação já realizada. Só se não existirem, considerar nova
+calibração após autorização específica; esta atividade não autoriza conexão.
+S1-D não está CLOSED e S2 não foi iniciado. Estado único em
+[PROJECT_STATE](PROJECT_STATE.md); handoff em [LAST_HANDOFF](handoff/LAST_HANDOFF.md).
+
+### Checkpoint — calibração operacional S1-D
+
+Revisão dos registros disponíveis confirmou que a primeira descoberta real
+falhou no adapter após 1 página solicitada/recebida e 101 diálogos brutos. A
+descoberta funcional posterior e a seleção por ID foram reportadas como
+aprovadas, mas sem durações, contagens ou resultado COMPLETE/PARTIAL. A causa
+específica do overflow de 101 não é demonstrável a partir dos registros.
+
+Telemetria offline foi adicionada ao workflow S1-D. Ela mede com relógio
+monotônico operação, restore, descoberta e cleanup, e registra contadores,
+budgets, resultado e razão de parada em uma linha sanitizada. Testes verificam
+COMPLETE/PARTIAL, sanitização de erro e ausência de identificadores. Focados:
+43 passed; suíte completa: 126 passed, 11 subtests; Ruff e diff check: PASS.
+Nenhum acesso real foi feito.
+
+```text
+METRICS_SUFFICIENT = NO
+INSTRUMENTATION_READY = YES
+S1D_ACCEPTANCE = PENDING_REAL_OPERATIONAL_MEASUREMENTS
+NEXT_ACTION = after separate authorization, run .\.venv\Scripts\telegram-courses.exe channels and retain only S1D_CALIBRATION
+REAL_TELEGRAM_ACCESS = NO
+```
+
+Relatório atualizado: [S1D real discovery validation](../reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md).
+
+## S1-D — aceite funcional e checkpoint final, 2026-10-09
+
+Evidência sanitizada da calibração recebida nesta atividade: operação 2.809485s,
+restore 0.957923s, discovery 1.315603s e cleanup 0.001170s; cleanup COMPLETE;
+4/4 páginas; 313 diálogos brutos. Limites aprovados: página 100, total bruto
+1000, páginas 20, operação 120s e cleanup 10s. Resultado/outcome COMPLETE,
+sem stop reason ou failure category. Discovery real, broadcast, megagroup e
+seleção local PASS; a opção `69` resolveu para o `telegram_chat_id` esperado.
+Nenhum download ou scanner foi iniciado.
+
+```text
+FUNCTIONAL_ACCEPTANCE = PASS
+CONTRACT_FREEZE = BLOCKED_BY_GOV01
+FORMAL_CLOSURE = BLOCKED_BY_GOV01 / S1-D NOT CLOSED
+DEC-S1D-01/02/03 = APPROVED / PRESERVED
+OPEN-03 = APPROVED / limits measured within budget
+AC-01..12_OFFLINE = PASS
+FULL_PYTEST = PASS / 126 passed, 11 subtests, 167.64s
+RUFF = PASS / GIT_DIFF_CHECK = PASS
+CREDENTIAL_VAULT = PASS / PYTEST_CREDENTIAL_ISOLATION = PASS
+INCIDENT = prior accidental vault read and residual risk preserved; not reopened
+REAL_TELEGRAM_ACCESS_FOR_VALIDATION = YES / user-provided evidence
+CREDENTIALS_ACCESSED_DURING_THIS_RECONCILIATION = NO
+GIT_ACTIONS = NONE
+NEXT_PHASE_CANDIDATE = S2 — Message Scanner & SQLite Persistence / not started
+```
+
+O aceite funcional satisfaz os critérios registrados no contrato. O contrato
+separa aceite de freeze; contudo, GOV-01 continua sem adjudicação e é o requisito
+externo que bloqueia freeze e encerramento formal. Não declarar `CLOSED`, não
+alterar governança e não iniciar S2. Ver [relatório final S1-D](../reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md).

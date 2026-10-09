@@ -20,8 +20,14 @@ def test_rate_limit_exposes_duration_and_safe_text() -> None:
 
 
 def test_credentials_are_environment_only_and_validated() -> None:
+    class EmptyVault:
+        def load(self):
+            return None
+
+    vault = EmptyVault()
     credentials = load_telegram_credentials(
-        {"TELEGRAM_API_ID": "123", "TELEGRAM_API_HASH": "synthetic-hash"}
+        {"TELEGRAM_API_ID": "123", "TELEGRAM_API_HASH": "synthetic-hash"},
+        vault=vault,
     )
     assert credentials.api_id == 123
     assert credentials.api_hash == "synthetic-hash"
@@ -32,4 +38,4 @@ def test_credentials_are_environment_only_and_validated() -> None:
         {"TELEGRAM_API_ID": "1", "TELEGRAM_API_HASH": "   "},
     ):
         with pytest.raises(ConfigurationError):
-            load_telegram_credentials(environment)
+            load_telegram_credentials(environment, vault=vault)

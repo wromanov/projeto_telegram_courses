@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 
 import pytest
 
@@ -104,6 +105,78 @@ def test_discovery_returns_snapshot_after_gateway_is_closed() -> None:
     assert outcome.result is not None
     assert outcome.result.stop_reason is DiscoveryStopReason.PAGE_LIMIT
     assert events == ["restore", "discover", "close"]
+
+
+def test_calibration_telemetry_reports_bounded_partial_result_without_identity(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    events: list[str] = []
+    gateway = FakeGateway(events, outcome=result(complete=False))
+
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.channel_discovery"):
+        outcome = asyncio.run(application(gateway).discover())
+
+    assert outcome.state is DiscoveryOutcomeState.PARTIAL
+    record = next(
+        record.getMessage() for record in caplog.records
+        if record.getMessage().startswith("S1D_CALIBRATION ")
+    )
+    assert "OPERATION_SECONDS=" in record
+    assert "RESTORE_SECONDS=" in record
+    assert "DISCOVERY_SECONDS=" in record
+    assert "CLEANUP_SECONDS=" in record
+    assert "CLEANUP_STATUS=COMPLETE" in record
+    assert "PAGES_REQUESTED=1 PAGES_RECEIVED=1" in record
+    assert "RAW_DIALOGS_PROCESSED=1" in record
+    assert "PAGE_SIZE_LIMIT=100 RAW_DIALOG_LIMIT=1000 PAGE_LIMIT=20" in record
+    assert "OPERATION_BUDGET_SECONDS=120.000 CLEANUP_BUDGET_SECONDS=10.000" in record
+    assert "RESULT=PARTIAL OUTCOME_STATE=PARTIAL STOP_REASON=PAGE_LIMIT" in record
+    assert "Synthetic" not in record
+    assert "-1000000000123" not in record
+    assert "synthetic-api-hash" not in record
+
+
+def test_calibration_telemetry_identifies_complete_discovery(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    gateway = FakeGateway([])
+
+    with caplog.at_level(logging.WARNING, logger="telegram_courses.channel_discovery"):
+        asyncio.run(application(gateway).discover())
+
+    record = next(
+        record.getMessage() for record in caplog.records
+        if record.getMessage().startswith("S1D_CALIBRATION ")
+    )
+    assert "RESULT=COMPLETE OUTCOME_STATE=COMPLETE STOP_REASON=NONE" in record
+
+
+def test_calibration_telemetry_sanitizes_discovery_failure(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    events: list[str] = []
+    gateway = FakeGateway(
+        events,
+        discovery_error=RuntimeError("private-message-canary"),
+    )
+
+    with (
+        caplog.at_level(
+            logging.WARNING, logger="telegram_courses.channel_discovery"
+        ),
+        pytest.raises(RuntimeError),
+    ):
+        asyncio.run(application(gateway).discover())
+
+    record = next(
+        record.getMessage() for record in caplog.records
+        if record.getMessage().startswith("S1D_CALIBRATION ")
+    )
+    assert "RESULT=ERROR" in record
+    assert "FAILURE_CATEGORY=ADAPTER_FAILURE" in record
+    assert "PAGES_REQUESTED=NA PAGES_RECEIVED=NA" in record
+    assert "private-message-canary" not in record
+    assert "synthetic-api-hash" not in record
 
 
 @pytest.mark.parametrize(

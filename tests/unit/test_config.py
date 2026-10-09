@@ -17,11 +17,14 @@ from telegram_courses.config import (
 class ConfigurationTests(unittest.TestCase):
     def setUp(self) -> None:
         self.previous_cwd = Path.cwd()
-        self.temp = tempfile.TemporaryDirectory(dir=self.previous_cwd)
+        self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         os.chdir(self.root)
         self.environment = patch.dict(os.environ, {}, clear=True)
         self.environment.start()
+        local_app_data = self.root / "local-app-data"
+        local_app_data.mkdir()
+        os.environ["LOCALAPPDATA"] = str(local_app_data)
 
     def tearDown(self) -> None:
         self.environment.stop()

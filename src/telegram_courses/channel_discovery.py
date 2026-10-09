@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
 import time
 from collections.abc import Callable
@@ -19,6 +20,8 @@ from telegram_courses.auth import (
     RateLimited,
 )
 from telegram_courses.config import TelegramCredentials
+
+_CALIBRATION_LOGGER = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from telegram_courses.telegram_gateway import TelegramGateway
@@ -267,62 +270,153 @@ class ChannelDiscoveryApplication:
         request = DiscoveryRequest(self._limits)
         gateway = self._gateway_factory(credentials)
         primary_error: BaseException | None = None
+        outcome: DiscoveryOutcome | None = None
+        failure_category = "NONE"
+        restore_elapsed = 0.0
+        discovery_elapsed = 0.0
+        cleanup_elapsed = 0.0
+        cleanup_status = "NOT_RUN"
         try:
             remaining = request.deadline - time.monotonic()
             if remaining <= 0:
+                failure_category = DiscoveryErrorCategory.NETWORK.value
                 raise ChannelDiscoveryError(DiscoveryErrorCategory.NETWORK)
+            restore_started = time.monotonic()
             try:
                 state = await asyncio.wait_for(gateway.restore(), remaining)
             except TimeoutError:
+                failure_category = DiscoveryErrorCategory.NETWORK.value
                 raise ChannelDiscoveryError(DiscoveryErrorCategory.NETWORK) from None
+            finally:
+                restore_elapsed = max(0.0, time.monotonic() - restore_started)
             if state is AuthState.AUTH_REQUIRED:
-                return DiscoveryOutcome(DiscoveryOutcomeState.AUTH_REQUIRED)
-            if state is AuthState.SESSION_INVALID:
-                return DiscoveryOutcome(DiscoveryOutcomeState.SESSION_INVALID)
-            if state is not AuthState.AUTHENTICATED:
+                outcome = DiscoveryOutcome(DiscoveryOutcomeState.AUTH_REQUIRED)
+            elif state is AuthState.SESSION_INVALID:
+                outcome = DiscoveryOutcome(DiscoveryOutcomeState.SESSION_INVALID)
+            elif state is not AuthState.AUTHENTICATED:
+                failure_category = DiscoveryErrorCategory.ADAPTER_FAILURE.value
                 raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
-            result = await gateway.discover_channels(request)
-            if not result.channels:
-                state = (
-                    DiscoveryOutcomeState.EMPTY
-                    if result.complete
-                    else DiscoveryOutcomeState.INCOMPLETE_EMPTY
-                )
             else:
-                state = (
-                    DiscoveryOutcomeState.COMPLETE
-                    if result.complete
-                    else DiscoveryOutcomeState.PARTIAL
-                )
-            return DiscoveryOutcome(state, result)
+                discovery_started = time.monotonic()
+                try:
+                    result = await gateway.discover_channels(request)
+                finally:
+                    discovery_elapsed = max(
+                        0.0, time.monotonic() - discovery_started
+                    )
+                if not result.channels:
+                    state = (
+                        DiscoveryOutcomeState.EMPTY
+                        if result.complete
+                        else DiscoveryOutcomeState.INCOMPLETE_EMPTY
+                    )
+                else:
+                    state = (
+                        DiscoveryOutcomeState.COMPLETE
+                        if result.complete
+                        else DiscoveryOutcomeState.PARTIAL
+                    )
+                outcome = DiscoveryOutcome(state, result)
         except BaseException as error:
             primary_error = error
+            if isinstance(error, ChannelDiscoveryError):
+                failure_category = error.category.value
+            elif isinstance(error, asyncio.CancelledError):
+                failure_category = "CANCELLED"
+            else:
+                failure_category = DiscoveryErrorCategory.ADAPTER_FAILURE.value
             if isinstance(error, RateLimited):
+                failure_category = DiscoveryErrorCategory.RATE_LIMITED.value
                 raise ChannelDiscoveryError(
                     DiscoveryErrorCategory.RATE_LIMITED,
                     retry_after_seconds=error.retry_after_seconds,
                 ) from None
             if isinstance(error, NetworkError):
+                failure_category = DiscoveryErrorCategory.NETWORK.value
                 raise ChannelDiscoveryError(DiscoveryErrorCategory.NETWORK) from None
             if isinstance(error, InvalidSession):
+                failure_category = DiscoveryErrorCategory.SESSION_INVALID.value
                 raise ChannelDiscoveryError(
                     DiscoveryErrorCategory.SESSION_INVALID
                 ) from None
             if isinstance(error, AuthRejected):
+                failure_category = DiscoveryErrorCategory.ACCESS_DENIED.value
                 raise ChannelDiscoveryError(
                     DiscoveryErrorCategory.ACCESS_DENIED
                 ) from None
             if isinstance(error, AuthenticationError):
+                failure_category = DiscoveryErrorCategory.ADAPTER_FAILURE.value
                 raise ChannelDiscoveryError(
                     DiscoveryErrorCategory.ADAPTER_FAILURE
                 ) from None
             raise
         finally:
+            cleanup_started = time.monotonic()
             try:
                 await self._close(gateway, self._limits.cleanup_timeout_seconds)
+                cleanup_status = "COMPLETE"
             except ChannelDiscoveryError:
+                cleanup_status = "FAILED"
+                if primary_error is None:
+                    failure_category = DiscoveryErrorCategory.CLEANUP_FAILED.value
                 if primary_error is None:
                     raise
+            except asyncio.CancelledError:
+                cleanup_status = "CANCELLED"
+                raise
+            except BaseException:
+                cleanup_status = "FAILED"
+                if primary_error is None:
+                    failure_category = DiscoveryErrorCategory.CLEANUP_FAILED.value
+                if primary_error is None:
+                    raise
+            finally:
+                cleanup_elapsed = max(0.0, time.monotonic() - cleanup_started)
+                result = outcome.result if outcome is not None else None
+                stats = result.stats if result is not None else None
+                _CALIBRATION_LOGGER.warning(
+                    "S1D_CALIBRATION OPERATION_SECONDS=%.6f "
+                    "RESTORE_SECONDS=%.6f "
+                    "DISCOVERY_SECONDS=%.6f CLEANUP_SECONDS=%.6f "
+                    "CLEANUP_STATUS=%s PAGES_REQUESTED=%s PAGES_RECEIVED=%s "
+                    "RAW_DIALOGS_PROCESSED=%s PAGE_SIZE_LIMIT=%d "
+                    "RAW_DIALOG_LIMIT=%d PAGE_LIMIT=%d OPERATION_BUDGET_SECONDS=%.3f "
+                    "CLEANUP_BUDGET_SECONDS=%.3f RESULT=%s OUTCOME_STATE=%s "
+                    "STOP_REASON=%s FAILURE_CATEGORY=%s",
+                    max(0.0, cleanup_started - request.started_at),
+                    restore_elapsed,
+                    discovery_elapsed,
+                    cleanup_elapsed,
+                    cleanup_status,
+                    stats.pages_requested if stats is not None else "NA",
+                    stats.pages_received if stats is not None else "NA",
+                    stats.raw_dialogs_received if stats is not None else "NA",
+                    self._limits.page_size,
+                    self._limits.max_raw_dialogs,
+                    self._limits.max_pages,
+                    self._limits.operation_timeout_seconds,
+                    self._limits.cleanup_timeout_seconds,
+                    (
+                        "COMPLETE"
+                        if result is not None and result.complete
+                        else "PARTIAL"
+                        if result is not None
+                        else "ERROR"
+                        if outcome is None
+                        else "NOT_STARTED"
+                    ),
+                    outcome.state.value if outcome is not None else "ERROR",
+                    (
+                        result.stop_reason.value
+                        if result is not None and result.stop_reason is not None
+                        else "NONE"
+                        if result is not None
+                        else "NA"
+                    ),
+                    failure_category,
+                )
+        assert outcome is not None
+        return outcome
 
     @staticmethod
     async def _close(gateway: TelegramGateway, timeout: float) -> None:

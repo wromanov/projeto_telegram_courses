@@ -206,3 +206,125 @@ branch `work/s0-bootstrap`, e o payload deste checkpoint. Este registro foi
 atualizado antes da tentativa de push autorizada; consultar o estado Git em
 runtime para confirmar a publicação. Credenciais e sessão DPAPI permanecem
 locais e não devem ser copiadas entre computadores.
+
+## Handoff vigente — S1-D Regression Fix + CLI Numeric Selection, 2026-10-09
+
+Este registro supersede o próximo passo do checkpoint consolidado anterior.
+`tests/unit/test_auth.py::test_credentials_are_environment_only_and_validated`
+falhava com `DID NOT RAISE ConfigurationError`: o ambiente vazio acionava o
+fallback para um vault DPAPI configurado. A chamada de teste pré-correção leu
+e descriptografou o vault local; nenhum valor foi exibido/logado e a sessão
+DPAPI não foi acessada. O teste agora injeta um vault sintético vazio.
+
+A CLI apresenta canais numerados em ordem; a escolha por índice é somente
+local e resolve para o `telegram_chat_id` existente. O ID completo continua
+compatível; ID parcial, entrada inválida e índice fora do intervalo falham;
+vazio/Q cancela. Discovery `PARTIAL` continua selecionável. Não há nova
+consulta durante a escolha, e o gateway já está fechado. A melhoria está
+offline-validada.
+
+Validação: focused regression 3 passed; focused CLI 15 passed; full pytest 121
+passed e 11 subtests em 184.34s; Ruff PASS; `git diff --check` PASS. A suíte
+conclusiva usou PowerShell local funcional e Python 3.14.7, pois o executor
+isolado bloqueou a inicialização Proactor/socketpair. Nenhuma conexão Telegram
+foi feita.
+
+Os resultados técnicos passaram, mas a atividade fica `PARTIAL` porque o teste
+pré-correção leu/descriptografou o vault local contra a restrição do pedido.
+Nenhum valor foi exibido ou registrado. A revisão do incidente e os critérios
+de aceite permanecem pendentes. S1-D permanece `IMPLEMENTED /
+REAL_FUNCTIONAL_PASS / FINAL_ACCEPTANCE_PENDING`; não declarar CLOSED.
+DEC-S1D-01/02/03, OPEN-03 e GOV-01 permanecem inalterados. Não houve Git
+publication. Próximo passo: revisar a resposta ao incidente e os critérios de
+aceite, sem inferir autorização para remediação, novo acesso Telegram, freeze,
+publicação ou início de S2. Estado único:
+[PROJECT_STATE](../PROJECT_STATE.md). Evidência:
+[S1D regression and CLI report](../../reports/S1D_REGRESSION_CLI_NUMERIC_SELECTION_2026-10-09.md).
+
+## Handoff vigente — S1-D Credential Isolation Review & Final Acceptance, 2026-10-09
+
+Incidente anterior revisado: o teste de auth passou `{}` a
+`load_telegram_credentials`; sem par na mapping, `config.py` chamou o
+CredentialVault padrão, que leu/descriptografou `credentials.dpapi` pelo
+`_ProtectedCredentialsVault` / `_ProtectedSessionVault._load`. Nenhum valor
+constou no output/erro capturado; o processo de teste materializou plaintext
+em memória e terminou. Não há evidência de log/export. Crash dumps e telemetria
+externa não foram forensicamente verificados. Nenhum vault foi consultado nesta
+atividade.
+
+Isolamento global adicionado em `tests/conftest.py`: cada teste recebe
+`LOCALAPPDATA` sob pytest `tmp_path`; vars de credenciais/configuração são
+removidas. O unittest que substitui todo o ambiente agora também define
+storage temporário. Testes de regressão garantem que as resoluções padrão de
+credential/session apontam para pytest temp; usam vault/API sintéticos e não
+abrem storage real. A mudança vale somente durante pytest.
+
+Validação final: focused 42 passed + 11 subtests; full pytest 123 passed + 11
+subtests em 165.76s; Ruff PASS; `git diff --check` PASS. Sem acesso Telegram,
+vault ou sessão nesta atividade. Estado e detalhes em
+[PROJECT_STATE](../PROJECT_STATE.md) e [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
+
+## Calibração operacional S1-D — checkpoint de 2026-10-09
+
+A busca em evidências anteriores não encontrou medições suficientes. O primeiro
+evento real foi `ADAPTER_FAILURE` (1 página solicitada/recebida; 101 diálogos).
+O sucesso funcional posterior reportado não inclui durações, contagens,
+completude ou cobertura observada.
+
+Telemetria monotônica e sanitizada está pronta e passou testes focados (43),
+pytest completo (126 passed, 11 subtests), Ruff e diff check. A linha
+`S1D_CALIBRATION` registra duração da operação, restore, descoberta e cleanup,
+contagens, budgets, resultado e stop reason. Nenhuma conexão foi feita nesta
+atividade.
+
+```text
+S1D_CALIBRATION_INSTRUMENTATION = READY
+S1D_OPERATIONAL_CALIBRATION = NOT_MEASURED
+S1D_FINAL_ACCEPTANCE = PENDING_REAL_OPERATIONAL_MEASUREMENTS
+REAL_TELEGRAM_ACCESS = NO
+```
+
+Uma nova conexão requer autorização específica. Após autorização, executar na
+raiz do repositório: `\.venv\Scripts\telegram-courses.exe channels`. Preservar
+somente a linha `S1D_CALIBRATION`; a saída da CLI contém metadados de canais e
+não deve ser compartilhada. Relatório: [S1-D calibration review](../../reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md).
+
+**S1-D não pode ser formalmente aceita ainda.** AC-01..12 offline e regressão
+PASS; discovery e seleção por ID real constam como `PASS_USER_REPORTED`. O
+contrato exige também calibração operacional; os registros disponíveis ainda
+marcam tempos/contadores/cobertura como `NOT_MEASURED`. Procurar evidência
+sanitizada da execução já feita. Nova calibração exige autorização específica;
+nenhuma conexão Telegram está autorizada por este handoff. Não fechar S1-D,
+alterar contrato, publicar Git ou iniciar S2.
+
+## Handoff vigente — S1-D Final Acceptance & Consolidated Checkpoint, 2026-10-09
+
+O usuário forneceu linha de calibração sanitizada: operation 2.809485s, restore
+0.957923s, discovery 1.315603s, cleanup 0.001170s/COMPLETE; 4 páginas
+solicitadas e recebidas; 313 diálogos brutos; budgets 100 por página, 1000
+brutos, 20 páginas, 120s operação, 10s cleanup; outcome COMPLETE, sem stop
+reason/failure. Real discovery, broadcast, megagroup e escolha local PASS; a
+opção `69` selecionou o `telegram_chat_id` esperado. Nenhum download/scanner.
+
+```text
+FUNCTIONAL_ACCEPTANCE = PASS / AC-01..12 offline plus real functional/calibration evidence
+CONTRACT_FREEZE = BLOCKED_BY_GOV01
+FORMAL_CLOSURE = BLOCKED_BY_GOV01 / DO NOT MARK CLOSED
+DEC-S1D-01/02/03 = APPROVED / PRESERVED
+OPEN-03 = APPROVED / calibrated within budgets
+FULL_PYTEST = PASS / 126 passed, 11 subtests, 167.64s
+RUFF = PASS / GIT_DIFF_CHECK = PASS
+CREDENTIAL_VAULT = PASS / PYTEST_CREDENTIAL_ISOLATION = PASS
+INCIDENT = prior accidental credential-vault read and residual risk preserved; no new evidence, do not reopen
+REAL_TELEGRAM_ACCESS_FOR_VALIDATION = YES / user-provided evidence
+CREDENTIALS_ACCESSED_DURING_THIS_RECONCILIATION = NO
+GIT_ACTIONS = NONE
+NEXT_PHASE_CANDIDATE = S2 — Message Scanner & SQLite Persistence / not started
+```
+
+Aceite funcional passou. GOV-01 continua dependência externa sem adjudicação,
+bloqueando freeze e encerramento formal; não modificar governança para contornar.
+S1-D permanece sem `CLOSED` e S2 não começou. Esta reconciliação não executou
+acesso real nem abriu credenciais. Não executar ações Git. Fonte única do estado:
+[PROJECT_STATE](../PROJECT_STATE.md); relatório detalhado:
+[S1-D final validation](../../reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md).

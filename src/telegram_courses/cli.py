@@ -148,7 +148,7 @@ def _render_discovery(result: DiscoveryResult) -> None:
             highlight=False,
         )
         return
-    for channel in result.channels:
+    for index, channel in enumerate(result.channels, start=1):
         title = _safe_terminal_text(channel.title)
         username = (
             f" @{_safe_terminal_text(channel.username)}"
@@ -156,10 +156,39 @@ def _render_discovery(result: DiscoveryResult) -> None:
             else ""
         )
         console.print(
-            f"{channel.telegram_chat_id} | {channel.kind.value} | {title}{username}",
+            f"[{index}] {title}{username} | {channel.kind.value}",
             markup=False,
             highlight=False,
         )
+
+
+def _select_from_local_snapshot(
+    result: DiscoveryResult, selection: str
+) -> int | None:
+    if not isinstance(selection, str):
+        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
+    selected_text = selection.strip()
+    if not selected_text or selected_text.casefold() == "q":
+        return None
+    if re.fullmatch(r"[0-9]+", selected_text):
+        try:
+            index = int(selected_text)
+        except ValueError:
+            raise ChannelDiscoveryError(
+                DiscoveryErrorCategory.INVALID_SELECTION
+            ) from None
+        if 1 <= index <= len(result.channels):
+            return result.channels[index - 1].telegram_chat_id
+        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
+    if re.fullmatch(r"-[0-9]+", selected_text) is None:
+        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
+    try:
+        selected_id = int(selected_text)
+    except ValueError:
+        raise ChannelDiscoveryError(
+            DiscoveryErrorCategory.INVALID_SELECTION
+        ) from None
+    return select_channel(result, selected_id).telegram_chat_id
 
 
 def _discover_channels(
@@ -202,35 +231,24 @@ def _discover_channels(
     if not result.channels:
         return 0 if result.complete else 4
     try:
-        selection = selection_prompt("Telegram chat ID (Enter or q to cancel): ")
+        selection = selection_prompt("Select a number or Q to cancel: ")
     except KeyboardInterrupt:
         Console(file=sys.stdout, force_terminal=False, no_color=True).print(
             "selection cancelled", markup=False, highlight=False
         )
         return 0
-    if not isinstance(selection, str):
-        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
-    selected_text = selection.strip()
-    if not selected_text or selected_text.casefold() == "q":
+    selected_id = _select_from_local_snapshot(result, selection)
+    if selected_id is None:
         Console(file=sys.stdout, force_terminal=False, no_color=True).print(
             "selection cancelled", markup=False, highlight=False
         )
         return 0
-    if re.fullmatch(r"-?[0-9]+", selected_text) is None:
-        raise ChannelDiscoveryError(DiscoveryErrorCategory.INVALID_SELECTION)
-    try:
-        selected_id = int(selected_text)
-    except ValueError:
-        raise ChannelDiscoveryError(
-            DiscoveryErrorCategory.INVALID_SELECTION
-        ) from None
-    selected = select_channel(result, selected_id)
     selected_summary = next(
         item for item in result.channels
-        if item.telegram_chat_id == selected.telegram_chat_id
+        if item.telegram_chat_id == selected_id
     )
     Console(file=sys.stdout, force_terminal=False, no_color=True).print(
-        f"selected telegram_chat_id={selected.telegram_chat_id} "
+        f"selected telegram_chat_id={selected_id} "
         f"kind={selected_summary.kind.value}",
         markup=False,
         highlight=False,
