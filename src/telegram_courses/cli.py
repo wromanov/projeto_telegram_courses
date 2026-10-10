@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import io
 import re
 import sys
 import unicodedata
@@ -135,10 +136,32 @@ def _scan_channel(
     return 0 if outcome.status.value == "COMPLETE" else 4
 
 
+class _CatalogOutput:
+    """Write Catalog text using escapes only for unencodable characters."""
+
+    def __init__(self, stream: io.TextIOBase) -> None:
+        self._stream = stream
+
+    @property
+    def encoding(self) -> str:
+        return getattr(self._stream, "encoding", None) or "utf-8"
+
+    def write(self, text: str) -> int:
+        safe_text = text.encode(self.encoding, errors="backslashreplace").decode(self.encoding)
+        self._stream.write(safe_text)
+        return len(text)
+
+    def flush(self) -> None:
+        self._stream.flush()
+
+    def __getattr__(self, name: str) -> object:
+        return getattr(self._stream, name)
+
+
 def _catalog_command(args: argparse.Namespace, selection_prompt: Callable[[str], str]) -> int:
     repository = SQLiteCatalogRepository(args.database)
     application = CatalogApplication(repository)
-    console = Console(file=sys.stdout, force_terminal=False, no_color=True, color_system=None, width=140)
+    console = Console(file=_CatalogOutput(sys.stdout), force_terminal=False, no_color=True, color_system=None, width=140)
 
     async def run() -> tuple[object, ...] | object:
         if args.credentials_action == "build":
@@ -212,7 +235,10 @@ def _catalog_command(args: argparse.Namespace, selection_prompt: Callable[[str],
                     + (f" ({m.file_size_bytes} bytes)" if m.file_size_bytes is not None else " (tamanho desconhecido)")
                     for m in item.media
                 )
-                table.add_row(str(item.telegram_message_id), item.date_utc, ", ".join(item.node_kinds) or "—", _safe_terminal_text(item.text or ""), _safe_terminal_text(media))
+                classification = ", ".join(item.node_kinds) or "—"
+                if item.unresolved_reason:
+                    classification += f" (não resolvido: {item.unresolved_reason})"
+                table.add_row(str(item.telegram_message_id), item.date_utc, classification, _safe_terminal_text(item.text or ""), _safe_terminal_text(media))
             console.print(table)
     return 0
 

@@ -3,8 +3,8 @@
 ```text
 DOCUMENT_ROLE = LAST_HANDOFF
 PROJECT_ID = projeto_telegram_courses
-RECORDED_AT = 2026-10-09 / America/Sao_Paulo
-HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED
+RECORDED_AT = 2026-10-10 / America/Sao_Paulo
+HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED / S2_CLOSED / S3_ACCEPTED / S3_CLOSED / S4_PLANNED_NOT_STARTED
 ```
 
 S1-B — Offline Authentication Flow & Telegram Gateway foi concluída após S1-A.
@@ -440,7 +440,7 @@ Retomar pelo [PROJECT_STATE](../PROJECT_STATE.md). Preservar o incidente
 histórico de vault e seu risco residual; esta atividade não acessou vault,
 credenciais ou sessão.
 
-## Handoff vigente — S3 Entry Review & Technical Contract — 2026-10-10
+## Handoff histórico — S3 Entry Review & Technical Contract — 2026-10-10
 
 S2 segue `ACCEPTED / CLOSED`. A revisão de entrada S3 e o contrato draft estão
 em [S3_PARSER_CATALOG_CONTRACT](../../contracts/S3_PARSER_CATALOG_CONTRACT.md).
@@ -497,7 +497,7 @@ GIT_ACTIONS = NONE
 NEXT_ACTION = Reconcile the message budget and obtain fresh bounded evidence, or use sanitized user-provided fixtures
 ```
 
-## Handoff vigente — S3 Offline Catalog Core Implementation — 2026-10-10
+## Handoff histórico — S3 Offline Catalog Core Implementation — 2026-10-10
 
 O núcleo genérico offline S3 foi implementado e validado com fixtures
 sintéticas e SQLite temporário. Inclui registry explícito/Generic fallback,
@@ -540,3 +540,167 @@ contrato permanece DRAFT e RasmooParser não foi implementado. A próxima
 atividade é resolver a gramática RASMOO e implementar o parser especializado,
 com autorização própria. Nenhum Telegram ou SQLite real é necessário para a
 publicação do núcleo genérico.
+
+## Handoff histórico — S3 SP-02 Grammar Resolution — 2026-10-10
+
+O usuário confirmou a gramática básica suportada para `INDEX_MESSAGE` e
+`MEDIA_POST` e declarou SP-02 suficiente para esses formatos. Em índice,
+`=` = Track, `==` = Course, `===` = Module; `#Fxxx` é referência de conteúdo.
+Em post de mídia, `#Fxxx <ordinal> <título>` identifica Lesson e o caminho é
+Track sem marcador, `=` Course, `==` Module. Os posts usam a mídia anexada à
+mensagem, endereçada pelas identidades S2; `#Fxxx` nunca é `telegram_message_id`.
+Posts com #F distintos sob o mesmo Track/Course/Module são Lessons distintas.
+
+`#Docxxx` identifica documento geral. A evidência fornecida confirma um RAR,
+mas não vínculo com `#F001` nem curso exato; manter não atribuído sem contexto.
+Referências associam por igualdade do código e contexto compatível. Entrada
+sem correspondência ou ambígua fica unresolved. Reprocessamento da mesma fonte
+é idempotente; não reparentar nem apagar estruturas por inferência.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 100%
+SP02 = EVIDENCE SUFFICIENT FOR SUPPORTED INDEX + MEDIA POST GRAMMAR
+S3_OPEN_01 = BASIC GRAMMAR CONFIRMED
+S3_OPEN_02 = DETERMINISTIC IDENTITY AND CONSERVATIVE RECONCILIATION
+S3_OPEN_03 = EXPLICIT PARSER SELECTION / Generic fallback
+CONTRACT = DRAFT / NOT_APPROVED / NOT_FROZEN
+SYNTHETIC_FIXTURES = tests/fixtures/rasmoo/sp02
+RASMOO_PARSER = NOT_IMPLEMENTED / SEPARATE AUTHORIZATION REQUIRED
+REAL_TELEGRAM_ACCESS = NO
+REAL_USER_SQLITE_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+DOWNLOADS = NONE
+TESTS_RUN = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = Obtain separate authorization before RasmooParser implementation
+```
+
+## Handoff histórico — S3 RasmooParser Integrated Implementation — 2026-10-10
+
+O escopo comprovado pelo SP-02 foi aprovado e congelado em
+[S3_PARSER_CATALOG_CONTRACT](../../contracts/S3_PARSER_CATALOG_CONTRACT.md),
+limitado aos formatos documentados de índice, post de mídia e referência
+documental geral. Formatos não observados permanecem unresolved.
+
+O parser especializado está integrado ao registry, builder, SQLite e Rich CLI.
+Associação de vídeo exige referência `#F` e hierarquia compatível; documentos
+`#Doc` ficam gerais sem contexto explícito. Migration `003_catalog_unresolved.sql`
+preserva referências e motivos não resolvidos. Reconciliação parcial/ambígua
+preserva nós ativos e associações existentes. Reprocessamento igual preserva
+identidades e timestamps.
+
+Validação: 11 testes focados; FULL_PYTEST 163 passed + 11 subtests em 183,68 s;
+Ruff PASS; `git diff --check` PASS. A suíte completa foi repetida sem Ruff em
+paralelo após teste de smoke detectar atualização do cache Ruff; a repetição
+isolada passou. Só fixtures e banco temporário foram usados. Nenhum acesso a
+Telegram, SQLite real, credencial/sessão ou downloads ocorreu.
+
+```text
+S3_STATUS = IN_PROGRESS
+S3_CONTRACT = APPROVED / FROZEN_FOR_CONFIRMED_SP02_SCOPE_ONLY
+RASMOO_PARSER = PASS_OFFLINE
+REGISTRY_BUILDER_SQLITE_RICH_CLI = PASS_OFFLINE
+FOCUSED_TESTS = 11 PASSED
+FULL_PYTEST = 163 PASSED + 11 SUBTESTS
+RUFF = PASS
+DIFF_CHECK = PASS
+REAL_TELEGRAM_ACCESS = NO
+REAL_SQLITE_ACCESS = NO
+DOWNLOADS = NONE
+GIT_ACTIONS = NONE / NO STAGING, COMMIT OR PUSH
+S3_FORMAL_ACCEPTANCE = PENDING / OFFLINE TESTS DO NOT CLOSE S3
+SAFE_RESUME_POINT = Review offline results and plan a separately authorized acceptance activity
+NEXT_ACTION = Request the full RASMOO telegram_chat_id, then resume this same authorized bounded validation
+```
+
+## Handoff histórico — S3 Controlled RASMOO Real Validation — 2026-10-10
+
+A coleta autorizada já foi realizada pelo usuário; esta atividade opera somente
+no SQLite temporário informado, sem repetir scan. A auditoria local passou:
+integridade OK, zero violações FK, 30 mensagens, 26 mídias, scan PARTIAL / MESSAGE_LIMIT
+e checkpoint consistente. O `--help` confirma a sintaxe e o código explica exit
+4 para estado não COMPLETE. O venv exige Python 3.14, mas seu interpretador-base
+está ausente; `catalog list` e um smoke assíncrono mínimo ficaram suspensos.
+Nenhum parser/build/CLI Rich foi executado e o banco temporário não foi alterado.
+
+```text
+ACTIVITY_STATUS = BLOCKED_PREFLIGHT / ASYNC_SQLITE_RUNTIME_HANG
+SCAN_EXECUTIONS = 0 / THIS ACTIVITY IS LOCAL-ONLY
+TEMP_DATABASE = USER_PROVIDED / READ_ONLY AUDIT PASS / CATALOG UNCHANGED
+MESSAGES_PERSISTED = 30
+MEDIA_PERSISTED = 26
+SQLITE_INTEGRITY = PASS / FK violations 0
+CHECKPOINT = CONSISTENT / PARTIAL
+CATALOG_BUILD = NOT_RUN
+RICH_CLI = BLOCKED
+S3_STATUS = IN_PROGRESS
+S3_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Restore supported Python 3.14 runtime and continue local catalog validation against the same temporary database, without another scan
+AUTHORITIES = PROJECT_STATE.md and CONTINUITY_RECORD.md
+```
+
+## Handoff histórico — S3-MAG-01 Catalog CLI Windows Compatibility — 2026-10-10
+
+O adaptador de saída do Catalog foi implementado para manter Unicode que cabe na
+codificação do stream e emitir escapes ASCII apenas para caracteres que não
+cabem. Regressões sintéticas cobrem UTF-8, CP1252, CP850 e saída redirecionada
+nos comandos `build`, `list`, `show` e `items`; o teste do writer passou, assim
+como Ruff e `git diff --check`.
+
+O incidente original continua classificado como causa provável: a exceção
+original não foi capturada. A integração em execução no sandbox parou antes do
+SQLite porque o Windows Proactor não conseguiu criar seu socketpair. Um rebuild
+antes/depois e a suíte completa ainda precisam rodar em PowerShell funcional do
+usuário.
+
+Em cópia isolada e consultada somente para agregados, o SQLite temporário tem um
+canal, dois runs completos de 589 nós e 2 unresolved, 589 nós ativos, nenhum
+inativo e 26/26 mídias vinculadas. O número 589 coincide com o active count nesse
+banco. O número 98 não foi reproduzido; falta a query ou snapshot que o originou.
+
+```text
+ACTIVITY_STATUS = PARTIAL / IMPLEMENTED, ROOT VALIDATION PENDING
+ARCHITECT_VERDICT = PASS
+SCRIBER_VERDICT = PARTIAL
+ROOT_CAUSE = PROBABLE / original exception not captured
+CATALOG_ITEMS_WINDOWS = PENDING_USER_WINDOWS_VALIDATION
+CATALOG_CLI_REGRESSION = PENDING_USER_WINDOWS_VALIDATION
+IDEMPOTENCY = PARTIAL / isolated before-after rebuild pending
+CATALOG_COUNTS = 589 plan nodes = 589 active in supplied copy; 98 source query unknown
+RUFF = PASS
+DIFF_CHECK = PASS
+GIT_ACTIONS = NONE
+TELEGRAM_ACCESS = NO
+DOWNLOADS = NONE
+S3_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Run focused/full tests and the isolated-copy rebuild in supported PowerShell; supply the query/snapshot behind 98
+```
+
+## Handoff vigente — S3-CLOSE-01 Formal Acceptance and Publication — 2026-10-10
+
+S3 está formalmente ACCEPTED / CLOSED. O núcleo genérico, RasmooParser,
+`S3-MAG-01`, catálogo real com escopo limitado, idempotência e CLI Windows
+passaram; regressão completa 167 passed + 11 subtests, Ruff e diff check PASS.
+O scan real parou em `MESSAGE_LIMIT` após 30 mensagens e 26 mídias; duas
+referências unresolved permanecem visíveis. A gramática está aprovada somente
+para os formatos comprovados. Não houve validação de downloads; validação
+integral do produto no canal real está planejada para S9.
+
+```text
+ACTIVITY = S3-CLOSE-01
+S3_STATUS = ACCEPTED / CLOSED
+S3_FORMAL_ACCEPTANCE = APPROVED
+S3_GENERIC_CORE = PASS
+RASMOO_PARSER = PASS
+S3_MAG_01 = PASS
+REAL_CATALOG_VALIDATION = PASS_WITH_SCOPE
+IDEMPOTENCY = PASS
+WINDOWS_CLI = PASS
+FULL_REGRESSION = PASS / 167 passed + 11 subtests
+RUFF = PASS
+DIFF_CHECK = PASS
+GIT_PUBLICATION = PENDING
+S4_STATUS = PLANNED / NOT_STARTED
+S4_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+SAFE_RESUME_POINT = S4 entry review; implementation requires separate authorization
+```

@@ -2,18 +2,22 @@
 
 ```text
 DOCUMENT_ROLE = IMPLEMENTATION_CONTRACT
-CONTRACT_STATUS = DRAFT / NOT_APPROVED / NOT_FROZEN
-ACTIVITY = S3 Offline Catalog Core Implementation
-S3_STATUS = IN_PROGRESS / GENERIC_OFFLINE_CORE_IMPLEMENTED
-S3_IMPLEMENTATION_AUTHORIZATION = YES / OFFLINE GENERIC CORE ONLY
-S3_ENTRY_REVIEW = PARTIAL
-S3_READINESS = CONTRACT_DRAFT_READY / SP-02 AND RASMOO GRAMMAR DECISIONS OPEN
-REAL_TELEGRAM_ACCESS = ATTEMPTED / one authorized target; operation result not captured
+CONTRACT_STATUS = APPROVED / FROZEN_FOR_CONFIRMED_SP02_SCOPE
+ACTIVITY = S3 — RasmooParser Integrated Implementation
+S3_STATUS = IN_PROGRESS / RASMOO OFFLINE IMPLEMENTATION PASS; FORMAL ACCEPTANCE PENDING
+RASMOO_PARSER_IMPLEMENTATION_AUTHORIZATION = GRANTED / OFFLINE_IMPLEMENTATION_AND_VALIDATION
+S3_ENTRY_REVIEW = PASS / approved supported grammar and generic offline core available
+S3_READINESS = PASS_FOR_CONFIRMED_SCOPE / implementation authorized
+REAL_TELEGRAM_ACCESS = NO / this activity uses user-provided samples only
 REAL_USER_SQLITE_ACCESS = NO
-CREDENTIALS_OR_SESSION_ACCESS = ATTEMPTED / values not emitted
-SP02_MESSAGE_COUNT = UNKNOWN / request cap 30; no result counter captured
-SP02_SANITIZED_EVIDENCE = NONE
-DOWNLOADS = NONE / LOCAL_PERSISTENCE = NONE
+CREDENTIALS_OR_SESSION_ACCESS = NO
+SP02_MESSAGE_COUNT = NOT_APPLICABLE / manual samples
+SP02_SANITIZED_EVIDENCE = USER-CONFIRMED INDEX + THREE VIDEO POSTS + GENERAL RAR DOCUMENT POST
+RASMOO_GRAMMAR = BASIC / SUPPORTED INDEX + MEDIA-POST FORMATS CONFIRMED
+S3_OPEN_01 = BASIC GRAMMAR CONFIRMED
+S3_OPEN_02 = DETERMINISTIC IDENTITY AND CONSERVATIVE RECONCILIATION
+S3_OPEN_03 = EXPLICIT PARSER SELECTION
+DOWNLOADS = NONE / REAL_LOCAL_PERSISTENCE = NONE
 GIT_ACTIONS = NONE
 ```
 
@@ -44,14 +48,16 @@ não uma condição para catalogar outros canais.
 | Nós e referências iniciais | PASS, com lacuna S3 | `catalog_nodes` e `media_items.catalog_node_id` existem na migration 001; `catalog_nodes` não tem chave natural/constraint para identidade semântica idempotente. |
 | Ports/modelos prévios | PARCIAL | `SelectedChannel`, `GatewayMessage`, `GatewayMedia` e `MessageGateway` existem. O núcleo offline agora define modelos, parser genérico, registry, builder e repository de catálogo. |
 | Stack | PASS | Python 3.14, Rich, aiosqlite, pytest e Ruff. Suíte completa, Ruff e diff check executados; ver checkpoint abaixo. |
-| Semântica dos marcadores RASMOO | OPEN MATERIAL | A documentação lista `=`, `==`, `===`, `#Fxxx` e menciona `#Docxxx`, mas não atribui significado a cada um. |
-| Amostra controlada SP-02 | INCOMPLETE / OPEN MATERIAL | O canal autorizado foi identificado. Uma única leitura direcionada foi iniciada com limite de 30 mensagens; a operação não retornou saída sanitizada e foi interrompida dentro do orçamento. A quantidade efetivamente consultada é desconhecida, nenhum conteúdo bruto foi emitido e nenhum resultado estrutural foi capturado. Não repetir dentro do teto original sem redefinir o orçamento considerando esta tentativa. |
-| Implementação e DB local | FORA DESTA ATIVIDADE | Só se prepara o contrato; sem parser, migration, testes, CLI ou acesso ao `data/catalog.sqlite3`. |
+| Semântica dos marcadores RASMOO | CONFIRMADA PARA FORMATOS SUPORTADOS | Usuário confirmou marcadores de índice, forma de post de mídia, normalização, identidades `#F`/`#Doc` e reconciliação conservadora; ver §5. |
+| Amostra controlada SP-02 | SUFICIENTE PARA INDEX + MEDIA_POST SUPORTADOS | Três posts de vídeo e um post RAR fornecidos manualmente; usuário confirmou suficiência para os formatos suportados. A tentativa remota histórica permanece inconclusiva e não foi repetida. |
+| Parser, builder, persistência e CLI | EM IMPLEMENTAÇÃO | Implementação exclusivamente offline com fixtures SP-02 e banco SQLite temporário. `data/catalog.sqlite3` real permanece fora de escopo. |
 
-Conclusão: a tentativa SP-02 não produziu evidência utilizável. Nenhuma
-semântica de marcador foi confirmada. O usuário autorizou separadamente o
-núcleo genérico offline; essa autorização não inclui nem implementa RasmooParser
-e não resolve os itens em §11. S2 permanece fechada.
+Conclusão: a tentativa SP-02 remota anterior não produziu evidência utilizável
+e não foi repetida. O usuário confirmou que as amostras manuais são suficientes
+para a gramática suportada de INDEX_MESSAGE + MEDIA_POST, conforme §5. O
+contrato está aprovado e congelado somente para o escopo confirmado de índice,
+post de mídia e referência documental geral. Formatos não observados permanecem
+fora das regras. S2 permanece fechada.
 
 ## 3. Limites arquiteturais
 
@@ -106,52 +112,116 @@ class ParserRegistry:
 ```
 
 Registry registra `generic` por padrão; parsers futuros podem ser registrados
-explicitamente. Key explícita conhecida no canal seleciona esse parser; key
-ausente seleciona Generic. Key desconhecida reporta `UNKNOWN_PARSER_KEY`, sem
-conversão silenciosa. Não há autodetecção. RASMOO só poderá ser registrado após
-evidência/decisão de gramática e autorização específica. Generic não declara
-correspondência exclusiva.
+explicitamente. A seleção é sempre explícita por configuração: key conhecida
+seleciona o parser configurado; configuração ausente seleciona Generic como
+fallback. Key desconhecida reporta `UNKNOWN_PARSER_KEY`, sem conversão
+silenciosa. Não há autodetecção nem limiar de detecção. Esta decisão resolve
+S3-OPEN-03. RASMOO só poderá ser registrado após evidência/decisão de gramática
+e autorização específica. Generic não declara correspondência exclusiva.
 
-## 5. RASMOO: análise lexical e semântica pendente
+## 5. RASMOO: gramática básica dos formatos suportados
 
-Evidência documental existente confirma somente que `=`, `==`, `===` e
-`#Fxxx` pertencem a uma convenção suportada, e que `#Docxxx` pode estar
-presente. Não confirma a qual nível cada marcador corresponde, se `#F` nomeia
-uma aula ou mídia, nem regras de título, repetição ou escopo. Não atribuir esses
-significados por convenção presumida.
+### Evidência manual recebida
 
-Contrato lexical preparatório: percorrer texto por linha, preservar texto e
-ordem originais; reconhecer como **tokens candidatos** somente linhas cujo
-conteúdo estrutural seja exatamente `=`, `==`, `===`, ou um marcador `#F` / `#Doc`
-seguido por um código não vazio conforme a amostra aprovada. Texto adicional,
-capitalização, espaços, pontuação e formato de código só entram na gramática
-após validação SP-02. O lexer deve manter linha e mensagem de origem. Tokens
-candidatos ainda não provam o tipo do nó.
+Os exemplos abaixo substituem títulos por identificadores sintéticos; as
+quebras de linha, espaços observados, ordem interna e formato dos marcadores
+foram preservados. Fragmentos diferentes não são concatenados nem ordenados
+entre si sem confirmação da posição original.
 
-Resolução do alvo SP-02: o usuário forneceu a identidade estável do único canal
-broadcast autorizado. Uma leitura limitada solicitou no máximo 30 mensagens e
-não usou scanner, download ou persistência local. A operação foi interrompida
-antes de retornar contadores/resultados sanitizados; a quantidade efetivamente
-consultada e a etapa remota alcançada são desconhecidas. Nenhum texto bruto ou
-identificador do canal foi emitido. Isto não é evidência gramatical e não
-resolve marcador algum.
+Índice hierárquico, fragmento A:
 
-Até que a tabela de semântica seja aprovada, `RasmooParser` não deve inferir
-Track/Course/Module/Lesson a partir apenas da quantidade de `=`; candidato
-ambíguo fica em `unresolved` e sua mensagem/mídia continua consultável. Um
-marcador desconhecido, título sem marcador, mensagem órfã ou mídia sem âncora
-não é descartado nem ligado por proximidade especulativa. Marcadores sem
-reconhecimento ficam como texto de origem e `UNKNOWN_MARKER`; não encerram
-contexto nem iniciam um novo nó. A decisão final da gramática deve definir:
+```text
+= 04 <TITULO-01>
+== 01 <TITULO-02>
+=== 01 <TITULO-03>
+#F001 #F002 #F003 #F004 #F005 #F006 #F007 #F008 #F009 #F010 #F011 #F012 #F013 #F014 #F015
+```
 
-| Aspecto | Regra contratual a fechar com evidência |
+Índice hierárquico, fragmento B:
+
+```text
+=== 03 <TITULO-04>
+#F016 #F017 #F018 #F019 #F020
+```
+
+Esses fragmentos mostram `=`, `==`, `===` em ordem hierárquica crescente,
+seguidos de título numerado; a linha de referências `#F` vem após o título
+`===` nos dois fragmentos. A interpretação confirmada pelo usuário é `=` =
+Track, `==` = Course e `===` = Module. As referências `#Fxxx` listadas sob
+um Module apontam para conteúdo/aulas, não para IDs de mensagens Telegram.
+
+Posts de vídeo (`MEDIA_POST`) têm a forma `#Fxxx <ordinal> <título da aula>`,
+seguida pelo caminho Track (sem marcador) → Course (`=`) → Module (`==`). A
+mídia anexada ao mesmo post é material daquela Lesson. Três posts com
+`#F001`, `#F002`, `#F003` têm títulos de aula distintos sob o mesmo contexto
+Track/Course/Module. Além disso, `#F567` aparece sob um Module no índice e no
+post correspondente com caminho compatível. Portanto `#Fxxx` é uma referência
+de conteúdo que identifica a Lesson/post no domínio; não é `telegram_message_id`.
+Para ligar mídia, usar a identidade da mensagem e `media_ordinal` já persistidos
+na S2, sem substituir esses identificadores pela referência `#F`.
+
+O formato observado no índice tem linhas iniciadas por `=`, `==`, `===`, com
+espaço após o marcador em um exemplo (`= 04 ...`). Nos posts de vídeo, o caminho
+começa por um título sem marcador e continua com linhas `=01 ...` e `==01 ...`
+sem espaço após os marcadores. Os títulos do post `04 O mercado` → `LinkedIn
+Hacks` → `Turbine o seu LinkedIn` correspondem ao índice com um marcador
+adicional no primeiro nível (`=`, `==`, `===` no índice; sem marcador, `=`,
+`==` no post). Tratar isso como duas formas de origem distintas e normalizar
+ambas para a mesma árvore Track → Course → Module → Lesson. O espaço depois do
+marcador varia nos exemplos e deve ser preservado na origem; a leitura aceita
+as formas observadas. A regra preparatória anterior de tokens isolados está
+superada.
+
+Para documentos, a linha `#Doc001` aparece sob o cabeçalho `Documentos` e o
+mesmo marcador aparece num post com um arquivo `.rar`. O usuário confirmou que
+é referência documental geral, não um vídeo nem anexo específico de `#F001`.
+Sem contexto adicional, não atribuir o documento a um curso específico. Usar o
+código `#Docxxx` como identidade de referência documental, sem associá-lo à
+Lesson de vídeo.
+
+### Regras confirmadas
+
+Classificar a forma da origem como `INDEX_MESSAGE`, `MEDIA_POST` ou
+`DOCUMENT_POST`; não tratar todas as mensagens como uma única forma lexical.
+Percorrer texto por linha e preservar texto, espaços, ordem da mensagem e
+identidade da mensagem S2. Aceitar as formas confirmadas sem assumir que o
+comprimento numérico observado (`xxx`) é uma validação universal.
+
+| Forma de origem | Sintaxe/semântica confirmada |
 |---|---|
-| `=`, `==`, `===` | tipo de nó/evento de cada token e se abre/substitui contexto ancestral |
-| `#Fxxx` e `#Docxxx` | código/identidade e se identifica Lesson, MediaItem ou ambos |
-| títulos | linha associada, trimming/normalização, título vazio e preservação do original |
-| mensagens fora de ordem | ordenação-fonte e precedência de eventos na mesma mensagem |
-| órfãos/edições | associação sem pai, mídia sem índice, alteração de mensagem e reparsing |
-| repetição/desconhecidos | duplicata, marcador fora de contexto e continuidade do contexto |
+| `INDEX_MESSAGE` | `=` abre/identifica Track; `==` Course sob Track; `===` Module sob Course. Referências `#Fxxx` listadas sob Module apontam para Lessons/conteúdos. |
+| `MEDIA_POST` | `#Fxxx <ordinal> <título>` identifica a Lesson. As linhas seguintes identificam Track sem marcador, Course com `=`, Module com `==`. A mídia anexada à postagem é material dessa Lesson. |
+| `DOCUMENT_POST` | `#Docxxx` identifica referência documental; a postagem pode conter um arquivo RAR. É documental geral, não vídeo nem material específico de Lesson. Sem contexto explícito, não atribuir curso exato. |
+| Normalização | Index e post de mídia convergem para Track → Course → Module → Lesson. O mesmo caminho pode aparecer com níveis de marcador deslocados conforme o formato de origem; preservar o texto original. |
+
+Quando um marcador de índice abre nível igual ou ancestral, substituir apenas o
+contexto descendente corrente na projeção; não apagar entidades persistidas.
+Um `#Fxxx` de índice associa-se ao MEDIA_POST somente quando a referência é
+igual e Track/Course/Module são compatíveis. O `#Fxxx` é uma chave semântica,
+nunca `telegram_message_id`. A ordem de aulas/mídias vem da ordem persistida
+das mensagens e `media_ordinal`; não ordenar pelo número em `#Fxxx`.
+
+Para cada mídia, preservar a identidade S2 `(channel_id,
+telegram_message_id, media_ordinal)`. Referência sem post compatível, contexto
+incompatível, duplicata conflitante ou #Doc sem curso explícito permanecem
+consultáveis como unresolved/general; não ligar por proximidade, não reparentar
+e não apagar estrutura por inferência.
+
+Coleta automatizada SP-02 não foi realizada nesta atividade. Uma tentativa
+remota anterior permanece inconclusiva; as evidências deste checkpoint vieram
+somente das amostras manuais fornecidas pelo usuário.
+
+A gramática acima está confirmada para os formatos amostrados; o usuário
+aprovou e congelou somente este escopo para a implementação do `RasmooParser`.
+Fora de `INDEX_MESSAGE`, `MEDIA_POST` e da referência
+`DOCUMENT_POST` observada, conservar o texto de origem e as mensagens/mídias
+sem ligação por proximidade especulativa. Marcadores ou formas não observados
+ficam `UNKNOWN_MARKER`/unresolved; não encerram contexto nem criam nós. Títulos
+originais são preservados e títulos/códigos de exibição não substituem a
+identidade semântica.
+| mensagens fora de ordem | usar ordem persistida S2 para mensagens; `#Fxxx` não é ordem nem message_id |
+| órfãos/edições | preservar origem e referências não resolvidas; contexto incompatível nunca reatribui identidade automaticamente |
+| repetição/desconhecidos | reprocessamento idempotente; conflitos/desconhecidos unresolved; ausência não implica deleção |
 
 Parser converte apenas regras adjudicadas em `ParsedNode`/`MediaLink`; não
 promove casos ambíguos a estrutura válida. A amostra sintética de aceite cobre
@@ -182,9 +252,11 @@ Builder não inventa pais ausentes: nó sem ancestral obrigatório e mensagem ou
 mídia não associada viram unresolved.
 
 Árvore permitida: Channel é a linha `channels` (não um `catalog_node`),
-Track opcional → Course → Module opcional → Lesson → MediaItem. `catalog_nodes`
-representa Track/Course/Module/Lesson e Generic `unclassified`; mídia permanece
-em `media_items`, associada à Lesson por `catalog_node_id`. Nós irmãos recebem
+Track opcional → Course → Module opcional → Lesson → MediaItem. Documentos
+gerais `#Docxxx` são nós terminais sem associação implícita a Course/Lesson.
+`catalog_nodes` representa esses nós, Track/Course/Module/Lesson e Generic
+`unclassified`; mídia permanece em `media_items`, associada à Lesson por
+`catalog_node_id` somente quando a referência é resolvida. Nós irmãos recebem
 ordinal sequencial determinístico derivado da ordem de origem, com desempate
 por tipo/código e ID de mensagem. Mensagens com vários itens de mídia preservam
 `media_ordinal` da S2. Semântica final de desempate depende da gramática SP-02.
@@ -199,10 +271,16 @@ Telegram. Nova migration numerada é aditiva e contém as constraints/índices
 necessários. Como `catalog_nodes.id` é substituto e não há chave natural única,
 introduzir tabela auxiliar de identidade com `channel_id`, `parser_key`,
 `grammar_version`, `node_key` e `catalog_node_id`, chave única para a identidade
-lógica e FK para o nó. `node_key` de nó ancorado em mensagem deriva de parser,
-tipo, pai lógico e ID de mensagem/código validado; não deriva de título. Chave
-Generic deriva do ID de mensagem. Mudança de título/ordem atualiza a mesma
-entidade; mudança real de âncora não pode ser deduplicada por heurística.
+lógica e FK para o nó. Chaves de Track/Course/Module derivam do tipo e do
+caminho numerado de títulos sob o pai lógico. A Lesson usa a referência literal
+`#Fxxx` como identidade semântica dentro do escopo
+`(channel_id, parser_key, grammar_version)`; `#Fxxx` nunca é convertido em
+`telegram_message_id`. Documento usa namespace separado pela referência literal
+`#Docxxx`; sem contexto explícito, fica como documento geral/não atribuído.
+Títulos são atributos, não identidade de Lesson. Chave Generic continua
+derivada do ID de mensagem conforme sua implementação existente. Referência
+repetida em contexto incompatível não é movida nem deduplicada por heurística:
+preservar a ocorrência como unresolved.
 
 `CatalogRepository` possui todas as queries, aplica migrações SQL, habilita
 foreign keys, WAL e busy timeout já definidos, e faz transação única por
@@ -212,14 +290,30 @@ Telegram no mesmo canal. Upsert de nó, tabela auxiliar de identidade,
 `media_items.catalog_node_id`, key/parser do canal e resultado de catalog run
 são atômicos. Falha faz rollback completo e mantém catálogo anterior.
 
-Reprocessar mesma entrada, parser e versão de gramática produz as mesmas keys,
-ordens e links: sem nós ou vínculos duplicados e sem timestamps/updates
-artificiais quando nada mudou. Alterações de origem atualizam nós existentes.
-Rows de mensagem/mídia S2 nunca são apagadas por parse. Nós antigos que não
-aparecem em reparsing não são fisicamente removidos; ficam inativos por estado
-de reconciliação aditivo, e associações históricas não são silenciosamente
-destruídas. CLI distingue nó atual de obsoleto/inativo. Falha/incompletude de
-parse não publica parcialmente um catálogo.
+Reprocessar a mesma entrada, parser e versão de gramática produz as mesmas
+keys, ordens e links: sem nós/vínculos duplicados e sem timestamps/updates
+artificiais quando nada mudou. Posts com o mesmo caminho reutilizam as mesmas
+chaves de Track/Course/Module; `#Fxxx` distinto cria Lesson distinta. Alteração
+de título em `#Fxxx` atualiza o atributo mantendo a identidade; conflito de
+código ou contexto não reparenta a Lesson automaticamente.
+
+Rows de mensagem/mídia S2 nunca são apagadas por parse. Referências/mensagens
+não resolvidas são gravadas por execução em `catalog_unresolved_sources` e
+expostas em `catalog items`; o motivo e a mensagem de origem permanecem
+consultáveis mesmo sem vínculo de Lesson. MediaItem é sempre
+endereçado por `(channel_id, telegram_message_id, media_ordinal)` persistido na
+S2; `#Fxxx` apenas resolve a Lesson de destino. Referências não resolvidas
+permanecem consultáveis com a origem intacta. Nenhuma estrutura é fisicamente
+apagada. Ausência, snapshot parcial/falho ou ambiguidade não inativa nem remove
+estrutura anterior por inferência. Inativação só ocorre após evidência explícita
+e reconciliação autorizada; remoção remota continua fora do escopo S3. CLI
+distingue nó atual de obsoleto/inativo. Falha/incompletude de parse não publica
+parcialmente um catálogo.
+
+Nota de compatibilidade: o `CatalogRepository` não apaga fisicamente nós.
+Desativação e limpeza dos vínculos da identidade selecionada ocorrem somente
+após um parse completo sem referências unresolved. Em parse parcial/ambíguo,
+preserva nós ativos e vínculos prévios e grava as incertezas aditivamente.
 
 Cada associação de mídia tem no máximo um nó terminal por mensagem/ordinal;
 conflito ou duplicata material falha o lote e reporta categoria segura. Foreign
@@ -268,29 +362,35 @@ Sem retry automático nesta unidade. Logs não incluem texto de mensagem, nomes
 de credenciais, sessão, corpo de exceção ou conteúdo de mídia. Escopo não
 inclui sincronização de remoções remotas (S7).
 
-## 11. Decisões materiais pendentes
+## 11. Disposição das decisões materiais
 
-1. **S3-OPEN-01 — semântica da gramática RASMOO.** Obter/validar amostra SP-02
-   controlada e sanitizada sob autorização e orçamento reconciliados; adjudicar papel de
-   `=`, `==`, `===`, `#Fxxx` e `#Docxxx`, título, contexto, órfãos, edição,
-   duplicatas e ordem. Sem resolução: `RASMOO_GRAMMAR = NOT_FROZEN` e não
-   implementar RasmooParser funcional.
-2. **S3-OPEN-02 — reconciliação e identidade.** Implementados identity por
-   canal/parser/versão/node key, IDs estáveis e nós ausentes inativos sem
-   deleção. Falta adjudicar estabilidade das âncoras especializadas sob
-   edição/reordenação com fixtures RASMOO.
-3. **S3-OPEN-03 — limiar de detecção automática.** Autodetecção não está
-   implementada. Decidir se será necessária e, se sim, definir limiar com
-   evidência; até lá há configuração explícita ou fallback Generic.
+1. **S3-OPEN-01 — gramática básica. RESOLVIDO para INDEX_MESSAGE e MEDIA_POST
+   suportados.** Marcadores, níveis, #F, #Doc, normalização comum e associação
+   conservadora estão definidos acima. Fora desses formatos, manter conteúdo
+   e relações em unresolved; não generalizar regras não amostradas. O escopo
+   confirmado está aprovado e congelado para esta implementação.
+2. **S3-OPEN-02 — identidade e reconciliação. RESOLVIDO COMO DECISÃO.**
+   Identidade composta por canal/parser/versão/chave semântica; Lesson por
+   `#Fxxx`, documento por `#Docxxx`, nós estruturais por caminho hierárquico.
+   Reprocessamento idempotente, referências ambíguas preservadas, sem
+   reparenting por inferência e sem deleção física; snapshot incompleto não
+   desativa estruturas.
+3. **S3-OPEN-03 — seleção de parser. RESOLVIDO nesta atividade.** Seleção
+   explícita pela configuração do canal; configuração ausente usa Generic como
+   fallback; key desconhecida é erro. Não há autodetecção e, portanto, não há
+   limiar a definir.
 
-### Disposição possível com a evidência atual
+### Disposição atual
 
-SP-02 capturou zero casos estruturais; a contagem remota efetiva é desconhecida.
-S3-OPEN-01 permanece sem resolução. S3-OPEN-02 tem implementação provisória
-validada para Generic, sem evidência de estabilidade das âncoras RASMOO.
-S3-OPEN-03 permanece decisão aberta; não há autodetecção no código.
-`RASMOO_GRAMMAR = NOT_FROZEN`; a validação offline não confirma a gramática
-nem fecha S3.
+Tentativa remota anterior de SP-02 capturou zero casos estruturais; a contagem
+efetiva permanece desconhecida. Esta atividade não repete coleta remota.
+O usuário confirmou que as evidências são suficientes para a gramática
+suportada de índice + post de mídia; não solicitar novos exemplos para
+reconfirmar. `S3-OPEN-01 = BASIC_GRAMMAR_CONFIRMED`;
+`S3-OPEN-02 = DETERMINISTIC_IDENTITY_AND_CONSERVATIVE_RECONCILIATION`;
+`S3-OPEN-03 = EXPLICIT_PARSER_SELECTION`. O contrato está aprovado e congelado
+somente para o escopo suportado. Entradas ambíguas/fora do formato permanecem
+unresolved e não apagam ou reparentam estruturas.
 
 ## 12. Critérios de aceite propostos
 
@@ -316,10 +416,12 @@ nem fecha S3.
   correspondentes e integração no fluxo S2 aceitos antes do fechamento S3.
 
 ```text
-CONTRACT_APPROVAL = NOT_GRANTED
-CONTRACT_FREEZE = NO
-S3_IMPLEMENTATION_AUTHORIZATION = YES / OFFLINE GENERIC CORE ONLY
-S3_STATUS = IN_PROGRESS / RASMOO AND FORMAL ACCEPTANCE PENDING
+GRAMMAR_SCOPE_APPROVAL = GRANTED_BY_USER
+CONTRACT_APPROVAL = GRANTED / SUPPORTED_SP02_SCOPE_ONLY
+CONTRACT_FREEZE = PASS / SUPPORTED_SP02_SCOPE_ONLY
+S3_IMPLEMENTATION_AUTHORIZATION = YES / OFFLINE RASMOO PARSER AND INTEGRATION
+S3_STATUS = ACCEPTED / CLOSED
+S3_FORMAL_ACCEPTANCE = APPROVED
 ```
 
 ## 13. Checkpoint — núcleo offline genérico — 2026-10-10
@@ -328,10 +430,35 @@ Implementados modelos de origem, registry explícito com Generic fallback,
 GenericParser sem inferência hierárquica, CatalogBuilder determinístico,
 serviço offline, migration aditiva `002_catalog.sql`, repository SQLite com
 identity por canal/parser/versão/node key, build transacional, nós obsoletos
-inativos e comandos Rich `catalog build/list/show/items`. RASMOO não está
-registrado nem implementado. Nenhum Telegram, credencial/sessão ou SQLite real
-foi acessado; nenhum download ocorreu.
+inativos e comandos Rich `catalog build/list/show/items`. Nenhum Telegram,
+credencial/sessão ou SQLite real foi acessado; nenhum download ocorreu.
 
-Validação: pytest completo 157 passed + 11 subtests em 182.02s; Ruff PASS;
-`git diff --check` PASS. Fixtures sintéticas e SQLite temporário foram usados.
-O contrato permanece DRAFT e S3 não está encerrada.
+Validação do núcleo genérico: pytest completo 157 passed + 11 subtests em
+182.02s; Ruff PASS; `git diff --check` PASS. Fixtures sintéticas e SQLite
+temporário foram usados. O aceite integrado posterior concluiu S3.
+
+## 14. Aceite formal S3 — S3-CLOSE-01 — 2026-10-10
+
+O escopo S3 está aceito e fechado para a gramática RASMOO comprovada. O parser,
+catálogo real com escopo limitado, idempotência, compatibilidade Windows e
+regressão completa passaram conforme registrado em
+[PROJECT_STATE](../continuity/PROJECT_STATE.md). A coleta real abrangeu 30
+mensagens e 26 mídias e terminou em `MESSAGE_LIMIT`; não comprova cobertura do
+canal inteiro. Duas referências unresolved foram preservadas. Downloads não
+foram validados; a validação integral do produto permanece prevista para S9.
+
+```text
+S3_STATUS = ACCEPTED / CLOSED
+S3_FORMAL_ACCEPTANCE = APPROVED
+S3_GENERIC_CORE = PASS
+RASMOO_PARSER = PASS
+S3_MAG_01 = PASS
+REAL_CATALOG_VALIDATION = PASS_WITH_SCOPE
+IDEMPOTENCY = PASS
+WINDOWS_CLI_COMPATIBILITY = PASS
+FULL_REGRESSION = PASS / 167 passed + 11 subtests
+RUFF = PASS
+DIFF_CHECK = PASS
+S4_STATUS = PLANNED / NOT_STARTED
+S4_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+```

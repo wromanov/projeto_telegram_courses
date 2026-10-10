@@ -7,6 +7,7 @@ from telegram_courses.catalog_repository import (
     CatalogBuildRecord,
     SQLiteCatalogRepository,
 )
+from telegram_courses.rasmoo_parser import RasmooParser
 
 
 class CatalogApplication:
@@ -17,7 +18,7 @@ class CatalogApplication:
         builder: CatalogBuilder | None = None,
     ) -> None:
         self.repository = repository
-        self.registry = registry or ParserRegistry()
+        self.registry = registry or ParserRegistry((RasmooParser(),))
         self.builder = builder or CatalogBuilder()
 
     async def build(

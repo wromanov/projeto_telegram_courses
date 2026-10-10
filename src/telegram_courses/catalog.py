@@ -225,6 +225,7 @@ class CatalogBuilder:
         "course": frozenset({"track"}),
         "module": frozenset({"course"}),
         "lesson": frozenset({"course", "module"}),
+        "document": frozenset(),
         "unclassified": frozenset(),
     }
 

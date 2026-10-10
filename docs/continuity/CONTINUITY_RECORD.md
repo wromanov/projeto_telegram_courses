@@ -555,3 +555,273 @@ S3_OPEN_03 = UNRESOLVED / no autodetection
 NEXT_ACTION = Obtain sanitized SP-02 fixtures or fresh bounded authorization, then adjudicate S3-OPEN-01
 GIT_ACTIONS = NONE
 ```
+
+## S3 — SP-02 Grammar Resolution — 2026-10-10
+
+O usuário forneceu e confirmou evidência manual suficiente para os formatos
+RASMOO suportados de índice e post de mídia. `INDEX_MESSAGE`: `=` Track,
+`==` Course, `===` Module e referências `#Fxxx` listadas sob módulos.
+`MEDIA_POST`: `#Fxxx <ordinal> <título>` identifica Lesson; a hierarquia do
+post é Track sem marcador, `=` Course e `==` Module. A mídia do post é ligada
+à Lesson usando a identidade de mensagem/mídia já persistida pela S2; `#Fxxx`
+nunca é `telegram_message_id`. `#Docxxx` referencia documento geral; sem
+contexto explícito, não se atribui curso ou aula. O RAR é documental, não vídeo.
+
+`S3-OPEN-01 = BASIC GRAMMAR CONFIRMED` para INDEX_MESSAGE + MEDIA_POST.
+`S3-OPEN-02 = DETERMINISTIC IDENTITY AND CONSERVATIVE RECONCILIATION`.
+Identidade lógica usa escopo de canal/parser/versão/chave semântica; identidade
+de Lesson usa `#Fxxx`, documento usa `#Docxxx`, e mídia usa a identidade S2.
+Reprocessamento igual é idempotente. Referências ambíguas/incompatíveis ficam
+unresolved; não reparentar ou apagar estruturas por inferência.
+`S3-OPEN-03 = EXPLICIT PARSER SELECTION`: seleção configurada por canal,
+Generic fallback, sem autodetecção.
+
+O contrato e fixtures sintéticas foram atualizados. CASE-03 tem exercício
+sintético derivado do mapeamento confirmado, não amostra real. O contrato segue
+DRAFT / NOT_APPROVED / NOT_FROZEN. RasmooParser não foi implementado e precisa
+de autorização separada. Nenhuma coleta automática, conexão Telegram, SQLite
+real, leitura de credenciais, download, teste ou ação Git ocorreu.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 100%
+STATUS = PASS / SUPPORTED GRAMMAR AND DECISIONS RECORDED
+SP02 = EVIDENCE SUFFICIENT FOR SUPPORTED INDEX + MEDIA POST GRAMMAR
+S3_OPEN_01 = BASIC GRAMMAR CONFIRMED
+S3_OPEN_02 = DETERMINISTIC IDENTITY AND CONSERVATIVE RECONCILIATION
+S3_OPEN_03 = EXPLICIT PARSER SELECTION
+CONTRACT = DRAFT / NOT_APPROVED / NOT_FROZEN
+FIXTURES = tests/fixtures/rasmoo/sp02
+RASMOO_PARSER_IMPLEMENTED = NO / AUTHORIZATION = NOT_GRANTED
+GIT_ACTIONS = NONE
+NEXT_ACTION = Separate authorization is required before parser implementation
+```
+
+## S3 — RasmooParser Integrated Implementation — 2026-10-10
+
+O usuário aprovou a implementação offline e o congelamento do escopo comprovado
+por SP-02. O contrato foi atualizado para `APPROVED / FROZEN` somente para
+índice, post de mídia e referência documental geral; outras formas continuam
+fora das regras confirmadas.
+
+`RasmooParser` integrado; registry usa seleção explícita e Generic fallback.
+Associação `#F` requer mesmo canal, referência igual e hierarquia compatível.
+`#Doc` permanece documental geral sem associação automática a aula/curso.
+A migration `003_catalog_unresolved.sql` persiste mensagens e motivos não
+resolvidos; `catalog items` os exibe. Reconciliação não inativa nós nem remove
+vínculos quando há qualquer incerteza. Reprocessamento idêntico preserva IDs e
+timestamps.
+
+Validação com fixtures SP-02 e SQLite temporário: focados 11 passed; suíte
+completa 163 passed + 11 subtests em 183,68 s; Ruff e diff check PASS. Uma
+execução inicial paralela a Ruff falhou somente porque o teste de smoke detectou
+mudança no cache do Ruff; a repetição isolada passou. Nenhum Telegram, SQLite
+real, credenciais/sessão ou download foi acessado. Nenhuma ação Git foi feita.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 100%
+ACTIVITY_STATUS = PASS / OFFLINE FUNCTIONAL IMPLEMENTATION AND VALIDATION
+S3_STATUS = IN_PROGRESS
+S3_CONTRACT = APPROVED / FROZEN_FOR_CONFIRMED_SP02_SCOPE_ONLY
+S3_OPEN_01 = BASIC_GRAMMAR_CONFIRMED
+S3_OPEN_02 = DETERMINISTIC_IDENTITY_AND_CONSERVATIVE_RECONCILIATION
+S3_OPEN_03 = EXPLICIT_PARSER_SELECTION
+RASMOO_PARSER = PASS_OFFLINE
+REGISTRY_BUILDER_SQLITE_RICH_CLI = PASS_OFFLINE
+IDEMPOTENCY = PASS
+CONSERVATIVE_RECONCILIATION = PASS
+UNRESOLVED_REFERENCE_HANDLING = PASS / PERSISTED_AND_VISIBLE
+SP02_FIXTURES = 9 / CASE-03 synthetic only
+FOCUSED_TESTS = 11 PASSED
+FULL_PYTEST = 163 PASSED + 11 SUBTESTS
+RUFF = PASS
+DIFF_CHECK = PASS
+REAL_TELEGRAM_ACCESS = NO
+REAL_SQLITE_ACCESS = NO
+DOWNLOADS = NONE
+GIT_ACTIONS = NONE
+S3_FORMAL_ACCEPTANCE = PENDING / OFFLINE_TESTS_DO_NOT_CLOSE_S3
+PROJECT_STATE_RECONCILIATION = PASS
+NEXT_ACTION = Plan formal acceptance under separate authority; S3 remains IN_PROGRESS
+```
+
+## S3 — Controlled RASMOO Real Validation — bloqueio de identidade — 2026-10-10
+
+O usuário autorizou uma única validação integrada no canal RASMOO, limitada a
+30 mensagens e 120 segundos, com SQLite temporário isolado. O `--help` da CLI
+retornou exit 0, com aviso de interpretador-base ausente no venv. Scanner,
+deadline, resolução restrita ao ID selecionado, parâmetro de banco alternativo
+e registro do `RasmooParser` foram inspecionados; uma execução da CLI sobre banco
+novo não ocorreu.
+
+A consulta somente leitura ao SQLite local não comprovou uma identidade RASMOO
+única e inequívoca. O índice de interface não foi tratado como ID. A atividade
+parou antes de criar o banco temporário ou conectar ao Telegram; nenhum comando
+`channels`, descoberta remota, retry ou leitura de mensagens ocorreu. O SQLite
+original não foi alterado; credenciais/sessão não foram inspecionadas.
+
+```text
+ACTIVITY = S3 Controlled RASMOO Real Validation
+ACTIVITY_STATUS = BLOCKED_PRECHECK / CHANNEL_ID_REQUIRED
+CHANNEL_ID = NOT_RESOLVED / request full identifier from user
+SCAN_EXECUTIONS = 0
+TEMP_DATABASE = NOT_CREATED
+TELEGRAM_ACCESS = NONE
+ORIGINAL_SQLITE = READ_ONLY_IDENTITY_LOOKUP / NO WRITE
+DOWNLOADS = NONE
+GIT_ACTIONS = NONE
+S3_STATUS = IN_PROGRESS
+S3_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Resume the same authorized bounded scan after the user provides the full RASMOO telegram_chat_id
+```
+
+## S3 — Retomada do preflight local — 2026-10-10
+
+O usuário forneceu o identificador completo do canal e reafirmou a autorização
+de uma única coleta, limitada a 30 mensagens e 120 segundos, sem descoberta de
+canais. A validação de `--help` retornou exit 0, mas o executável reportou que o
+interpretador-base configurado no venv não foi encontrado. Ao testar `catalog
+list` com um caminho novo sob o diretório temporário, o processo não concluiu e
+foi interrompido. Imports do venv passaram, mas `catalog list` pela invocação
+direta do módulo também não concluiu. O scanner não foi iniciado; não houve
+acesso Telegram. Não há diretório/banco temporário retido, e o SQLite original
+não foi acessado nesta retomada.
+
+```text
+ACTIVITY_STATUS = BLOCKED_PRECHECK / CATALOG_CLI_TIMEOUT
+CHANNEL_ID = USER_PROVIDED / OMITTED_FROM_RECORD
+SCAN_EXECUTIONS = 0
+MAX_MESSAGES = 30
+TIMEOUT_SECONDS = 120
+TEMP_DATABASE = NO_DATABASE_RETAINED / CATALOG_LIST_PREFLIGHT_DID_NOT_FINISH
+TELEGRAM_ACCESS = NONE
+DOWNLOADS = NONE
+CREDENTIALS_OR_SESSION_INSPECTED = NO
+GIT_ACTIONS = NONE
+S3_STATUS = IN_PROGRESS
+S3_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Restore supported Python 3.14 runtime, then continue local catalog validation on this same temporary database without another scan
+```
+
+## S3 — RASMOO Catalog Validation Using Collected Data — 2026-10-10
+
+O banco temporário fornecido pelo usuário foi aberto somente para leitura.
+`integrity_check=ok`, foreign-key check sem violações, 30 mensagens e 26 mídias.
+Há um scan `PARTIAL / MESSAGE_LIMIT`; o checkpoint `PARTIAL` corresponde ao run,
+canal e watermark, e seu cursor aponta para mensagem persistida dentro do
+watermark. Não foram expostos conteúdo, nomes ou IDs no relatório.
+
+O `--help` confirmou `--database`, `--channel-id` e `--parser-key`; a fonte da
+CLI retorna exit 0 apenas para scan `COMPLETE` e exit 4 nos demais estados, logo
+`PARTIAL / MESSAGE_LIMIT` explica o exit 4 informado. Entretanto, `catalog list`
+não concluiu e uma operação mínima `aiosqlite` em memória também ficou suspensa.
+O venv está configurado para Python 3.14, mas seu interpretador-base não foi
+encontrado; Python 3.15 está fora do requisito `>=3.14,<3.15`. Por isso não foi
+executado `catalog build/list/show/items`, e o banco temporário permanece sem
+alteração de catálogo.
+
+```text
+ACTIVITY_STATUS = BLOCKED_PREFLIGHT / ASYNC_SQLITE_RUNTIME_HANG
+SQLITE_INTEGRITY = PASS
+FOREIGN_KEY_VIOLATIONS = 0
+MESSAGES_PERSISTED = 30
+MEDIA_PERSISTED = 26
+SCAN_STATUS = PARTIAL / MESSAGE_LIMIT
+CHECKPOINT = CONSISTENT / PARTIAL
+CATALOG_BUILD = NOT_RUN
+RICH_CLI = BLOCKED / ASYNC_SQLITE_RUNTIME_HANG
+EXIT_CODE_4_MEANING = CLI maps non-COMPLETE scan outcomes to exit 4
+IDEMPOTENCY = NOT_RUN
+REAL_DATA_CATALOG_VALIDATION = NOT_RUN / runtime blocker; parser not executed
+S3_STATUS = IN_PROGRESS
+S3_FORMAL_ACCEPTANCE = PENDING
+NEXT_ACTION = Restore supported Python 3.14 runtime and continue against this same temporary database; do not rescan
+```
+
+## S3-MAG-01 — Catalog CLI Windows Compatibility — 2026-10-10
+
+The user authorized an offline Windows output-compatibility correction, synthetic
+regression coverage, and validation using a separate copy of the supplied
+temporary SQLite database. No Telegram access, download, credential/session
+inspection, source-database write, or Git mutation occurred.
+
+The Architect verdict is PASS. The original user exception was not captured, so
+Unicode encoding remains the probable incident cause; the Rich write path and
+the CLI's generic error handling corroborate the mechanism. The Scriber added a
+Catalog-scoped output adapter and synthetic tests for UTF-8, CP1252, CP850, and
+redirected output. The coordinator added an empty-stderr assertion.
+
+A focused writer test passed (1 passed); Ruff and `git diff --check` passed. The
+agent sandbox could not initialize the Windows Proactor socketpair and its
+integration test stopped before SQLite access. The supported user PowerShell
+run is therefore pending for `catalog items`/CLI integration and full pytest.
+
+Read-only aggregates from an isolated copy of the supplied temporary DB:
+
+```text
+CHANNELS = 1
+CATALOG_RUNS = 2 / both COMPLETE
+PLAN_NODES_PER_RUN = 589
+UNRESOLVED_PER_RUN = 2
+PERSISTED_NODES = 589 active / 0 inactive
+MEDIA = 26 rows / 26 linked
+SOURCE_DATABASE_WRITTEN = NO
+```
+
+Thus, 589 is the build-plan node count and matches the active persisted count in
+the provided temporary DB. The reported 98 was not reproduced there; its query
+or snapshot provenance is missing. The requested before/after idempotency rebuild
+on an isolated copy could not complete in the agent environment.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 72%
+ACTIVITY_STATUS = PARTIAL
+ARCHITECT_VERDICT = PASS
+SCRIBER_VERDICT = PARTIAL
+ENCODING_REGRESSION = PARTIAL / focused writer PASS; integration pending
+CATALOG_CLI_INTEGRATION = PENDING_USER_WINDOWS_VALIDATION
+IDEMPOTENCY = PARTIAL / isolated rebuild comparison pending
+CATALOG_COUNTS_EXPLAINED = PARTIAL / 589 validated; 98 not reproduced, source query unknown
+PYTEST = PARTIAL / focused writer 1 passed; full regression pending
+RUFF = PASS
+DIFF_CHECK = PASS
+GIT_ACTIONS = NONE
+TELEGRAM_ACCESS = NO
+DOWNLOADS = NONE
+S3_STATUS = IN_PROGRESS
+S3_FORMAL_ACCEPTANCE = PENDING
+NEXT_ACTION = Run the focused/full validation in the functional user PowerShell runtime; reconcile the query/snapshot behind 98
+```
+
+## S3-CLOSE-01 — Formal Acceptance and Publication — 2026-10-10
+
+S3 foi formalmente aceita após revisão do repositório e reconciliação das
+evidências fornecidas. O núcleo genérico, RasmooParser, gate S3-MAG-01,
+validação do catálogo real com escopo limitado, idempotência, CLI Windows e
+regressão completa foram aceitos. O catálogo real corresponde a 30 mensagens e
+26 mídias; o scan terminou por `MESSAGE_LIMIT` e não cobriu o canal inteiro.
+Foram preservadas duas referências unresolved. A gramática está aprovada
+somente para os formatos comprovados. S3 não incluiu downloads; a validação
+integral do produto no canal real permanece planejada para S9.
+
+```text
+ACTIVITY = S3-CLOSE-01
+ACTIVITY_COMPLETION_PERCENT = 100%
+STATUS = COMPLETED / S3 ACCEPTED AND CLOSED
+S3_FORMAL_ACCEPTANCE = APPROVED
+S3_GENERIC_CORE = PASS
+RASMOO_PARSER = PASS
+S3_MAG_01 = PASS
+REAL_CATALOG_VALIDATION = PASS_WITH_SCOPE
+IDEMPOTENCY = PASS
+WINDOWS_CLI = PASS / catalog items without -X utf8
+FULL_REGRESSION = PASS / 167 passed + 11 subtests
+RUFF = PASS
+DIFF_CHECK = PASS
+FILES_COMMITTED = PENDING
+FILES_EXCLUDED = PENDING
+COMMIT_SHA = PENDING
+GIT_PUSH = PENDING
+S4_STATUS = PLANNED / NOT_STARTED
+S4_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+SAFE_RESUME_POINT = S4 entry review; implementation requires separate authorization
+```

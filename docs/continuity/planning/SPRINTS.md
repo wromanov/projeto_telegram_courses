@@ -82,7 +82,12 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **GATES:** Catalog/parser acceptance; parser correctness before mass download.
 - **DEFINITION_OF_DONE:** Approved parser/catalog criteria and corresponding tests pass; no parser performs infrastructure work.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S3 accepted; catalog can identify a selectable lesson/media item.
-- **STATUS:** PLANNED / NOT_STARTED.
+- **STATUS:** ACCEPTED / CLOSED. `S3-MAG-01` PASS; generic core and RasmooParser PASS; real catalog validation PASS_WITH_SCOPE; idempotency PASS; Windows CLI PASS; full regression 167 passed + 11 subtests; Ruff and diff check PASS. See [PROJECT_STATE](../PROJECT_STATE.md) and [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
+
+O scan real limitou-se a 30 mensagens e 26 mídias, encerrando por
+`MESSAGE_LIMIT`; não cobre o canal inteiro. A gramática aprovada limita-se aos
+formatos comprovados. S3 não validou downloads; a validação integral do produto
+no canal real permanece planejada para S9.
 
 ## S4 — Single Media Download + Local Organization + Deduplication
 
@@ -113,6 +118,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **DEFINITION_OF_DONE:** All nine milestone checks pass end-to-end; isolated component tests alone do not satisfy this gate.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S4 and `FIRST_VERTICAL_SLICE_GATE` accepted; course-level selection/queue can build on proven single-item behavior.
 - **STATUS:** PLANNED / NOT_STARTED.
+- **IMPLEMENTATION_AUTHORIZATION:** NOT_GRANTED / requires separate explicit user authorization.
 
 ## S5 — Course/Module Selection + Download Planner + Download Queue
 

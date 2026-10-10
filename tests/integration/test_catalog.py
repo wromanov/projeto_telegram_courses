@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import sys
 
 import aiosqlite
 import pytest
@@ -135,3 +137,78 @@ def test_offline_repository_cli_and_idempotent_build(tmp_path, capsys) -> None:
 
 def test_catalog_cli_build_requires_explicit_channel(tmp_path) -> None:
     assert main(["catalog", "build", "--database", str(tmp_path / "db.sqlite3")]) == 2
+
+
+@pytest.mark.parametrize("encoding", ["utf-8", "cp1252", "cp850"])
+def test_catalog_cli_writes_unicode_to_redirected_stream(tmp_path, monkeypatch, encoding) -> None:
+    path = tmp_path / "unicode.sqlite3"
+    asyncio.run(seed_database(path))
+
+    async def update_synthetic_text() -> None:
+        async with aiosqlite.connect(path) as db:
+            await db.execute("UPDATE channels SET title = 'Ação 🚀' WHERE telegram_chat_id = -1001")
+            await db.execute("UPDATE messages SET text = 'Lição 🚀' WHERE telegram_message_id = 10")
+            await db.execute("UPDATE media_items SET original_filename = 'lição 🚀.pdf'")
+            await db.commit()
+
+    asyncio.run(update_synthetic_text())
+    buffer = io.BytesIO()
+    stream = io.TextIOWrapper(buffer, encoding=encoding, errors="strict")
+    stderr = io.StringIO()
+    assert not stream.isatty()
+    with monkeypatch.context() as patch:
+        patch.setattr(sys, "stdout", stream)
+        patch.setattr(sys, "stderr", stderr)
+        for action in ("build", "list", "show", "items"):
+            args = ["catalog", action, "--database", str(path)]
+            if action != "list":
+                args.extend(("--channel-id", "-1001"))
+            assert main(args) == 0
+
+    output = buffer.getvalue().decode(encoding)
+    assert stderr.getvalue() == ""
+    assert "internal error" not in output
+    if encoding == "utf-8":
+        assert "Ação 🚀" in output
+        assert "Lição 🚀" in output
+        assert "lição 🚀.pdf" in output
+        assert "\\U0001f680" not in output
+    else:
+        assert "Ação \\U0001f680" in output
+        assert "Lição \\U0001f680" in output
+        assert "lição \\U0001f680.pdf" in output
+
+
+def test_catalog_output_without_encoding_and_write_error() -> None:
+    from telegram_courses.cli import _CatalogOutput
+
+    class Stream:
+        def __init__(self) -> None:
+            self.written = ""
+            self.flushed = False
+
+        def write(self, value: str) -> int:
+            self.written += value
+            return len(value)
+
+        def flush(self) -> None:
+            self.flushed = True
+
+        def isatty(self) -> bool:
+            return False
+
+    stream = Stream()
+    output = _CatalogOutput(stream)
+    assert output.encoding == "utf-8"
+    assert output.isatty() is False
+    assert output.write("Ação 🚀") == len("Ação 🚀")
+    output.flush()
+    assert stream.written == "Ação 🚀"
+    assert stream.flushed
+
+    def fail_write(_: str) -> int:
+        raise OSError("write failed")
+
+    stream.write = fail_write
+    with pytest.raises(OSError, match="write failed"):
+        output.write("Lição 🚀")

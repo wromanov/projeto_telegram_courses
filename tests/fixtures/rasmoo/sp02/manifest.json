@@ -1,0 +1,112 @@
+{
+  "status": "SUPPORTED_INDEX_AND_MEDIA_POST_GRAMMAR_CONFIRMED",
+  "grammar": {
+    "index_message": {
+      "=": "track",
+      "==": "course",
+      "===": "module",
+      "#Fxxx": "content reference; not a Telegram message ID"
+    },
+    "media_post": {
+      "unmarked_path_line": "track",
+      "=": "course",
+      "==": "module",
+      "#Fxxx_title": "lesson reference and title",
+      "attached_media": "lesson material linked by persisted S2 message/media identity"
+    },
+    "document_reference": {
+      "#Docxxx": "general course document reference; no course/lesson link without explicit context"
+    },
+    "normalization": "Track -> Course -> Module -> Lesson"
+  },
+  "identity_and_reconciliation": {
+    "scope": ["channel_id", "parser_key", "grammar_version", "semantic_node_key"],
+    "lesson_key": "literal #Fxxx reference, validated against compatible context",
+    "document_key": "literal #Docxxx reference in a separate namespace",
+    "media_identity": ["persisted channel_id", "telegram_message_id", "media_ordinal"],
+    "ambiguous_or_unresolved": "preserve source and existing structures; do not infer, reparent, or physically delete",
+    "reprocessing": "same source snapshot and grammar version is idempotent"
+  },
+  "fixtures": [
+    {
+      "case": "CASE-01",
+      "fragment": "index-a",
+      "message_kind": "INDEX_MESSAGE",
+      "text_file": "case01_index_fragment_a.txt",
+      "media": [],
+      "source_order_relative_to_other_fragments": "UNKNOWN"
+    },
+    {
+      "case": "CASE-01",
+      "fragment": "index-b",
+      "message_kind": "INDEX_MESSAGE",
+      "text_file": "case01_index_fragment_b.txt",
+      "media": [],
+      "source_order_relative_to_other_fragments": "UNKNOWN"
+    },
+    {
+      "case": "CASE-02",
+      "fragment": "video-cross-referenced-by-index",
+      "message_kind": "MEDIA_POST",
+      "text_file": "case02_video_post_from_index.txt",
+      "media": [{"kind": "video", "synthetic": true}],
+      "marker_reference": "#F501",
+      "index_fragment": "case01_index_fragment_a.txt"
+    },
+    {
+      "case": "CASE-02",
+      "fragment": "video-post-01",
+      "message_kind": "MEDIA_POST",
+      "text_file": "case02_video_post_01.txt",
+      "media": [{"kind": "video", "synthetic": true}],
+      "display_order_in_supplied_image": 1,
+      "context_group": "TRACK-01/COURSE-01/MODULE-01"
+    },
+    {
+      "case": "CASE-02",
+      "fragment": "video-post-02",
+      "message_kind": "MEDIA_POST",
+      "text_file": "case02_video_post_02.txt",
+      "media": [{"kind": "video", "synthetic": true}],
+      "display_order_in_supplied_image": 2,
+      "context_group": "TRACK-01/COURSE-01/MODULE-01"
+    },
+    {
+      "case": "CASE-02",
+      "fragment": "video-post-03",
+      "message_kind": "MEDIA_POST",
+      "text_file": "case02_video_post_03.txt",
+      "media": [{"kind": "video", "synthetic": true}],
+      "context_group": "TRACK-01/COURSE-01/MODULE-01"
+    },
+    {
+      "case": "CASE-02",
+      "fragment": "documents-index",
+      "message_kind": "INDEX_MESSAGE",
+      "text_file": "case02_documents_index.txt",
+      "media": [],
+      "document_scope": "general course document; exact course unresolved"
+    },
+    {
+      "case": "CASE-02",
+      "fragment": "document-post",
+      "message_kind": "DOCUMENT_POST",
+      "text_file": "case02_document_post.txt",
+      "media": [{
+        "kind": "archive",
+        "synthetic": true,
+        "filename": "DOCUMENTO-901.rar"
+      }],
+      "marker_reference": "#Doc901",
+      "document_scope": "general course document; not linked to a lesson or exact course"
+    },
+    {
+      "case": "CASE-03",
+      "fragment": "synthetic-index-transitions",
+      "message_kind": "INDEX_MESSAGE",
+      "text_file": "case03_index_transitions_synthetic.txt",
+      "evidence_status": "SYNTHETIC_FROM_CONFIRMED_HIERARCHY_MAPPING / NOT A USER-SUPPLIED TRANSITION SAMPLE",
+      "media": []
+    }
+  ]
+}

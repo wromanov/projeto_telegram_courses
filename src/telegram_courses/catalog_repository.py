@@ -89,6 +89,7 @@ class CatalogItemView:
     edit_date_utc: str | None
     text: str | None
     node_kinds: tuple[str, ...]
+    unresolved_reason: str | None
     media: tuple[CatalogMediaView, ...]
 
 
@@ -119,23 +120,28 @@ class SQLiteCatalogRepository:
         db = await self._connect()
         try:
             await db.execute("BEGIN IMMEDIATE")
-            applied = await (
-                await db.execute(
-                    "SELECT 1 FROM schema_migrations WHERE version=2"
-                )
-            ).fetchone()
-            if applied is None:
+            for version, migration_name in (
+                (2, "002_catalog.sql"),
+                (3, "003_catalog_unresolved.sql"),
+            ):
+                applied = await (
+                    await db.execute(
+                        "SELECT 1 FROM schema_migrations WHERE version=?", (version,)
+                    )
+                ).fetchone()
+                if applied is not None:
+                    continue
                 sql = (
                     files("telegram_courses")
-                    .joinpath("migrations/002_catalog.sql")
+                    .joinpath(f"migrations/{migration_name}")
                     .read_text(encoding="utf-8")
                 )
                 for statement in sql.split(";"):
                     if statement.strip():
                         await db.execute(statement)
                 await db.execute(
-                    "INSERT INTO schema_migrations(version, applied_at) VALUES(2, ?)",
-                    (_now(),),
+                    "INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+                    (version, _now()),
                 )
             await db.commit()
         except Exception:
@@ -243,12 +249,67 @@ class SQLiteCatalogRepository:
                 raise CatalogError("SOURCE_CHANGED")
 
             node_ids: dict[str, int] = {}
-            await db.execute(
-                "UPDATE catalog_nodes SET is_active=0 WHERE channel_id=? AND id IN "
-                "(SELECT catalog_node_id FROM catalog_node_identity WHERE channel_id=?)",
-                (plan.context.channel_id, plan.context.channel_id),
-            )
-            rank = {"track": 0, "course": 1, "module": 2, "lesson": 3, "unclassified": 4}
+            if not plan.unresolved:
+                node_keys = tuple(node.node_key for node in plan.nodes)
+                node_exclusion = ""
+                node_parameters: tuple[object, ...] = ()
+                if node_keys:
+                    placeholders = ",".join("?" for _ in node_keys)
+                    node_exclusion = (
+                        " AND NOT (parser_key=? AND grammar_version=? "
+                        f"AND node_key IN ({placeholders}))"
+                    )
+                    node_parameters = (
+                        plan.context.parser_key,
+                        plan.context.grammar_version,
+                        *node_keys,
+                    )
+                await db.execute(
+                    "UPDATE catalog_nodes SET is_active=0 WHERE channel_id=? AND id IN "
+                    "(SELECT catalog_node_id FROM catalog_node_identity WHERE channel_id=?"
+                    + node_exclusion
+                    + ")",
+                    (
+                        plan.context.channel_id,
+                        plan.context.channel_id,
+                        *node_parameters,
+                    ),
+                )
+                desired_media = tuple(
+                    (link.telegram_message_id, link.media_ordinal)
+                    for link in plan.media_links
+                )
+                media_exclusion = ""
+                media_parameters: tuple[object, ...] = ()
+                if desired_media:
+                    value_groups = ",".join("(?, ?)" for _ in desired_media)
+                    media_exclusion = (
+                        " AND (telegram_message_id, media_ordinal) NOT IN "
+                        f"({value_groups})"
+                    )
+                    media_parameters = tuple(
+                        value for media_key in desired_media for value in media_key
+                    )
+                await db.execute(
+                    "UPDATE media_items SET catalog_node_id=NULL, updated_at=? "
+                    "WHERE channel_id=? AND catalog_node_id IN "
+                    "(SELECT catalog_node_id FROM catalog_node_identity WHERE channel_id=?)"
+                    + media_exclusion,
+                    (
+                        now,
+                        plan.context.channel_id,
+                        plan.context.channel_id,
+                        *media_parameters,
+                    ),
+                )
+            rank = {
+                "track": 0,
+                "course": 1,
+                "module": 2,
+                "lesson": 3,
+                "document": 4,
+                "unclassified": 5,
+            }
             ordered_nodes = sorted(
                 plan.nodes, key=lambda node: (rank[node.kind], node.ordinal, node.node_key)
             )
@@ -379,6 +440,19 @@ class SQLiteCatalogRepository:
                     len(plan.unresolved),
                 ),
             )
+            await db.executemany(
+                "INSERT INTO catalog_unresolved_sources(run_id, channel_id, "
+                "telegram_message_id, reason) VALUES(?, ?, ?, ?)",
+                (
+                    (
+                        run_id,
+                        plan.context.channel_id,
+                        item.telegram_message_id,
+                        item.reason,
+                    )
+                    for item in plan.unresolved
+                ),
+            )
             await db.commit()
             return CatalogBuildRecord(
                 run_id=run_id,
@@ -489,6 +563,17 @@ class SQLiteCatalogRepository:
                     (channel_id,),
                 )
             ).fetchall()
+            unresolved_rows = await (
+                await db.execute(
+                    "SELECT telegram_message_id, reason FROM catalog_unresolved_sources "
+                    "WHERE run_id=(SELECT id FROM catalog_runs WHERE channel_id=? "
+                    "ORDER BY finished_at DESC, rowid DESC LIMIT 1)",
+                    (channel_id,),
+                )
+            ).fetchall()
+            unresolved_by_message = {
+                row["telegram_message_id"]: row["reason"] for row in unresolved_rows
+            }
             media_by_message: dict[int, list[CatalogMediaView]] = {}
             for row in media_rows:
                 media_by_message.setdefault(row["telegram_message_id"], []).append(
@@ -514,6 +599,7 @@ class SQLiteCatalogRepository:
                     edit_date_utc=row["edit_date_utc"],
                     text=row["text"],
                     node_kinds=tuple(kinds_by_message.get(row["telegram_message_id"], ())),
+                    unresolved_reason=unresolved_by_message.get(row["telegram_message_id"]),
                     media=tuple(media_by_message.get(row["telegram_message_id"], ())),
                 )
                 for row in message_rows
