@@ -11,10 +11,14 @@ import unicodedata
 from collections.abc import Callable, Sequence
 
 from rich.console import Console
+from rich.table import Table
 
 from telegram_courses import __version__
 from telegram_courses.auth import AuthenticationError
 from telegram_courses.auth_application import AuthenticationApplication
+from telegram_courses.catalog import CatalogError
+from telegram_courses.catalog_application import CatalogApplication
+from telegram_courses.catalog_repository import SQLiteCatalogRepository
 from telegram_courses.channel_discovery import (
     ChannelDiscoveryApplication,
     ChannelDiscoveryError,
@@ -46,10 +50,10 @@ class _ArgumentParser(argparse.ArgumentParser):
 def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = _ArgumentParser(prog="telegram-courses", add_help=True)
     parser.add_argument(
-        "command", choices=("smoke", "auth", "channels", "scan", "credentials")
+        "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog")
     )
     parser.add_argument(
-        "credentials_action", nargs="?", choices=("setup", "status")
+        "credentials_action", nargs="?", choices=("setup", "status", "build", "list", "show", "items")
     )
     parser.add_argument("--config", action="append")
     parser.add_argument("--log-level", action="append")
@@ -57,6 +61,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--max-messages", type=int)
     parser.add_argument("--timeout-seconds", type=float)
     parser.add_argument("--database", default="data/catalog.sqlite3")
+    parser.add_argument("--parser-key")
     args = parser.parse_args(argv)
     if (args.config is not None and len(args.config) != 1) or (
         args.log_level is not None and len(args.log_level) != 1
@@ -64,7 +69,15 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         raise ConfigurationError
     args.config = args.config[0] if args.config else None
     args.log_level = args.log_level[0] if args.log_level else None
-    if (args.command == "credentials") != (args.credentials_action is not None):
+    if (args.command in {"credentials", "catalog"}) != (args.credentials_action is not None):
+        raise ConfigurationError from None
+    if args.command == "credentials" and args.credentials_action not in {"setup", "status"}:
+        raise ConfigurationError from None
+    if args.command == "catalog" and args.credentials_action not in {"build", "list", "show", "items"}:
+        raise ConfigurationError from None
+    if args.parser_key is not None and args.command != "catalog":
+        raise ConfigurationError from None
+    if args.parser_key is not None and args.credentials_action != "build":
         raise ConfigurationError from None
     if args.command == "scan":
         if (
@@ -75,6 +88,13 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         ):
             raise ConfigurationError from None
         if args.max_messages <= 0 or args.timeout_seconds <= 0:
+            raise ConfigurationError from None
+    elif args.command == "catalog":
+        if args.max_messages is not None or (
+            args.credentials_action == "build" and (args.channel_id is None or not args.channel_id)
+        ) or (
+            args.credentials_action in {"list"} and args.channel_id is not None
+        ):
             raise ConfigurationError from None
     elif any(value is not None for value in (args.channel_id, args.max_messages)):
         raise ConfigurationError from None
@@ -113,6 +133,88 @@ def _scan_channel(
         highlight=False,
     )
     return 0 if outcome.status.value == "COMPLETE" else 4
+
+
+def _catalog_command(args: argparse.Namespace, selection_prompt: Callable[[str], str]) -> int:
+    repository = SQLiteCatalogRepository(args.database)
+    application = CatalogApplication(repository)
+    console = Console(file=sys.stdout, force_terminal=False, no_color=True, color_system=None, width=140)
+
+    async def run() -> tuple[object, ...] | object:
+        if args.credentials_action == "build":
+            return await application.build(args.channel_id, explicit_parser_key=args.parser_key)
+        await repository.migrate()
+        if args.credentials_action == "list":
+            return await repository.list_catalog_channels()
+        channel_id = args.channel_id
+        channels = await repository.list_catalog_channels()
+        if channel_id is None:
+            if not sys.stdin.isatty() and selection_prompt is input:
+                raise ConfigurationError
+            if not channels:
+                return ()
+            table = Table("#", "Canal", "ID", "Parser", show_lines=False)
+            for index, item in enumerate(channels, start=1):
+                table.add_row(str(index), _safe_terminal_text(item.title or "(sem título)"), str(item.channel_id), item.parser_key or "generic")
+            console.print(table)
+            answer = selection_prompt("Selecione o número do canal ou Q para cancelar: ").strip()
+            if answer.casefold() == "q":
+                return ()
+            if not answer.isdecimal() or not 1 <= int(answer) <= len(channels):
+                raise ConfigurationError
+            channel_id = channels[int(answer) - 1].channel_id
+        if args.credentials_action == "show":
+            return await repository.get_catalog_nodes(channel_id)
+        return await repository.get_catalog_items(channel_id)
+
+    result = asyncio.run(run())
+    if args.credentials_action == "build":
+        console.print(
+            f"catalog build complete channel={result.channel_id} parser={result.parser_key} "
+            f"messages={result.source_message_count} nodes={result.catalog_node_count} "
+            f"unresolved={result.unresolved_count}",
+            markup=False, highlight=False,
+        )
+    elif args.credentials_action == "list":
+        if not result:
+            console.print("no catalog builds", markup=False, highlight=False)
+        else:
+            table = Table("Canal", "ID", "Parser", "Estado", "Mensagens", "Nós ativos", "Sem classificação")
+            for item in result:
+                table.add_row(_safe_terminal_text(item.title or "(sem título)"), str(item.channel_id), item.parser_key or "generic", item.catalog_status, str(item.source_message_count), str(item.active_node_count), str(item.unclassified_count))
+            console.print(table)
+    elif args.credentials_action == "show":
+        if not result:
+            console.print("catálogo vazio", markup=False, highlight=False)
+        else:
+            by_id = {item.node_id: item for item in result}
+            def depth(item: object) -> int:
+                level, parent = 0, item.parent_id
+                seen: set[int] = set()
+                while parent in by_id and parent not in seen:
+                    seen.add(parent)
+                    level += 1
+                    parent = by_id[parent].parent_id
+                return level
+            table = Table("Tipo", "Código", "Ordem", "Título", "Mensagem", "Estado")
+            for item in sorted(result, key=lambda node: (not node.is_active, depth(node), node.ordinal or 0, node.node_id)):
+                title = _safe_terminal_text(item.title or "")
+                table.add_row("  " * depth(item) + item.kind, item.code or "", str(item.ordinal or ""), title, str(item.source_message_id or ""), "ativo" if item.is_active else "inativo")
+            console.print(table)
+    else:
+        if not result:
+            console.print("nenhuma mensagem local", markup=False, highlight=False)
+        else:
+            table = Table("Mensagem", "Data UTC", "Classificação", "Texto", "Mídia")
+            for item in result:
+                media = ", ".join(
+                    f"{m.kind}:{m.original_filename or m.telegram_media_id or 'sem identificador'}"
+                    + (f" ({m.file_size_bytes} bytes)" if m.file_size_bytes is not None else " (tamanho desconhecido)")
+                    for m in item.media
+                )
+                table.add_row(str(item.telegram_message_id), item.date_utc, ", ".join(item.node_kinds) or "—", _safe_terminal_text(item.text or ""), _safe_terminal_text(media))
+            console.print(table)
+    return 0
 
 
 def _phone_prompt() -> str:
@@ -376,6 +478,8 @@ def main(
                     vault_factory=credential_vault_factory,
                 )
             return _credentials_status(vault_factory=credential_vault_factory)
+        if args.command == "catalog":
+            return _catalog_command(args, selection_prompt)
         if args.command == "auth":
             return _authenticate(
                 gateway_factory=gateway_factory,
@@ -428,6 +532,9 @@ def main(
         return 4
     except ScanGatewayError as error:
         sys.stderr.write(f"scan failed category={error.category}\n")
+        return 4
+    except CatalogError as error:
+        sys.stderr.write(f"catalog failed category={error.category}\n")
         return 4
     except Exception:
         sys.stderr.write("internal error\n")

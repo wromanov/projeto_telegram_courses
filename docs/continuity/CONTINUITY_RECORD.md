@@ -472,3 +472,86 @@ O aceite funcional satisfaz os critérios registrados no contrato. O contrato
 separa aceite de freeze; contudo, GOV-01 continua sem adjudicação e é o requisito
 externo que bloqueia freeze e encerramento formal. Não declarar `CLOSED`, não
 alterar governança e não iniciar S2. Ver [relatório final S1-D](../reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md).
+
+## S3 Entry Review & Technical Contract — 2026-10-10
+
+Contrato draft criado em [S3_PARSER_CATALOG_CONTRACT](../contracts/S3_PARSER_CATALOG_CONTRACT.md).
+S2 permanece ACCEPTED / CLOSED; S3 permanece PLANNED / NOT_STARTED e não há
+autorização de implementação. A entrada foi considerada PARTIAL: as authorities
+listam os marcadores RASMOO, mas não documentam sua semântica, e o spike SP-02
+requer amostra controlada antes de fechar parser/schema. O contrato deixa
+S3-OPEN-01 (gramática/SP-02), S3-OPEN-02 (identidade/reconciliação de nós) e
+S3-OPEN-03 (limiar de detecção) explícitos. Tokens ambíguos ficam
+unclassified/unresolved; nenhum significado foi inferido.
+
+Foram verificados por leitura o schema/migration S2, models e ports existentes,
+declarações de dependências e authorities de S3. Imports de Rich, aiosqlite e
+pytest estavam disponíveis no venv; testes não foram executados. Nenhum Telegram,
+banco SQLite real, credenciais ou sessão foi acessado. Sem mudanças de
+código/testes, sem ações Git; nenhum contrato foi aprovado/congelado.
+Reconciliado em [PROJECT_STATE](PROJECT_STATE.md) e
+[LAST_HANDOFF](handoff/LAST_HANDOFF.md).
+
+## S3 — SP-02 RASMOO Grammar Validation — 2026-10-10
+
+Foi iniciada uma única operação direcionada ao canal RASMOO identificado pelo
+usuário, com limite solicitado de 30 mensagens e orçamento inferior a 120s.
+O processo não retornou os contadores sanitizados; foi interrompido antes do
+teto. A etapa remota e a quantidade realmente consultada permanecem
+desconhecidas, portanto nenhuma segunda tentativa foi feita sob o mesmo teto
+cumulativo. Nenhuma saída bruta, download ou persistência local ocorreu. O
+caminho local de credenciais/sessão foi invocado sem exibir valores. Nenhum
+marcador tem semântica confirmada e S3-OPEN-01/02/03 permanecem abertos.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 88%
+STATUS = PARTIAL / NO SANITIZED RESULT
+SP02_REQUESTED_MESSAGE_CAP = 30
+SP02_ACTUAL_MESSAGE_COUNT = UNKNOWN
+SP02_STRUCTURAL_CASES_CAPTURED = 0
+REMOTE_ACCESS = ATTEMPTED / SINGLE TARGET
+SQLITE_ACCESS = NO
+DOWNLOADS = NONE
+LOCAL_PERSISTENCE = NONE
+RAW_CONTENT_EMITTED = NO
+S3_IMPLEMENTATION_AUTHORIZATION = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = Obtain a fresh reconciled read budget or sanitized user-provided fixtures
+```
+
+## S3 — Offline Catalog Core Implementation — 2026-10-10
+
+O usuário autorizou a implementação offline do núcleo genérico S3. Foram
+implementados registry de seleção explícita com fallback Generic, GenericParser
+sem inferência de hierarquia, CatalogBuilder, serviço de aplicação offline,
+migration aditiva `002_catalog.sql`, repository SQLite transacional e comandos
+Rich `catalog build/list/show/items`. A migration S2 não foi alterada. Nós
+ausentes em reparsing ficam inativos e não são apagados; identidades genéricas
+estáveis são delimitadas por canal/parser/versão/node key. RasmooParser e
+autodetecção não foram iniciados.
+
+Validação integral em Python 3.14.7: 157 passed + 11 subtests em 182.02s;
+Ruff PASS; `git diff --check` PASS. Os testes usam dados sintéticos e SQLite
+temporário. Não foram acessados Telegram, SQLite real, credenciais ou sessão;
+não houve download, staging, commit ou push.
+
+## S3 — Generic Catalog Core Git Publication — 2026-10-10
+
+O usuário autorizou a publicação Git seletiva do núcleo genérico offline S3.
+S3 permanece IN_PROGRESS; S3-OPEN-01 e SP-02 estão pendentes, o contrato
+continua DRAFT e RasmooParser não foi implementado. Esta publicação não acessa
+Telegram ou SQLite real. Próxima atividade: S3 — RASMOO Grammar Resolution and
+Specialized Parser Implementation, sujeita a autorização própria.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 100%
+S3_STATUS = IN_PROGRESS / generic offline core done / formal acceptance pending
+S3_IMPLEMENTATION_AUTHORIZATION = YES / offline generic core only
+CONTRACT = DRAFT / NOT_APPROVED / NOT_FROZEN
+SP02 = INCONCLUSIVE / no sanitized cases / actual message count unknown
+S3_OPEN_01 = UNRESOLVED / RASMOO grammar
+S3_OPEN_02 = PARTIAL / generic identity validated; specialized anchors open
+S3_OPEN_03 = UNRESOLVED / no autodetection
+NEXT_ACTION = Obtain sanitized SP-02 fixtures or fresh bounded authorization, then adjudicate S3-OPEN-01
+GIT_ACTIONS = NONE
+```

@@ -439,3 +439,104 @@ NEXT_ACTION = S3 entry review; S3 NOT_STARTED / implementation not authorized
 Retomar pelo [PROJECT_STATE](../PROJECT_STATE.md). Preservar o incidente
 histórico de vault e seu risco residual; esta atividade não acessou vault,
 credenciais ou sessão.
+
+## Handoff vigente — S3 Entry Review & Technical Contract — 2026-10-10
+
+S2 segue `ACCEPTED / CLOSED`. A revisão de entrada S3 e o contrato draft estão
+em [S3_PARSER_CATALOG_CONTRACT](../../contracts/S3_PARSER_CATALOG_CONTRACT.md).
+O resultado é `PARTIAL`: foi confirmado que o material consultado não define a
+semântica dos marcadores RASMOO, e SP-02 requer amostra representativa antes de
+fechar parser/schema. O draft não atribui semântica presumida e define Generic,
+Registry, Builder, persistência idempotente e navegação CLI.
+
+```text
+S3_ENTRY_REVIEW = PARTIAL
+S3_READINESS = CONTRACT_DRAFT_READY / SP-02 AND RASMOO GRAMMAR DECISIONS OPEN
+CONTRACT_STATUS = DRAFT / NOT_APPROVED / NOT_FROZEN
+OPEN_DECISIONS = S3-OPEN-01..03
+S3_IMPLEMENTATION_AUTHORIZATION = NO
+REAL_TELEGRAM_ACCESS = NO
+REAL_USER_SQLITE_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+TESTS_RUN = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = Review contract; resolve SP-02 and S3-OPEN-01..03; implementation requires separate authorization
+```
+
+Foram consultados PROJECT_STATE, ACTIVE_AUTHORITY_MAP, SPRINTS, ROADMAP,
+REQUIREMENTS, ARCHITECTURE, ENGINEERING_FOUNDATION, contrato/implementação
+SQLite S2 e dependências declaradas. Não se abriu o SQLite real e não se
+acessou Telegram, credenciais ou sessão. A reconciliação corrente está em
+[PROJECT_STATE](../PROJECT_STATE.md) e [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
+
+### Atualização SP-02 — tentativa inconclusiva — 2026-10-10
+
+O usuário forneceu a identidade estável do único canal autorizado. Uma operação
+direcionada foi iniciada com limite de até 30 mensagens e orçamento inferior a
+120s, sem scanner, download ou escrita local. O processo não retornou a saída
+sanitizada antes de ser interrompido; a etapa remota e a contagem efetiva de
+mensagens são desconhecidas. Não repetir sob o teto original. Nenhum resultado
+de caso foi capturado e nenhuma semântica de `=`, `==`, `===`, `#Fxxx` ou
+`#Docxxx` foi confirmada. O caminho local de credenciais/sessão foi invocado;
+valores não foram emitidos.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 88%
+SP02_STATUS = PARTIAL / NO SANITIZED RESULT
+REQUESTED_MESSAGE_CAP = 30 / ACTUAL_MESSAGE_COUNT = UNKNOWN
+STRUCTURAL_CASES_CAPTURED = 0
+S3_OPEN_01 = UNRESOLVED
+S3_OPEN_02 = UNRESOLVED
+S3_OPEN_03 = UNRESOLVED
+S3_IMPLEMENTATION_AUTHORIZATION = NO
+REAL_USER_SQLITE_ACCESS = NO
+DOWNLOADS = NONE / LOCAL_PERSISTENCE = NONE
+RAW_CONTENT_EMITTED = NO
+TESTS_RUN = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = Reconcile the message budget and obtain fresh bounded evidence, or use sanitized user-provided fixtures
+```
+
+## Handoff vigente — S3 Offline Catalog Core Implementation — 2026-10-10
+
+O núcleo genérico offline S3 foi implementado e validado com fixtures
+sintéticas e SQLite temporário. Inclui registry explícito/Generic fallback,
+parser genérico, builder, migration 002, repository transacional e CLI Rich
+`catalog build/list/show/items`. A implementação não inclui RasmooParser nem
+autodetecção; SP-02 segue inconclusiva e nenhuma semântica de marcador foi
+confirmada. Contrato permanece DRAFT; S3 não está encerrada. S2 continua
+ACCEPTED / CLOSED.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 100%
+S3_STATUS = IN_PROGRESS / GENERIC OFFLINE CORE COMPLETE
+S3_IMPLEMENTATION_AUTHORIZATION = YES / OFFLINE GENERIC CORE ONLY
+FULL_PYTEST = PASS / 157 passed + 11 subtests / 182.02s / Python 3.14.7
+RUFF = PASS
+DIFF_CHECK = PASS
+CONTRACT = DRAFT / NOT_APPROVED / NOT_FROZEN
+SP02 = INCONCLUSIVE / zero sanitized structural cases / actual count unknown
+S3_OPEN_01 = UNRESOLVED / grammar
+S3_OPEN_02 = PARTIAL / Generic identity validated; Rasmoo anchors open
+S3_OPEN_03 = UNRESOLVED / no auto-detection
+REAL_TELEGRAM_ACCESS = NO
+REAL_USER_SQLITE_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+DOWNLOADS = NONE
+GIT_ACTIONS = NONE
+NEXT_ACTION = Obtain sanitized SP-02 fixtures or fresh bounded authorization, then decide S3-OPEN-01
+```
+
+Ver [PROJECT_STATE](../PROJECT_STATE.md), [CONTINUITY_RECORD](../CONTINUITY_RECORD.md)
+e [contrato S3](../../contracts/S3_PARSER_CATALOG_CONTRACT.md). Não fazer
+retry remoto, inferir gramática, congelar contrato ou publicar Git sem nova
+authority específica.
+
+## Handoff — S3 Generic Catalog Core Git Publication — 2026-10-10
+
+O usuário autorizou a publicação Git seletiva do núcleo genérico offline S3.
+S3 permanece IN_PROGRESS, com S3-OPEN-01, SP-02 e aceite formal pendentes. O
+contrato permanece DRAFT e RasmooParser não foi implementado. A próxima
+atividade é resolver a gramática RASMOO e implementar o parser especializado,
+com autorização própria. Nenhum Telegram ou SQLite real é necessário para a
+publicação do núcleo genérico.

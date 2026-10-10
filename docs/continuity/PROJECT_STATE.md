@@ -2,7 +2,7 @@
 
 ```text
 DOCUMENT_ROLE = PROJECT_STATE
-STATE_VERSION = 2.23
+STATE_VERSION = 2.26
 STATUS = ACTIVE / S0_CLOSED / S1_CLOSED / S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CLI_NUMERIC_SELECTION_PASS / GOV-01_RESOLVED / S2_ACCEPTED / S2_CLOSED
 LAST_UPDATED = 2026-10-10 / America/Sao_Paulo
 PROJECT_IDENTITY = projeto_telegram_courses
@@ -11,18 +11,24 @@ CURRENT_ENVIRONMENT = HOME_COMPUTER / LOCAL_WORKSPACE
 REMOTE_ORIGIN = https://github.com/wromanov/projeto_telegram_courses.git
 CURRENT_BRANCH = work/s0-bootstrap
 UPSTREAM = origin/work/s0-bootstrap
-PRECHECK_HEAD = 887d3e81036c8be7e43dd2b5fdb66d19704beb88 / confirmed for S2 implementation checkpoint
+PRECHECK_HEAD = dc1deb441f02a62b843ac2047eb6f406310e54f0 / published S2 checkpoint, confirmed at S3 SP-02 resume
 PRECHECK_UPSTREAM_DIVERGENCE = 0/0 / git fetch origin completed during S2 final checkpoint publication precheck
 BASELINE_TRACEABILITY = S0-SL01/SL02 checkpoint 1cde21d4d0f95b9b190c02f4a69a91c25485428c; SP01-01..10 PASS in evidence; current baseline HEAD confirmed above
-CURRENT_PHASE = PHASE_2_CATALOG / S1 CLOSED / S2 ACCEPTED / CLOSED
-CURRENT_DELIVERY_UNIT = S2 / ACCEPTED / CLOSED
-CURRENT_ACTIVITY = S2 — Final Git Checkpoint Publication
-CURRENT_ACTIVITY_STATE = AUTHORIZED / PRECHECK PASS / S2 ACCEPTED / CLOSED
-LAST_COMPLETED_ACTIVITY = S2 — Real Scan SQLite Acceptance
-NEXT_ACTIVITY = S3 entry review; S3 NOT_STARTED
-NEXT_ACTIVITY_READINESS = S2 accepted; S3 entry review may be prepared, with implementation requiring separate authorization
-NEXT_ACTIVITY_AUTHORIZATION = NO / S3 implementation and Git publication are not authorized
+CURRENT_PHASE = PHASE_2_CATALOG / S1 CLOSED / S2 ACCEPTED / CLOSED / S3 IN_PROGRESS
+CURRENT_DELIVERY_UNIT = S3 / IN_PROGRESS / offline generic core only
+CURRENT_ACTIVITY = S3 — Generic Catalog Core Git Publication
+CURRENT_ACTIVITY_STATE = PASS / generic offline core published; S3 remains IN_PROGRESS
+LAST_COMPLETED_ACTIVITY = S3 — Generic Catalog Core Git Publication / core committed and pushed
+NEXT_ACTIVITY = S3 — RASMOO Grammar Resolution and Specialized Parser Implementation
+NEXT_ACTIVITY_READINESS = Generic offline core published; SP-02 evidence and RASMOO grammar remain pending
+NEXT_ACTIVITY_AUTHORIZATION = NOT_GRANTED / next activity requires its own authorization
 S2_STATUS = ACCEPTED / CLOSED
+S3_STATUS = IN_PROGRESS
+S3_GENERIC_CORE = IMPLEMENTED / OFFLINE_PASS
+S3_OPEN01 = PENDING
+SP02 = PENDING
+S3_FORMAL_ACCEPTANCE = PENDING
+RASMOO_PARSER = NOT_IMPLEMENTED
 S2_ENTRY_REVIEW = PASS
 S2_CONTRACT = docs/contracts/S2_MESSAGE_SCANNER_SQLITE_CONTRACT.md / APPROVED / FROZEN
 S2_CONTRACT_REVIEW = PASS
@@ -159,13 +165,13 @@ GOV_01 = RESOLVED / KEEP_PINNED_BASELINE
 OPEN-03 = APPROVED
 NEXT_APPROVED_CLI_IMPROVEMENT = CLI_NUMERIC_CHANNEL_SELECTION / IMPLEMENTED_AND_VALIDATED / 1-based list index for local interaction; exact full telegram_chat_id remains compatible
 S1D_REAL_VALIDATION_EVIDENCE = docs/reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md
-OPEN_DECISIONS = NONE for S2
-BLOCKERS = None for S2; S3 implementation requires separate authorization
+OPEN_DECISIONS = S3-OPEN-01..03 / grammar, specialized node reconciliation, whether to add detection
+BLOCKERS = SP-02 evidence and S3-OPEN-01 block RasmooParser; formal contract approval and S3 acceptance remain pending
 KNOWN_RISKS = Future-unit risks and entry gates remain in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
 DEFERRED_ITEMS = GUI, TDLib and additional support remain deferred; Windows distribution remains S10; other unit-specific items are in planning/SPRINTS.md
-IMPLEMENTATION_AUTHORIZATION_STATE = S2 implementation and real-scan acceptance completed; S3 implementation requires separate authorization
-GIT_PUBLICATION_AUTHORIZATION_STATE = USER_AUTHORIZED_CURRENT_ACTIVITY / explicit request to publish the consolidated S2 checkpoint on work/s0-bootstrap, including commit and push
-NEXT_CONTINUITY_CHECKPOINT = S3 entry review; S3 remains NOT_STARTED and unauthorized; preserve prior credential-vault incident and residual risk without reopening absent new evidence
+IMPLEMENTATION_AUTHORIZATION_STATE = S3 generic offline core implemented; RasmooParser not implemented; no grammar inference or contract freeze
+GIT_PUBLICATION_AUTHORIZATION_STATE = USER_AUTHORIZED_CURRENT_ACTIVITY / S3 generic core checkpoint only
+NEXT_CONTINUITY_CHECKPOINT = S3 remains IN_PROGRESS; resolve SP-02/RASMOO grammar before specialized parser implementation
 PROJECT_GOVERNANCE_BINDING = ACTIVE / content preserved
 S1D_CREDENTIAL_VAULT_ACCESS_DURING_TEST = YES / previous activity's pre-fix test fallback read/decrypted configured local credential vault; values were not displayed or logged; session DPAPI not accessed
 S1D_INCIDENT_REVIEW = PASS / exact config.py → CredentialVault default → _ProtectedCredentialsVault → inherited _ProtectedSessionVault._load path identified; failing test now injects an empty synthetic vault
@@ -186,7 +192,7 @@ GOV01_AUTHORITY_DECISION = KEEP_PINNED_BASELINE
 GOV01_POLICY_HASH_MATCHES = 5/5 / DIVERGENCES_REMAINING=0
 GOV01_BINDING_UNCHANGED = YES / CANONICAL_SOURCES_UNCHANGED = YES
 S1D_CONTRACT_FREEZE = PASS / see docs/contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md §21
-SAFE_RESUME_POINT = S2 ACCEPTED / CLOSED. Read-only verification of data/catalog.sqlite3 confirmed one PARTIAL / MESSAGE_LIMIT scan run, 10 persisted messages, 5 media, consistent checkpoint, zero foreign-key and uniqueness violations, SQLite integrity ok, zero download rows, and persistence after close/reopen. Message content was not read; message IDs were compared internally for cursor integrity but not displayed or copied into continuity. No Telegram, credentials or session were accessed during this acceptance; no code or Git actions. S3 remains NOT_STARTED and requires separate authorization. Preserve the prior credential-vault incident and its residual risk unchanged.
+SAFE_RESUME_POINT = S3 generic offline core Git checkpoint on work/s0-bootstrap. S2 remains ACCEPTED / CLOSED; S3 remains IN_PROGRESS. SP-02 and S3-OPEN-01 remain pending; the contract remains DRAFT, S3 formal acceptance is pending, and RasmooParser is NOT_IMPLEMENTED. The next activity is S3 — RASMOO Grammar Resolution and Specialized Parser Implementation, requiring its own authorization. No Telegram or real SQLite access occurred for this checkpoint.
 
 ## GOV-01 e encerramento formal S1-D — 2026-10-09
 
@@ -315,3 +321,104 @@ iniciar S2. Evidência detalhada: [relatório S1-D](../reports/S1D_REAL_DISCOVER
 O incidente anterior de leitura acidental do vault e o risco residual já
 registrado são preservados, sem reabertura por falta de nova evidência. Este
 checkpoint não leu credenciais/vault, não alterou governança e não fez ações Git.
+
+## S3 Entry Review & Technical Contract — 2026-10-10
+
+```text
+ACTIVITY = S3 Entry Review & Technical Contract
+ACTIVITY_COMPLETION_PERCENT = 100%
+ACTIVITY_STATUS = PARTIAL / draft entregue; blockers materiais da gramática registrados
+S2_STATUS = ACCEPTED / CLOSED
+S3_STATUS = PLANNED / NOT_STARTED
+S3_ENTRY_REVIEW = PARTIAL
+S3_READINESS = CONTRACT_DRAFT_READY / SP-02 AND RASMOO GRAMMAR DECISIONS OPEN
+CONTRACT = docs/contracts/S3_PARSER_CATALOG_CONTRACT.md / DRAFT / NOT_APPROVED / NOT_FROZEN
+PARSER_REGISTRY = DEFINED
+RASMOO_PARSER_CONTRACT = PARTIAL / marker semantics require controlled evidence
+GENERIC_PARSER_CONTRACT = DEFINED
+CATALOG_BUILDER = DEFINED
+SQLITE_CATALOG = DEFINED / additive migration and stable identity required
+CATALOG_CLI = DEFINED
+IDEMPOTENCY_DEFINED = YES
+ACCEPTANCE_CRITERIA_DEFINED = YES
+MATERIAL_OPEN_DECISIONS = S3-OPEN-01 grammar/SP-02; S3-OPEN-02 node identity/reconciliation; S3-OPEN-03 detection threshold
+REAL_TELEGRAM_ACCESS = NO
+REAL_USER_SQLITE_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+TESTS_RUN = NO
+GIT_ACTIONS = NONE
+S3_IMPLEMENTATION_AUTHORIZATION = NO
+NEXT_ACTION = Review contract and resolve SP-02/S3-OPEN-01..03; implementation needs separate authorization
+```
+
+O review das authorities documentais não encontrou definição semântica para
+`=`, `==`, `===`, `#Fxxx` ou `#Docxxx`; também não encontrou amostra SP-02
+controlada. Por isso o contrato preserva tokens ambíguos como unresolved e não
+fecha uma implementação RASMOO funcional por inferência. A migration 001 S2 e
+a identidade Telegram foram preservadas; nenhum SQLite local foi aberto. O
+relato desta atividade está em [LAST_HANDOFF](handoff/LAST_HANDOFF.md).
+
+## S3 — SP-02 RASMOO Grammar Validation — 2026-10-10
+
+```text
+ACTIVITY = S3 — SP-02 RASMOO Grammar Validation
+ACTIVITY_COMPLETION_PERCENT = 88%
+ACTIVITY_STATUS = PARTIAL / bounded read attempt inconclusive
+AUTHORIZED_TARGET = one user-identified RASMOO broadcast channel / identifier omitted
+REQUESTED_MESSAGE_CAP = 30 / ACTUAL_MESSAGES_CONSULTED = UNKNOWN
+SANITIZED_STRUCTURAL_CASES_CAPTURED = 0
+REMOTE_STAGE_REACHED = UNKNOWN / no sanitized result returned before interruption
+REAL_TELEGRAM_ACCESS = ATTEMPTED / one directed operation; result incomplete
+LOCAL_CREDENTIAL_SESSION_ACCESS = ATTEMPTED / no values emitted
+REAL_USER_SQLITE_ACCESS = NO
+DOWNLOADS = NONE / LOCAL_PERSISTENCE = NONE
+RAW_CONTENT_EMITTED = NO
+S3_OPEN_01 = UNRESOLVED / no grammar evidence captured
+S3_OPEN_02 = UNRESOLVED / edits and identity not observable
+S3_OPEN_03 = UNRESOLVED / no detection sample
+TESTS_RUN = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = Reconcile the unknown message count with a fresh authorized cap or obtain sanitized user-provided fixtures
+```
+
+The local collection process produced no sanitized result and required
+interruption before the 120-second ceiling. Because the number actually
+consulted is unknown, the original 30-message cumulative limit cannot be
+verified and no second remote attempt was made. The draft records no marker
+semantics. Channel identity, raw message text, SQLite, downloads, and local
+persistence were not emitted/accessed by the collection result; the credentials
+and protected-session access path was invoked without exposing values.
+
+## S3 — Offline Catalog Core Implementation — 2026-10-10
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 100%
+ACTIVITY_STATUS = PASS / OFFLINE GENERIC CORE IMPLEMENTED; S3 NOT CLOSED
+S3_STATUS = IN_PROGRESS / RASMOO GRAMMAR AND FORMAL ACCEPTANCE PENDING
+S3_IMPLEMENTATION_AUTHORIZATION = YES / OFFLINE GENERIC CORE ONLY
+CONTRACT = docs/contracts/S3_PARSER_CATALOG_CONTRACT.md / DRAFT / NOT_APPROVED / NOT_FROZEN
+PARSER_REGISTRY = PASS / explicit selection, Generic fallback, no autodetection
+GENERIC_PARSER = PASS / one unclassified node per persisted source message; media linked
+CATALOG_BUILDER = PASS / deterministic ordering and structural validation
+SQLITE_MIGRATION = PASS / additive 002_catalog.sql; S2 migration unchanged
+SQLITE_REPOSITORY = PASS / transactional build, stable generic identities, stale nodes inactive
+RICH_CLI = PASS / catalog build/list/show/items; inspection reads persisted rows only
+FULL_PYTEST = PASS / 157 passed + 11 subtests / Python 3.14.7 / 182.02s
+RUFF = PASS
+DIFF_CHECK = PASS
+SP02 = INCONCLUSIVE / zero sanitized cases / actual remote count unknown
+S3_OPEN_01 = UNRESOLVED / no RASMOO marker semantics confirmed
+S3_OPEN_02 = PARTIAL / Generic identity behavior tested; specialized anchors pending evidence
+S3_OPEN_03 = UNRESOLVED / no automatic detection implemented or selected
+REAL_TELEGRAM_ACCESS = NO
+REAL_USER_SQLITE_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+DOWNLOADS = NONE
+GIT_ACTIONS = NONE
+NEXT_ACTION = Obtain sanitized SP-02 structural fixtures or fresh bounded collection authorization; decide S3-OPEN-01 before RasmooParser work
+```
+
+Validation used synthetic fixtures and temporary SQLite databases. The user
+authorized the offline core, but not RASMOO grammar inference, a remote retry,
+contract approval/freeze, S3 closure, or Git publication. See the S3 contract
+checkpoint and [LAST_HANDOFF](handoff/LAST_HANDOFF.md).
