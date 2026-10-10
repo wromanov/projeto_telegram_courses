@@ -6,7 +6,7 @@
 **Plan status:** Defined from the approved roadmap. Current state and authorization are recorded only in PROJECT_STATE. S1–S10 are not authorized by this plan.
 
 DOCUMENT_ROLE = EXECUTION_PLAN
-RECONCILED_AT = 2026-10-08 / America/Sao_Paulo
+RECONCILED_AT = 2026-10-09 / America/Sao_Paulo
 
 A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](../../product/REQUIREMENTS.md) é a authority dos requisitos; [ROADMAP.md](ROADMAP.md) define as fases. O estado corrente e toda autorização ficam em [PROJECT_STATE.md](../PROJECT_STATE.md). Critérios abaixo são evidências planejadas, não resultados já obtidos.
 
@@ -40,7 +40,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **FLOODWAIT_RETRY_OWNERSHIP:** APPROVED (design decision only; no implementation evidence).
 - **S1_DOR:** PASS; evidence: `docs/reports/S1_DOR_GAP_REVIEW_2026-10-07.md`; S1-B offline implementation authorization and result are recorded in `docs/governance/APPROVALS_AND_DECISIONS.md` and `PROJECT_STATE.md`.
 - **S1-B_OFFLINE_AUTHENTICATION_GATEWAY:** PASS; frozen contract: `docs/contracts/S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT.md`; offline full pytest and Ruff PASS; no real Telegram authentication, credential or session.
-- **NEXT_CANDIDATE:** S1-D — Channel Discovery & Selection; contract and numeric baseline approved, discovery implementation and credentials vault/offline regression PASS (see [PROJECT_STATE](../PROJECT_STATE.md)); contract remains NOT_FROZEN because GOV-01 is unresolved; acceptance still requires operational calibration and the already-authorized bounded Telegram validation after local credential/session precheck.
+- **NEXT_CANDIDATE:** S2 — Message Scanner + SQLite Persistence; S1 has been formally accepted and closed after GOV-01 resolution (see [PROJECT_STATE](../PROJECT_STATE.md) and the S1-D contract). S2 remains PLANNED / NOT_STARTED and requires its own entry review and implementation authorization.
 - **S1-C_ENTRY_REVIEW:** PASS / READINESS_BLOCKERS = NONE; read-only review result supplied for the S1 checkpoint; readiness does not grant execution authorization.
 - **DELIVERABLES:** Authenticated gateway path and channel discovery flow.
 - **TESTS:** Unit tests without Telegram login for application behavior; separate Telegram integration checks for authentication and channel discovery.
@@ -48,7 +48,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **GATES:** Authentication and channel-discovery acceptance.
 - **DEFINITION_OF_DONE:** Approved requirement criteria and relevant tests pass; no unresolved failure blocks the next slice.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S1 accepted; channel identity can be supplied to the scanner.
-- **STATUS:** S1 IN_PROGRESS / S1-A PASS / S1-B PASS / S1-C PASS / S1-D implementation and credential vault PASS offline / discovery acceptance pending; see PROJECT_STATE for current state and authorization. S1-C PASS or S1-D offline implementation alone does not close S1.
+- **STATUS:** S1 CLOSED / S1-A PASS / S1-B PASS / S1-C PASS / S1-D formally accepted and closed; see PROJECT_STATE for evidence and current authorization. S2 remains PLANNED / NOT_STARTED.
 
 ## S2 — Message Scanner + SQLite Persistence
 

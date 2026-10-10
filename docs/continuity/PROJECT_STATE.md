@@ -2,8 +2,8 @@
 
 ```text
 DOCUMENT_ROLE = PROJECT_STATE
-STATE_VERSION = 2.19
-STATUS = ACTIVE / S0_CLOSED / S1_IN_PROGRESS / S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_FUNCTIONAL_ACCEPTANCE_PASS / S1-D_FORMAL_CLOSURE_BLOCKED_BY_GOV01 / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CLI_NUMERIC_SELECTION_PASS
+STATE_VERSION = 2.20
+STATUS = ACTIVE / S0_CLOSED / S1_CLOSED / S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CLI_NUMERIC_SELECTION_PASS / GOV-01_RESOLVED
 LAST_UPDATED = 2026-10-09 / America/Sao_Paulo
 PROJECT_IDENTITY = projeto_telegram_courses
 PROJECT_ROOT = C:\Users\walac\desenvolvimento\projeto_telegram_courses
@@ -14,14 +14,14 @@ UPSTREAM = origin/work/s0-bootstrap
 PRECHECK_HEAD = e947406dbcab8ef593123f079daa279903805d2c / confirmed for S1-TEST-01
 PRECHECK_UPSTREAM_DIVERGENCE = 0/0 / local origin/work/s0-bootstrap reference; no fetch performed
 BASELINE_TRACEABILITY = S0-SL01/SL02 checkpoint 1cde21d4d0f95b9b190c02f4a69a91c25485428c; SP01-01..10 PASS in evidence; current baseline HEAD confirmed above
-CURRENT_PHASE = PHASE_1_TELEGRAM_ACCESS / S1 IN_PROGRESS
-CURRENT_DELIVERY_UNIT = S1 / IN_PROGRESS / S1-A PASS / S1-B PASS / S1-C PASS / S1-D FUNCTIONAL_ACCEPTANCE_PASS / FORMAL_CLOSURE_BLOCKED_BY_GOV01
-CURRENT_ACTIVITY = S1-D — Final Acceptance & Consolidated Checkpoint
-CURRENT_ACTIVITY_STATE = FUNCTIONAL_ACCEPTANCE_PASS / CONTRACT_FREEZE_BLOCKED_BY_GOV01 / FORMAL_CLOSURE_BLOCKED_BY_GOV01
-LAST_COMPLETED_ACTIVITY = S1-D — Final Acceptance & Consolidated Checkpoint (functional acceptance only)
-NEXT_ACTIVITY = GOV-01 external governance adjudication required before contract freeze and formal S1-D closure
-NEXT_ACTIVITY_READINESS = Functional criteria and operational calibration pass; governance adjudication absent
-NEXT_ACTIVITY_AUTHORIZATION = No governance change, freeze, formal closure, S2, or Git publication authorized by this checkpoint
+CURRENT_PHASE = PHASE_1_TELEGRAM_ACCESS / S1 CLOSED / PHASE_2_CATALOG NOT_STARTED
+CURRENT_DELIVERY_UNIT = S1 / CLOSED / S1-A PASS / S1-B PASS / S1-C PASS / S1-D CLOSED
+CURRENT_ACTIVITY = GOV-01 Resolution + S1-D Formal Closure
+CURRENT_ACTIVITY_STATE = GOV-01 RESOLVED / CONTRACT_FREEZE PASS / S1-D FORMAL_ACCEPTANCE PASS / S1-D CLOSED
+LAST_COMPLETED_ACTIVITY = GOV-01 Resolution + S1-D Formal Closure
+NEXT_ACTIVITY = S2 entry review / implementation not started
+NEXT_ACTIVITY_READINESS = Candidate only; S2 authorization and entry gate remain required
+NEXT_ACTIVITY_AUTHORIZATION = No S2 implementation or Git publication authorized by this checkpoint
 S0_SELECTED = YES
 S0_STARTED = YES
 S0_AUTHORIZED = YES / S0 only, per recorded user decision
@@ -90,12 +90,12 @@ S1TEST01_TEST_REVALIDATION = PASS / independent PowerShell context; final S1-D f
 S1TEST01_TELEGRAM_NETWORK = NO
 S1TEST01_SOURCE_CHANGES = NONE / GIT_ACTIONS = NONE
 S1D_ENTRY_REVIEW = PASS_USER_PROVIDED / current user request; independent local entry-review report not located
-S1D_STATUS = FUNCTIONAL_ACCEPTANCE_PASS / CONTRACT_FREEZE_BLOCKED_BY_GOV01 / FORMAL_CLOSURE_BLOCKED_BY_GOV01
+S1D_STATUS = CLOSED / FUNCTIONAL_ACCEPTANCE_PASS / CONTRACT_FREEZE_PASS / FORMAL_ACCEPTANCE_PASS
 S1D_CONTRACT_FILE = docs/contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md
-S1D_CONTRACT_STATUS = APPROVED_BY_USER_2026-10-09 / FREEZE_NOT_CONFIRMED / GOV-01_EXTERNAL_DEPENDENCY
-S1D_DOR = IMPLEMENTATION_GATE_PASS / functional acceptance gates PASS; freeze/formal closure blocked by GOV-01
+S1D_CONTRACT_STATUS = APPROVED_BY_USER_2026-10-09 / FROZEN_2026-10-09 / GOV-01_RESOLVED
+S1D_DOR = PASS / implementation, functional acceptance, contractual freeze, and formal closure complete
 S1D_CONTRACT_DRAFT_ACTIVITY = PASS / prior draft; source/tests unchanged, no pytest or Telegram operation
-S1D_DECISION_CLOSEOUT = PASS / DEC-S1D-01/02/03 registered; OPEN-04 resolved; numeric baseline and operational calibration approved/passed; GOV-01 adjudication remains pending
+S1D_DECISION_CLOSEOUT = PASS / DEC-S1D-01/02/03 registered; OPEN-04 resolved; numeric baseline and operational calibration approved/passed; GOV-01 resolved
 S1D_OPEN03_CHOICE = APPROVED_BY_USER_2026-10-09 / preserve approved choice and numeric baseline; do not infer S1-D closure
 S1D_OPEN04_CHOICE = D_PLUS_C_APPROVED_BY_DEC-S1D-03 / internal incidental GetDifference and GetChannelDifference allowed only during bounded S1-D lifecycle; application content use prohibited
 S1D_OPEN04_ARCHITECTURAL_DECISION = RESOLVED_BY_DEC-S1D-03
@@ -110,11 +110,11 @@ S1D_CHANNEL_ELIGIBILITY = DEC-S1D-02_APPROVED / BROADCAST_CHANNEL + MEGAGROUP/SU
 S1D_SUPERSEDED_DECISION = BROADCAST_ONLY_PROPOSAL_SUPERSEDED / no FUT-CHDISC-01 created
 S1D_RESTORE_ONLY = CLOSED_BY_EXISTING_AUTHORITY / reuse valid session; missing/invalid session directs to existing auth flow; no duplicated login
 S1D_DISCOVERY_COMPLETENESS = CLOSED_TECHNICALLY / paginate to exhaustion; explicit partial/cancel/error states; no silent truncation
-S1D_POLICY_PIN_DIVERGENCE = FIVE_LOCAL_POLICY_HASHES_MISMATCH / persists with LF normalization; cause and semantic difference NOT_ESTABLISHED; see contract section 11
-S1D_POLICY_AUTHORITY_IMPACT = GOVERNANCE_INTEGRITY_NOT_ATTESTED / no material conflict demonstrated for draft; governance adjudication required before freeze
+S1D_POLICY_PIN_DIVERGENCE = RESOLVED / five local copies byte-match pinned hashes; see contract section 21
+S1D_POLICY_AUTHORITY_IMPACT = GOVERNANCE_INTEGRITY_ATTESTED / KEEP_PINNED_BASELINE; no material conflict remains
 S1D_AUTHORIZATION_SOURCE = explicit user approval/instruction on 2026-10-09; contract, numeric baseline, implementation, and one bounded real validation authorized; no freeze, login, or Git publication authorization inferred
 S1D_DECISION_AUTHORIZATION_SOURCE = user request 2026-10-08, attachment 2bb3a3c5-c838-4afe-b184-6bfda45437cc/Texto colado.txt; decision closeout and contract update only
-PROJECT_STATE_RECONCILIATION = PASS / S1-D final functional acceptance, calibration, GOV-01 formal blocker, and safe resume point reconciled; earlier reports remain historical evidence
+PROJECT_STATE_RECONCILIATION = PASS / GOV-01 resolved, contract frozen, S1-D formally closed, and safe resume point reconciled; earlier reports remain historical evidence
 S1D_PREVIOUS_PRECHECK = BLOCKED / protected DPAPI session artifact and API environment were absent before the user-provided real attempt; historical checkpoint
 S1D_FIRST_REAL_DISCOVERY = FAIL_USER_REPORTED / ADAPTER_FAILURE; PAGES_REQUESTED=1; PAGES_RECEIVED=1; RAW_DIALOGS_RECEIVED=101; CLI list not shown
 S1D_ROOT_CAUSE = CODE_PATH_CONFIRMED / adapter rejected response length 101 against requested limit 100 before projection; local ChannelDiscoveryError, no original Telethon exception
@@ -144,19 +144,19 @@ S1D_BROADCAST_DISCOVERY = PASS_USER_REPORTED
 S1D_MEGAGROUP_DISCOVERY = PASS_USER_REPORTED
 S1D_LOCAL_SELECTION = PASS_USER_REPORTED
 S1D_ADAPTER_FAILURE_CORRECTION = VALIDATED_IN_REAL_SCENARIO_USER_REPORTED
-S1D_FINAL_ACCEPTANCE = FUNCTIONAL_ACCEPTANCE_PASS
-S1D_CONTRACT_FREEZE = BLOCKED_BY_GOV01 / NOT_FROZEN
-GOV_01 = EXTERNAL_DEPENDENCY
+S1D_FINAL_ACCEPTANCE = PASS / FORMAL_ACCEPTANCE_PASS / CLOSED
+S1D_CONTRACT_FREEZE = PASS / FROZEN
+GOV_01 = RESOLVED / KEEP_PINNED_BASELINE
 OPEN-03 = APPROVED
 NEXT_APPROVED_CLI_IMPROVEMENT = CLI_NUMERIC_CHANNEL_SELECTION / IMPLEMENTED_AND_VALIDATED / 1-based list index for local interaction; exact full telegram_chat_id remains compatible
 S1D_REAL_VALIDATION_EVIDENCE = docs/reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md
-OPEN_DECISIONS = GOV-01 external governance adjudication before contract freeze/formal closure
-BLOCKERS = GOV-01 external governance adjudication before contract freeze/formal S1-D closure
+OPEN_DECISIONS = NONE for S1-D closure
+BLOCKERS = NONE for S1-D closure; S2 requires its own entry review and authorization
 KNOWN_RISKS = Future-unit risks and entry gates remain in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
 DEFERRED_ITEMS = GUI, TDLib and additional support remain deferred; Windows distribution remains S10; other unit-specific items are in planning/SPRINTS.md
 IMPLEMENTATION_AUTHORIZATION_STATE = S1-D regression fix and approved CLI numeric selection implemented and validated under current user request
 GIT_PUBLICATION_AUTHORIZATION_STATE = USER_AUTHORIZED_CHECKPOINT_PUBLICATION / user explicitly authorized destination https://github.com/wromanov/projeto_telegram_courses.git, branch work/s0-bootstrap, and checkpoint payload after prior auto-review rejection
-NEXT_CONTINUITY_CHECKPOINT = GOV-01 external adjudication; S1-D functional acceptance PASS, formal closure blocked; preserve prior credential-vault incident and residual risk without reopening absent new evidence
+NEXT_CONTINUITY_CHECKPOINT = S2 entry review; S1-D closed; preserve prior credential-vault incident and residual risk without reopening absent new evidence
 PROJECT_GOVERNANCE_BINDING = ACTIVE / content preserved
 S1D_CREDENTIAL_VAULT_ACCESS_DURING_TEST = YES / previous activity's pre-fix test fallback read/decrypted configured local credential vault; values were not displayed or logged; session DPAPI not accessed
 S1D_INCIDENT_REVIEW = PASS / exact config.py → CredentialVault default → _ProtectedCredentialsVault → inherited _ProtectedSessionVault._load path identified; failing test now injects an empty synthetic vault
@@ -171,9 +171,43 @@ S1D_REAL_DISCOVERY_AND_ID_SELECTION = PASS / user-provided sanitized final calib
 S1D_NUMERIC_SELECTION = PASS_OFFLINE / full and focused CLI tests
 S1D_OPERATIONAL_CALIBRATION = PASS / operation=2.809485s; restore=0.957923s; discovery=1.315603s; cleanup=0.001170s; pages=4/4; raw=313; COMPLETE
 S1D_CALIBRATION_INSTRUMENTATION = READY / sanitized warning records monotonic operation, restore, discovery and cleanup durations; pages/raw counts; approved limits; COMPLETE/PARTIAL and stop reason
-S1D_FINAL_VERDICT = FUNCTIONAL_ACCEPTANCE_PASS / FORMAL_CLOSURE_BLOCKED_BY_GOV01
-S1D_FINAL_ACCEPTANCE = PASS_FUNCTIONAL / NOT_CLOSED
-SAFE_RESUME_POINT = S1-D FUNCTIONAL_ACCEPTANCE_PASS; REAL_CALIBRATION=PASS; NUMERIC_SELECTION=PASS; FULL_PYTEST=126 passed + 11 subtests; Ruff and git diff --check PASS. Contract freeze and formal closure remain BLOCKED_BY_GOV01; do not mark S1-D CLOSED or start S2. DEC-S1D-01/02/03 and OPEN-03 remain approved. Preserve the prior credential-vault access incident and residual risk: no values appeared in captured output and no logging/export path was observed, but process-memory/OS telemetry was not forensically inspected. This publication activity performs no Telegram, vault, or session access. Next action after this checkpoint remains external GOV-01 adjudication.
+S1D_FINAL_VERDICT = PASS / CONTRACT_FROZEN / FORMAL_ACCEPTANCE_PASS / CLOSED
+S1D_FINAL_ACCEPTANCE = PASS / CLOSED
+GOV01_AUTHORITY_DECISION = KEEP_PINNED_BASELINE
+GOV01_POLICY_HASH_MATCHES = 5/5 / DIVERGENCES_REMAINING=0
+GOV01_BINDING_UNCHANGED = YES / CANONICAL_SOURCES_UNCHANGED = YES
+S1D_CONTRACT_FREEZE = PASS / see docs/contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md §21
+SAFE_RESUME_POINT = S1-D CLOSED; functional acceptance, calibration, numeric selection, FULL_PYTEST=126 passed + 11 subtests, Ruff and git diff --check PASS. No S2 implementation started or authorized. Preserve the prior credential-vault access incident and residual risk: no values appeared in captured output and no logging/export path was observed, but process-memory/OS telemetry was not forensically inspected. This activity performed no Telegram, vault, or session access. Next action is S2 entry review under separate authorization.
+
+## GOV-01 e encerramento formal S1-D — 2026-10-09
+
+```text
+AUTHORITY_DECISION = KEEP_PINNED_BASELINE
+PM01_HASH_MATCH = YES
+PM02_HASH_MATCH = YES
+PM03_HASH_MATCH = YES
+PM04_HASH_MATCH = YES
+PM05_HASH_MATCH = YES
+BINDING_UNCHANGED = YES
+CANONICAL_SOURCES_UNCHANGED = YES
+GOV01_STATUS = RESOLVED
+DIVERGENCES_REMAINING = 0
+CONTRACT_FREEZE = PASS
+S1D_FUNCTIONAL_ACCEPTANCE = PASS
+S1D_FORMAL_ACCEPTANCE = PASS
+S1D_STATUS = CLOSED
+FULL_PYTEST = PASS / 126 tests + 11 subtests (existing evidence)
+REAL_TELEGRAM_ACCESS_THIS_ACTIVITY = NO
+CREDENTIALS_ACCESSED_THIS_ACTIVITY = NO
+GIT_ACTIONS = NONE
+```
+
+Os cinco destinos foram reconciliados por cópia byte a byte com as fontes
+canônicas aprovadas. Ver evidência no §21 do
+[contrato S1-D](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md).
+O incidente anterior de acesso ao vault e o risco residual permanecem
+registrados sem reabertura. S2 não foi iniciado; requer entry review e
+autorização próprias.
 CHAT_HISTORY_REQUIRED_FOR_RESUMPTION = NO
 NEW_AGENT_CAN_RESUME_FROM_GOVERNED_PROJECT_ARTIFACTS = YES / verify remote availability at runtime
 ```

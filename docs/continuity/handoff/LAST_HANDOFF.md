@@ -4,7 +4,7 @@
 DOCUMENT_ROLE = LAST_HANDOFF
 PROJECT_ID = projeto_telegram_courses
 RECORDED_AT = 2026-10-09 / America/Sao_Paulo
-HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_IMPLEMENTED / REAL_FUNCTIONAL_PASS / FINAL_ACCEPTANCE_PENDING / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_NOT_PASS / CONTRACT_FREEZE_NOT_CONFIRMED / GOV-01_EXTERNAL_DEPENDENCY / S1_IN_PROGRESS
+HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED
 ```
 
 S1-B — Offline Authentication Flow & Telegram Gateway foi concluída após S1-A.
@@ -328,3 +328,28 @@ S1-D permanece sem `CLOSED` e S2 não começou. Esta reconciliação não execut
 acesso real nem abriu credenciais. Não executar ações Git. Fonte única do estado:
 [PROJECT_STATE](../PROJECT_STATE.md); relatório detalhado:
 [S1-D final validation](../../reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md).
+
+## Handoff vigente — GOV-01 resolvido e S1-D fechado — 2026-10-09
+
+Decisão de autoridade: `KEEP_PINNED_BASELINE`. Os hashes de PM-01 a PM-05
+foram confirmados nas fontes canônicas e nas cópias locais após cópia byte a
+byte. `GOV01_STATUS=RESOLVED`, `DIVERGENCES_REMAINING=0`, binding inalterado e
+fontes canônicas inalteradas. A observação externa do `baseline_role` da PM-04
+permanece preservada. Evidência detalhada e hashes em §21 do
+[contrato S1-D](../../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md).
+
+Contrato congelado e aceite formal S1-D concluído: aceite funcional PASS,
+calibração operacional PASS, seleção numérica PASS, FULL_PYTEST 126 testes +
+11 subtests PASS, Ruff PASS e diff check PASS. O incidente histórico de leitura
+do vault e o risco residual foram mantidos, sem nova evidência para reabertura.
+S1 está CLOSED. S2 segue apenas como candidata; não foi iniciada nem autorizada.
+
+```text
+CONTRACT_FREEZE = PASS
+S1D_FORMAL_ACCEPTANCE = PASS
+S1D_STATUS = CLOSED
+REAL_TELEGRAM_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = S2 entry review / separate authorization required
+```

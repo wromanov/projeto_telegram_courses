@@ -1,9 +1,28 @@
 # Registro de continuidade
 
+## Checkpoint GOV-01 + fechamento formal S1-D — 2026-10-09
+
+Decisão aprovada: `KEEP_PINNED_BASELINE`. Os hashes das cinco fontes
+canônicas corresponderam aos pins do binding; as cinco cópias vinculadas em
+`docs/continuity/policies/` foram copiadas byte a byte e validadas após a
+cópia. Resultado GOV-01: `RESOLVED`, 5/5 matches e zero divergências. O
+binding e as fontes canônicas permaneceram inalterados; a observação externa
+do `baseline_role` da PM-04 permanece preservada.
+
+O contrato S1-D foi congelado após GOV-01 PASS. A aceitação funcional e a
+calibração fornecidas pelo usuário, seleção numérica, regressão completa
+(126 testes + 11 subtests), Ruff e diff check atendem aos critérios existentes.
+`CONTRACT_FREEZE=PASS`, `S1D_FORMAL_ACCEPTANCE=PASS` e `S1D_STATUS=CLOSED`.
+O incidente anterior de leitura do vault e seu risco residual permanecem
+registrados, sem nova evidência que justifique reabertura. S2 é apenas a próxima
+candidata: não foi iniciada nem autorizada. Ver [PROJECT_STATE](PROJECT_STATE.md),
+[contrato S1-D](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md) e
+[evidência GOV-01](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md#21-gov-01-adjudication-freeze-contratual-e-aceite-formal-s1-d--2026-10-09).
+
 ```text
 DOCUMENT_ROLE = CONTINUITY_RECORD
 PROJECT_ID = projeto_telegram_courses
-RECORDED_AT = 2026-10-08 / America/Sao_Paulo
+RECORDED_AT = 2026-10-09 / America/Sao_Paulo
 ```
 
 O estado corrente, gates, bloqueios, riscos, autorizações, baseline e safe

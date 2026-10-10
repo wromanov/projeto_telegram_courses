@@ -2,9 +2,9 @@
 
 ```text
 DOCUMENT_ROLE = IMPLEMENTATION_CONTRACT
-CONTRACT_STATUS = APPROVED / NOT_FROZEN
+CONTRACT_STATUS = FROZEN / ACCEPTED
 CONTRACT_APPROVAL = APPROVED_BY_USER_2026-10-09
-CONTRACT_FREEZE = NOT_FROZEN
+CONTRACT_FREEZE = PASS / GOV-01 RESOLVED
 RECORDED_AT = 2026-10-08 / America/Sao_Paulo
 ACTIVITY = S1-D implementation and offline validation checkpoint
 EXECUTION_MODE = DIRECT
@@ -12,15 +12,15 @@ ROOT_MODEL_TARGET = GPT-6 SOL / MEDIUM
 ROOT_RUNTIME_MODEL = GPT-6 / variante e effort não verificáveis nesta superfície
 CONTRACT_DRAFT_AUTHORIZATION = HISTORICAL / 2026-10-08
 S1D_IMPLEMENTATION_AUTHORIZATION = EXPLICIT_USER_APPROVAL_2026-10-09 / IMPLEMENTED_OFFLINE
-S1D_STATUS = IMPLEMENTATION_PASS_OFFLINE / acceptance pending
+S1D_STATUS = CLOSED / functional acceptance and formal closure PASS
 S1D_ENTRY_REVIEW = PASS / informado pelo usuário; relatório local não localizado
-S1D_DOR = IMPLEMENTATION_GATE_PASS / acceptance pending
+S1D_DOR = PASS / implementation, acceptance, freeze, and formal closure complete
 PYTEST_REVALIDATION = PASS / section 20
 ACTIVE_ARCHITECTURAL_DECISION = DEC-S1D-03 / APPROVED / D_PLUS_C
 PROVE_ZERO_GET_DIFFERENCE = SUPERSEDED
-CONTRACT_REVIEW_STATUS = APPROVED_BY_USER_2026-10-09 / not frozen
-OPEN-03 = NUMERIC_BASELINE_APPROVED / operational calibration remains for acceptance
-GOV-01 = EXTERNAL_DEPENDENCY / unresolved freeze blocker
+CONTRACT_REVIEW_STATUS = APPROVED_BY_USER_2026-10-09 / FROZEN
+OPEN-03 = NUMERIC_BASELINE_APPROVED / operational calibration PASS
+GOV-01 = RESOLVED / KEEP_PINNED_BASELINE
 ```
 
 O registro arquitetural vigente é [DEC-S1D-03](../governance/APPROVALS_AND_DECISIONS.md#dec-s1d-03--lifecycle-de-diferenças-internas), aprovada após a auditoria independente. As seções 1–10, 12 e 19 compõem a proposta consolidada atual; 13–17 são snapshots históricos, e 18 preserva a decisão aprovada (seu antigo snapshot de pendências é sucedido pela seção 19). A seção 11 preserva evidência prévia de GOV-01, sem nova investigação. As conclusões e ressalvas da auditoria Astra permanecem intactas no [relatório independente](../audit/S1D_INDEPENDENT_ARCHITECTURE_REVIEW_2026-10-08.md). Aprovação contratual, freeze, implementação e aceite têm gates separados.
@@ -29,9 +29,9 @@ O registro arquitetural vigente é [DEC-S1D-03](../governance/APPROVALS_AND_DECI
 
 Definir a descoberta de canais e seleção local por identidade estável, para
 FR-02, sobre o gateway autenticado existente. O contrato foi aprovado pelo
-usuário e implementado offline; a seção 20 registra o checkpoint corrente.
-GOV-01 ainda bloqueia freeze, e o aceite real exige validação delimitada com
-autorização específica. S1-A/B/C permanecem PASS; S1 segue IN_PROGRESS.
+usuário, implementado e aceito; as seções 20 e 21 registram aprovação,
+calibração, freeze e encerramento formal. S1-A/B/C permanecem PASS; S1-D e S1
+estão CLOSED.
 
 Authorities de produto e arquitetura:
 
@@ -995,3 +995,46 @@ com autorização específica. A aprovação do contrato não constitui autoriza
 para essa atividade real. Detalhamento corrente e safe resume point estão em
 [PROJECT_STATE](../continuity/PROJECT_STATE.md); nenhum critério deste contrato
 foi removido ou relaxado neste checkpoint.
+
+## 21. GOV-01 adjudication, freeze contratual e aceite formal S1-D — 2026-10-09
+
+O usuário decidiu `KEEP_PINNED_BASELINE`. Antes da cópia, os cinco arquivos
+canônicos foram recalculados e corresponderam aos pins do binding. As cinco
+cópias em `docs/continuity/policies/` foram copiadas byte a byte e, após a
+cópia, correspondem individualmente aos hashes abaixo. Não houve normalização
+de EOL, reformatting, BOM ou edição das fontes canônicas.
+
+| Policy | SHA-256 canônico e destino após reconciliação | Resultado |
+|---|---|---|
+| PM-01 | `b0782078a57fde833577e6b46fe3cd32048dae14569cac5ba9d821aafd1b54fa` | MATCH |
+| PM-02 | `0bd42fad5f867e703aaacd4ce89c02a2ac21404657ee20d85646efd3ba8a8a6f` | MATCH |
+| PM-03 | `cfbb1cd363e6b1c6815918747fe12ce0ad2b35388d0aed0a1d2ca66b742b66aa` | MATCH |
+| PM-04 | `e0664fc460008401936c334d80afbd46fe94944391aa0938d56a339853129016` | MATCH |
+| PM-05 | `d668de8bdaeea16403f4909678448b59705f094302bc2fe90203c2f3cc62a94e` | MATCH |
+
+```text
+AUTHORITY_DECISION = KEEP_PINNED_BASELINE
+GOV01_STATUS = RESOLVED
+POLICY_HASH_MATCHES = 5/5
+DIVERGENCES_REMAINING = 0
+BINDING_UNCHANGED = YES
+CANONICAL_SOURCES_UNCHANGED = YES
+BASELINE_ROLE_PM04_METADATA_NOTE = PRESERVED / external registry inconsistency not modified
+CONTRACT_FREEZE = PASS
+CONTRACT_STATUS = FROZEN / ACCEPTED
+S1D_FUNCTIONAL_ACCEPTANCE = PASS
+S1D_FORMAL_ACCEPTANCE = PASS
+S1D_STATUS = CLOSED
+S1D_NEXT_PHASE = S2 CANDIDATE / NOT_STARTED / NO IMPLEMENTATION AUTHORIZATION
+REAL_TELEGRAM_ACCESS_THIS_ACTIVITY = NO
+CREDENTIALS_OR_SESSION_ACCESSED_THIS_ACTIVITY = NO
+GIT_ACTIONS = NONE
+```
+
+A aprovação explícita do contrato e dos valores OPEN-03 está registrada na
+seção 20. Com GOV-01 resolvido, nenhum bloqueio normativo restante impede o
+freeze. Os critérios de aceite existentes estão satisfeitos: calibração real
+informada pelo usuário dentro dos limites aprovados, seleção numérica PASS,
+regressão completa (126 testes + 11 subtests) PASS, Ruff PASS e diff check
+PASS. O incidente anterior de leitura do vault e seu risco residual permanecem
+registrados; não há nova evidência que o reabra como bloqueio de aceite.
