@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from typing import Protocol
 
 from telegram_courses.auth import AuthState
 from telegram_courses.channel_discovery import DiscoveryRequest, DiscoveryResult
+from telegram_courses.message_scanner import GatewayMessage
 
 
 class TelegramGateway(Protocol):
@@ -18,5 +20,14 @@ class TelegramGateway(Protocol):
     async def submit_password(self, password: str) -> AuthState: ...
 
     async def discover_channels(self, request: DiscoveryRequest) -> DiscoveryResult: ...
+
+    def iter_channel_messages(
+        self,
+        telegram_chat_id: int,
+        *,
+        through_message_id: int | None,
+        before_message_id: int | None,
+        limit: int,
+    ) -> AsyncIterator[GatewayMessage]: ...
 
     async def close(self) -> None: ...

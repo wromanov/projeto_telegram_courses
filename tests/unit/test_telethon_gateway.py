@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -19,6 +20,7 @@ from telegram_courses.auth import (
     RateLimited,
 )
 from telegram_courses.config import TelegramCredentials
+from telegram_courses.message_scanner import GatewayMessage, ScanGatewayError
 from telegram_courses.telethon_gateway import TelethonGateway
 from telegram_courses.telethon_session import StorageError
 
@@ -426,3 +428,123 @@ def test_failed_protected_save_is_controlled_and_not_reported_as_success() -> No
         await adapter.close()
 
     asyncio.run(exercise())
+
+
+def test_message_gateway_uses_only_cached_entity_and_projects_metadata_only() -> None:
+    class HistoryClient:
+        async def get_input_entity(self, _chat_id):
+            return "opaque-peer"
+
+        def iter_messages(self, entity, **kwargs):
+            assert entity == "opaque-peer"
+            assert "max_id" not in kwargs
+            assert kwargs["reverse"] is False
+            assert kwargs["limit"] == 10
+
+            async def items():
+                yield SimpleNamespace(
+                    id=44,
+                    date=datetime(2026, 10, 9, tzinfo=UTC),
+                    edit_date=None,
+                    message="synthetic message body",
+                    grouped_id=None,
+                    media=SimpleNamespace(
+                        document=SimpleNamespace(
+                            id=99,
+                            mime_type="application/pdf",
+                            size=100,
+                            attributes=[SimpleNamespace(file_name="sample.pdf")],
+                        ),
+                        photo=None,
+                    ),
+                )
+
+            return items()
+
+    adapter = object.__new__(TelethonGateway)
+    adapter._client = HistoryClient()
+    adapter._state = AuthState.AUTHENTICATED
+
+    async def exercise() -> None:
+        messages = [
+            item async for item in adapter.iter_channel_messages(
+                -1001234567890,
+                through_message_id=None,
+                before_message_id=None,
+                limit=10,
+            )
+        ]
+        assert len(messages) == 1
+        assert isinstance(messages[0], GatewayMessage)
+        assert messages[0].text == "synthetic message body"
+        assert messages[0].media[0].original_filename == "sample.pdf"
+
+    asyncio.run(exercise())
+
+
+def test_message_gateway_cache_miss_fails_closed_without_dialog_or_history_reads() -> None:
+    class CacheMissClient:
+        async def get_input_entity(self, _chat_id):
+            raise ValueError("synthetic cache miss")
+
+        def iter_dialogs(self, **_kwargs):
+            raise AssertionError("dialog enumeration is forbidden")
+
+        def iter_messages(self, *_args, **_kwargs):
+            raise AssertionError("history must not be read on cache miss")
+
+        async def get_messages(self, *_args, **_kwargs):
+            raise AssertionError("watermark lookup is forbidden")
+
+    adapter = object.__new__(TelethonGateway)
+    adapter._client = CacheMissClient()
+    adapter._state = AuthState.AUTHENTICATED
+
+    async def exercise() -> None:
+        with pytest.raises(ScanGatewayError) as caught:
+            async for _ in adapter.iter_channel_messages(
+                -1001234567890,
+                through_message_id=None,
+                before_message_id=None,
+                limit=10,
+            ):
+                pass
+        assert caught.value.category == "CHANNEL_UNRESOLVED"
+
+    asyncio.run(exercise())
+
+
+def test_scan_profile_disables_telethon_retries() -> None:
+    captured = {}
+
+    class Client:
+        pass
+
+    def client_factory(*_args, **kwargs):
+        captured.update(kwargs)
+        return Client()
+
+    adapter = TelethonGateway(
+        TelegramCredentials(7, "synthetic-hash"),
+        client_factory=client_factory,
+        session_factory=FakeSession,
+        vault=FakeVault(),
+        receive_updates=False,
+        catch_up=False,
+        request_retries=0,
+        connection_retries=0,
+    )
+    adapter._new_client(FakeSession())
+    assert captured["request_retries"] == 0
+    assert captured["connection_retries"] == 0
+    assert captured["receive_updates"] is False
+    assert captured["catch_up"] is False
+
+
+def test_scan_flood_wait_keeps_retry_duration_in_project_error() -> None:
+    failure = errors.FloodWaitError(request=None, capture=47)
+    with pytest.raises(ScanGatewayError) as caught:
+        TelethonGateway._raise_scan_failure(failure)
+    assert caught.value.category == "RATE_LIMITED"
+    assert caught.value.retry_after_seconds == 47
+    assert "FloodWait" not in str(caught.value)

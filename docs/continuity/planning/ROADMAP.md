@@ -5,6 +5,10 @@
 **Execution model = INCREMENTAL_VERTICAL_SLICES**
 **Maximum active formal activities = 1**
 
+Estado corrente: PHASE 2 / S2 ACCEPTED / CLOSED após validação de persistência
+SQLite do scan real. S3 permanece NOT_STARTED e requer entrada e autorização
+próprias. Ver [PROJECT_STATE](../PROJECT_STATE.md).
+
 | Phase | Name | Sprint(s) | Outcome |
 |---|---|---|---|
 | PHASE 0 | PROJECT FOUNDATION | S0 | Repository / Project Bootstrap |

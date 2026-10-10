@@ -48,7 +48,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **GATES:** Authentication and channel-discovery acceptance.
 - **DEFINITION_OF_DONE:** Approved requirement criteria and relevant tests pass; no unresolved failure blocks the next slice.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S1 accepted; channel identity can be supplied to the scanner.
-- **STATUS:** S1 CLOSED / S1-A PASS / S1-B PASS / S1-C PASS / S1-D formally accepted and closed; see PROJECT_STATE for evidence and current authorization. S2 remains PLANNED / NOT_STARTED.
+- **STATUS:** S1 CLOSED / S1-A PASS / S1-B PASS / S1-C PASS / S1-D formally accepted and closed; see PROJECT_STATE for evidence and current authorization. S2 is IMPLEMENTED_OFFLINE / REAL_VALIDATION_PENDING / NOT_CLOSED.
 
 ## S2 — Message Scanner + SQLite Persistence
 
@@ -63,9 +63,9 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **TESTS:** Unit tests without Telegram; local SQLite integration tests using temporary databases; Telegram integration test for history scanning.
 - **ACCEPTANCE_CRITERIA:** FR-03/FR-09: varredura preserva identidade e mídias, unicidade por canal/mensagem e registros sobrevivem ao reinício; migrations/transactions são verificadas em SQLite temporário.
 - **GATES:** Scanner and persistence acceptance.
-- **DEFINITION_OF_DONE:** Requirement criteria and unit/local integration tests pass; migrations run as designed.
-- **NEXT_SPRINT_ENTRY_CONDITIONS:** S2 accepted; persisted scan input is available for parser work.
-- **STATUS:** PLANNED / NOT_STARTED.
+- **DEFINITION_OF_DONE:** Requirement criteria, unit/local integration tests and migrations pass. S2 closure also requires separately authorized Telegram history acceptance; offline validation alone does not close this sprint.
+- **NEXT_SPRINT_ENTRY_CONDITIONS:** S2 accepted; persisted scan input is available for parser work. S3 remains NOT_STARTED and implementation requires separate authorization.
+- **STATUS:** ACCEPTED / CLOSED. Offline evidence: 140 pytest tests + 11 subtests, Ruff and diff check PASS. Real scan SQLite acceptance: PARTIAL / MESSAGE_LIMIT, 10 messages, 5 media; checkpoint, foreign keys, uniqueness, integrity, no downloads, and close/reopen PASS. See [PROJECT_STATE](../PROJECT_STATE.md) and [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
 
 ## S3 — RASMOO Parser + Catalog CLI
 

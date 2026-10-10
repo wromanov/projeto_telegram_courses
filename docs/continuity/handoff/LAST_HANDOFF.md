@@ -353,3 +353,89 @@ CREDENTIALS_OR_SESSION_ACCESSED = NO
 GIT_ACTIONS = NONE
 NEXT_ACTION = S2 entry review / separate authorization required
 ```
+
+## Handoff anterior — S2 Entry Review & Technical Contract Draft — 2026-10-09
+
+S2 entry review concluiu PASS. A S1 permanece formalmente CLOSED. Dependências
+locais aprovadas para trabalho offline estão presentes; ainda não existe
+scanner, iteração de mensagens no gateway, repository ou schema SQLite de
+aplicação. Esses itens pertencem ao escopo planejado S2, sem bloqueio técnico
+para desenvolvimento com fakes e dados sintéticos.
+
+O contrato está em
+[S2_MESSAGE_SCANNER_SQLITE_CONTRACT](../../contracts/S2_MESSAGE_SCANNER_SQLITE_CONTRACT.md)
+com status DRAFT / NOT_APPROVED / NOT_FROZEN. Define scanner, boundary,
+metadados de mensagens/mídia, migrations SQLite, runs e checkpoint atômico,
+falhas, limites e aceite. S2-OPEN-01 — retenção/exclusão de texto — aguarda
+decisão do usuário antes do freeze ou ingestão de conteúdo real.
+
+```text
+S2_ENTRY_REVIEW = PASS
+S2_READINESS = CONTRACT_DRAFT_READY_FOR_USER_REVIEW
+S2_STATUS = PLANNED / NOT_STARTED
+S2_IMPLEMENTATION_AUTHORIZATION = NO
+REAL_TELEGRAM_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+TESTS_RUN = NO
+GIT_ACTIONS = NONE
+NEXT_ACTION = User review of contract and S2-OPEN-01 retention decision; any implementation requires separate authorization
+```
+
+Esta atividade não alterou código ou testes, não acessou Telegram, vault ou
+sessão, e não iniciou S2. Preservar o incidente histórico de acesso acidental
+ao vault e seu risco residual conforme PROJECT_STATE; não reabrir sem evidência
+nova.
+
+## Handoff anterior — S2 Integrated Implementation — 2026-10-10
+
+S2-OPEN-01 foi aprovada e o contrato
+[S2_MESSAGE_SCANNER_SQLITE_CONTRACT](../../contracts/S2_MESSAGE_SCANNER_SQLITE_CONTRACT.md)
+está `APPROVED / FROZEN`. Implementados scanner, iteração de histórico no
+gateway, migration SQLite, repository, persistência de mensagens/mídia, scan
+runs, checkpoints atômicos, retomada e integração ao fluxo da aplicação/CLI.
+
+```text
+CONTRACT_REVIEW = PASS
+CONTRACT_STATUS = APPROVED / FROZEN
+S2-OPEN-01 = APPROVED
+OFFLINE_INTEGRATION = PASS / gateway fake → SQLite → checkpoint
+UNIT_AND_INTEGRATION_TESTS = PASS / 140 pytest + 11 subtests (full regression)
+RUFF = PASS
+GIT_DIFF_CHECK = PASS
+REAL_TELEGRAM_ACCESS = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+GIT_ACTIONS = NONE
+S2_IMPLEMENTATION_STATUS = PASS_OFFLINE
+S2_ACCEPTANCE_STATUS = PENDING_SEPARATELY_AUTHORIZED_REAL_TELEGRAM_VALIDATION
+S2_STATUS = IMPLEMENTED_OFFLINE / REAL_VALIDATION_PENDING / NOT_CLOSED
+NEXT_ACTION = Obtain separate authorization and scope for controlled history validation
+```
+
+Retomar por [PROJECT_STATE](../PROJECT_STATE.md) e contrato S2. Preservar o
+risco residual do incidente histórico de vault registrado no estado; não houve
+novo acesso a vault, credenciais ou sessão nesta atividade.
+
+## Handoff vigente — S2 Real Scan SQLite Acceptance — 2026-10-10
+
+O banco `data/catalog.sqlite3` foi verificado em modo somente leitura. O run
+`f91cbbe55540441d84092952e815e7e3` está `PARTIAL / MESSAGE_LIMIT`, com 10
+mensagens e 5 mídias persistidas. Checkpoint/cursor consistente; foreign keys,
+unicidade, integridade SQLite e close/reopen PASS. Nenhuma tarefa ou arquivo de
+download foi encontrado. Evidência detalhada em [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
+
+```text
+S2_FORMAL_ACCEPTANCE = ACCEPTED
+S2_STATUS = ACCEPTED / CLOSED
+SQLITE_MESSAGES = 10
+SQLITE_MEDIA = 5
+SQLITE_REOPEN = PASS
+DOWNLOADS = NONE
+TELEGRAM_ACCESS_DURING_ACCEPTANCE = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+CODE_OR_GIT_ACTIONS = NONE
+NEXT_ACTION = S3 entry review; S3 NOT_STARTED / implementation not authorized
+```
+
+Retomar pelo [PROJECT_STATE](../PROJECT_STATE.md). Preservar o incidente
+histórico de vault e seu risco residual; esta atividade não acessou vault,
+credenciais ou sessão.

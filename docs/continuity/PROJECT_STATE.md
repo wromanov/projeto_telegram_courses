@@ -2,26 +2,35 @@
 
 ```text
 DOCUMENT_ROLE = PROJECT_STATE
-STATE_VERSION = 2.20
-STATUS = ACTIVE / S0_CLOSED / S1_CLOSED / S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CLI_NUMERIC_SELECTION_PASS / GOV-01_RESOLVED
-LAST_UPDATED = 2026-10-09 / America/Sao_Paulo
+STATE_VERSION = 2.23
+STATUS = ACTIVE / S0_CLOSED / S1_CLOSED / S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CLI_NUMERIC_SELECTION_PASS / GOV-01_RESOLVED / S2_ACCEPTED / S2_CLOSED
+LAST_UPDATED = 2026-10-10 / America/Sao_Paulo
 PROJECT_IDENTITY = projeto_telegram_courses
 PROJECT_ROOT = C:\Users\walac\desenvolvimento\projeto_telegram_courses
 CURRENT_ENVIRONMENT = HOME_COMPUTER / LOCAL_WORKSPACE
 REMOTE_ORIGIN = https://github.com/wromanov/projeto_telegram_courses.git
 CURRENT_BRANCH = work/s0-bootstrap
 UPSTREAM = origin/work/s0-bootstrap
-PRECHECK_HEAD = e947406dbcab8ef593123f079daa279903805d2c / confirmed for S1-TEST-01
-PRECHECK_UPSTREAM_DIVERGENCE = 0/0 / local origin/work/s0-bootstrap reference; no fetch performed
+PRECHECK_HEAD = 887d3e81036c8be7e43dd2b5fdb66d19704beb88 / confirmed for S2 implementation checkpoint
+PRECHECK_UPSTREAM_DIVERGENCE = 0/0 / git fetch origin completed during S2 final checkpoint publication precheck
 BASELINE_TRACEABILITY = S0-SL01/SL02 checkpoint 1cde21d4d0f95b9b190c02f4a69a91c25485428c; SP01-01..10 PASS in evidence; current baseline HEAD confirmed above
-CURRENT_PHASE = PHASE_1_TELEGRAM_ACCESS / S1 CLOSED / PHASE_2_CATALOG NOT_STARTED
-CURRENT_DELIVERY_UNIT = S1 / CLOSED / S1-A PASS / S1-B PASS / S1-C PASS / S1-D CLOSED
-CURRENT_ACTIVITY = GOV-01 Resolution + S1-D Formal Closure
-CURRENT_ACTIVITY_STATE = GOV-01 RESOLVED / CONTRACT_FREEZE PASS / S1-D FORMAL_ACCEPTANCE PASS / S1-D CLOSED
-LAST_COMPLETED_ACTIVITY = GOV-01 Resolution + S1-D Formal Closure
-NEXT_ACTIVITY = S2 entry review / implementation not started
-NEXT_ACTIVITY_READINESS = Candidate only; S2 authorization and entry gate remain required
-NEXT_ACTIVITY_AUTHORIZATION = No S2 implementation or Git publication authorized by this checkpoint
+CURRENT_PHASE = PHASE_2_CATALOG / S1 CLOSED / S2 ACCEPTED / CLOSED
+CURRENT_DELIVERY_UNIT = S2 / ACCEPTED / CLOSED
+CURRENT_ACTIVITY = S2 — Final Git Checkpoint Publication
+CURRENT_ACTIVITY_STATE = AUTHORIZED / PRECHECK PASS / S2 ACCEPTED / CLOSED
+LAST_COMPLETED_ACTIVITY = S2 — Real Scan SQLite Acceptance
+NEXT_ACTIVITY = S3 entry review; S3 NOT_STARTED
+NEXT_ACTIVITY_READINESS = S2 accepted; S3 entry review may be prepared, with implementation requiring separate authorization
+NEXT_ACTIVITY_AUTHORIZATION = NO / S3 implementation and Git publication are not authorized
+S2_STATUS = ACCEPTED / CLOSED
+S2_ENTRY_REVIEW = PASS
+S2_CONTRACT = docs/contracts/S2_MESSAGE_SCANNER_SQLITE_CONTRACT.md / APPROVED / FROZEN
+S2_CONTRACT_REVIEW = PASS
+S2-OPEN-01 = APPROVED / full text stored locally until explicit user deletion; no automatic expiry; empty text NULL; no message content in logs; remote deletion reconciliation out of scope
+S2_IMPLEMENTATION_STATUS = PASS_OFFLINE
+S2_ACCEPTANCE_STATUS = PASS / ACCEPTED / CLOSED
+S2_REAL_SCAN_EVIDENCE = data/catalog.sqlite3 / one PARTIAL MESSAGE_LIMIT run; 10 messages; 5 media; no downloads; foreign keys, uniqueness, integrity, checkpoint and close/reopen PASS
+ACTIVITY_COMPLETION_PERCENT = 100%
 S0_SELECTED = YES
 S0_STARTED = YES
 S0_AUTHORIZED = YES / S0 only, per recorded user decision
@@ -150,13 +159,13 @@ GOV_01 = RESOLVED / KEEP_PINNED_BASELINE
 OPEN-03 = APPROVED
 NEXT_APPROVED_CLI_IMPROVEMENT = CLI_NUMERIC_CHANNEL_SELECTION / IMPLEMENTED_AND_VALIDATED / 1-based list index for local interaction; exact full telegram_chat_id remains compatible
 S1D_REAL_VALIDATION_EVIDENCE = docs/reports/S1D_REAL_DISCOVERY_VALIDATION_2026-10-09.md
-OPEN_DECISIONS = NONE for S1-D closure
-BLOCKERS = NONE for S1-D closure; S2 requires its own entry review and authorization
+OPEN_DECISIONS = NONE for S2
+BLOCKERS = None for S2; S3 implementation requires separate authorization
 KNOWN_RISKS = Future-unit risks and entry gates remain in planning/SPRINTS.md and docs/audit/AUDITORIA_TECNICA_2026-10-05.md
 DEFERRED_ITEMS = GUI, TDLib and additional support remain deferred; Windows distribution remains S10; other unit-specific items are in planning/SPRINTS.md
-IMPLEMENTATION_AUTHORIZATION_STATE = S1-D regression fix and approved CLI numeric selection implemented and validated under current user request
-GIT_PUBLICATION_AUTHORIZATION_STATE = USER_AUTHORIZED_CHECKPOINT_PUBLICATION / user explicitly authorized destination https://github.com/wromanov/projeto_telegram_courses.git, branch work/s0-bootstrap, and checkpoint payload after prior auto-review rejection
-NEXT_CONTINUITY_CHECKPOINT = S2 entry review; S1-D closed; preserve prior credential-vault incident and residual risk without reopening absent new evidence
+IMPLEMENTATION_AUTHORIZATION_STATE = S2 implementation and real-scan acceptance completed; S3 implementation requires separate authorization
+GIT_PUBLICATION_AUTHORIZATION_STATE = USER_AUTHORIZED_CURRENT_ACTIVITY / explicit request to publish the consolidated S2 checkpoint on work/s0-bootstrap, including commit and push
+NEXT_CONTINUITY_CHECKPOINT = S3 entry review; S3 remains NOT_STARTED and unauthorized; preserve prior credential-vault incident and residual risk without reopening absent new evidence
 PROJECT_GOVERNANCE_BINDING = ACTIVE / content preserved
 S1D_CREDENTIAL_VAULT_ACCESS_DURING_TEST = YES / previous activity's pre-fix test fallback read/decrypted configured local credential vault; values were not displayed or logged; session DPAPI not accessed
 S1D_INCIDENT_REVIEW = PASS / exact config.py → CredentialVault default → _ProtectedCredentialsVault → inherited _ProtectedSessionVault._load path identified; failing test now injects an empty synthetic vault
@@ -177,7 +186,7 @@ GOV01_AUTHORITY_DECISION = KEEP_PINNED_BASELINE
 GOV01_POLICY_HASH_MATCHES = 5/5 / DIVERGENCES_REMAINING=0
 GOV01_BINDING_UNCHANGED = YES / CANONICAL_SOURCES_UNCHANGED = YES
 S1D_CONTRACT_FREEZE = PASS / see docs/contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md §21
-SAFE_RESUME_POINT = S1-D CLOSED; functional acceptance, calibration, numeric selection, FULL_PYTEST=126 passed + 11 subtests, Ruff and git diff --check PASS. No S2 implementation started or authorized. Preserve the prior credential-vault access incident and residual risk: no values appeared in captured output and no logging/export path was observed, but process-memory/OS telemetry was not forensically inspected. This activity performed no Telegram, vault, or session access. Next action is S2 entry review under separate authorization.
+SAFE_RESUME_POINT = S2 ACCEPTED / CLOSED. Read-only verification of data/catalog.sqlite3 confirmed one PARTIAL / MESSAGE_LIMIT scan run, 10 persisted messages, 5 media, consistent checkpoint, zero foreign-key and uniqueness violations, SQLite integrity ok, zero download rows, and persistence after close/reopen. Message content was not read; message IDs were compared internally for cursor integrity but not displayed or copied into continuity. No Telegram, credentials or session were accessed during this acceptance; no code or Git actions. S3 remains NOT_STARTED and requires separate authorization. Preserve the prior credential-vault incident and its residual risk unchanged.
 
 ## GOV-01 e encerramento formal S1-D — 2026-10-09
 
@@ -292,7 +301,7 @@ REAL_TELEGRAM_ACCESS = YES / bounded discovery only, based on user-provided sani
 CREDENTIALS_ACCESSED_THIS_ACTIVITY = NO
 DOWNLOAD_OR_SCANNER = NOT_STARTED
 S1_STATUS = IN_PROGRESS / S1-D functional acceptance passes; formal closure blocked by GOV-01
-NEXT_PHASE_CANDIDATE = S2 — Message Scanner & SQLite Persistence / not started
+NEXT_PHASE_CANDIDATE = S2 — Message Scanner & SQLite Persistence / implemented offline; real validation pending
 GIT_ACTIONS = NONE
 ```
 

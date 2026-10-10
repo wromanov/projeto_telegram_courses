@@ -34,6 +34,11 @@ from telegram_courses.channel_discovery import (
     DiscoveryStopReason,
 )
 from telegram_courses.config import ConfigurationError, TelegramCredentials
+from telegram_courses.message_scanner import (
+    GatewayMedia,
+    GatewayMessage,
+    ScanGatewayError,
+)
 
 _session_storage = import_module("telegram_courses.telethon_session")
 IntegrityError = _session_storage.IntegrityError
@@ -97,6 +102,8 @@ class TelethonGateway:
         vault: Any | None = None,
         receive_updates: bool | None = None,
         catch_up: bool | None = None,
+        request_retries: int = 1,
+        connection_retries: int = 1,
     ) -> None:
         if (receive_updates is None) != (catch_up is None):
             raise ValueError("discovery update profile must be complete")
@@ -104,6 +111,13 @@ class TelethonGateway:
             type(receive_updates) is not bool or type(catch_up) is not bool
         ):
             raise ValueError("invalid update profile")
+        if (
+            type(request_retries) is not int
+            or request_retries < 0
+            or type(connection_retries) is not int
+            or connection_retries < 0
+        ):
+            raise ValueError("retry counts must be non-negative integers")
         if client_factory is None or session_factory is None:
             try:
                 from telethon import TelegramClient
@@ -119,6 +133,8 @@ class TelethonGateway:
         self._session_factory = session_factory
         self._receive_updates = receive_updates
         self._catch_up = catch_up
+        self._request_retries = request_retries
+        self._connection_retries = connection_retries
         try:
             self._vault = vault or _ProtectedSessionVault()
         except (StorageError, IntegrityError) as error:
@@ -134,8 +150,8 @@ class TelethonGateway:
     def _new_client(self, session: Any) -> Any:
         settings: dict[str, Any] = {
             "flood_sleep_threshold": 0,
-            "request_retries": 1,
-            "connection_retries": 1,
+            "request_retries": self._request_retries,
+            "connection_retries": self._connection_retries,
             "raise_last_call_error": True,
             "auto_reconnect": False,
             "base_logger": _client_logger(),
@@ -550,6 +566,125 @@ class TelethonGateway:
                 raw_dialogs_received,
             )
             raise project_error from None
+
+    async def _input_entity_for_selected_channel(self, telegram_chat_id: int) -> Any:
+        try:
+            return await self._client.get_input_entity(telegram_chat_id)
+        except ValueError:
+            raise ScanGatewayError("CHANNEL_UNRESOLVED") from None
+
+    @staticmethod
+    def _raise_scan_failure(error: Exception) -> None:
+        try:
+            from telethon import errors
+        except Exception:
+            raise ScanGatewayError("ADAPTER_FAILURE") from None
+        access_error_types = tuple(
+            error_type
+            for error_type in (
+                getattr(errors, "ChannelPrivateError", None),
+                getattr(errors, "ChannelInvalidError", None),
+                getattr(errors, "ChannelPublicGroupNaError", None),
+                getattr(errors, "ChatIdInvalidError", None),
+            )
+            if isinstance(error_type, type)
+        )
+        if access_error_types and isinstance(error, access_error_types):
+            raise ScanGatewayError("ACCESS_DENIED") from None
+        try:
+            TelethonGateway._translate(error)
+        except RateLimited as limited:
+            raise ScanGatewayError(
+                "RATE_LIMITED", retry_after_seconds=limited.retry_after_seconds
+            ) from None
+        except InvalidSession:
+            raise ScanGatewayError("SESSION_INVALID") from None
+        except NetworkError:
+            raise ScanGatewayError("NETWORK") from None
+        except Exception:
+            raise ScanGatewayError("ADAPTER_FAILURE") from None
+        raise ScanGatewayError("ADAPTER_FAILURE") from None
+
+    async def _project_message(self, telegram_chat_id: int, message: Any) -> GatewayMessage:
+        from datetime import UTC
+
+        date = message.date
+        edit_date = getattr(message, "edit_date", None)
+        media: list[GatewayMedia] = []
+        raw_media = getattr(message, "media", None)
+        if raw_media is not None:
+            document = getattr(raw_media, "document", None)
+            photo = getattr(raw_media, "photo", None)
+            filename = None
+            mime_type = None
+            size = None
+            media_id = None
+            kind = "UNSUPPORTED"
+            if document is not None:
+                media_id = str(document.id)
+                mime_type = getattr(document, "mime_type", None)
+                size = getattr(document, "size", None)
+                kind = "DOCUMENT"
+                for attribute in getattr(document, "attributes", ()):
+                    filename = filename or getattr(attribute, "file_name", None)
+            elif photo is not None:
+                media_id = str(photo.id)
+                kind = "PHOTO"
+            media.append(GatewayMedia(0, kind, media_id, filename, mime_type, size))
+        return GatewayMessage(
+            telegram_chat_id=telegram_chat_id,
+            telegram_message_id=int(message.id),
+            date_utc=date.astimezone(UTC).isoformat(),
+            edit_date_utc=edit_date.astimezone(UTC).isoformat() if edit_date else None,
+            text=getattr(message, "message", None) or None,
+            grouped_id=getattr(message, "grouped_id", None),
+            media=tuple(media),
+        )
+
+    async def _iterate_messages(
+        self,
+        telegram_chat_id: int,
+        *,
+        through_message_id: int | None,
+        before_message_id: int | None,
+        limit: int,
+    ):
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            raise AdapterError from None
+        try:
+            entity = await self._input_entity_for_selected_channel(telegram_chat_id)
+            options = {
+                "offset_id": before_message_id or 0,
+                "reverse": False,
+                "limit": limit,
+            }
+            if through_message_id is not None:
+                options["max_id"] = through_message_id + 1
+            iterator = self._client.iter_messages(entity, **options)
+            async for message in iterator:
+                yield await self._project_message(telegram_chat_id, message)
+        except ScanGatewayError:
+            raise
+        except Exception as error:
+            self._record_failure("MESSAGE_HISTORY", error, AdapterError())
+            self._raise_scan_failure(error)
+
+    def iter_channel_messages(
+        self,
+        telegram_chat_id: int,
+        *,
+        through_message_id: int | None,
+        before_message_id: int | None,
+        limit: int,
+    ):
+        if type(limit) is not int or limit <= 0:
+            raise ValueError("invalid message limit")
+        return self._iterate_messages(
+            telegram_chat_id,
+            through_message_id=through_message_id,
+            before_message_id=before_message_id,
+            limit=limit,
+        )
 
     @staticmethod
     def _record_failure(

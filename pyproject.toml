@@ -23,6 +23,9 @@ where = ["src"]
 include = ["telegram_courses"]
 namespaces = false
 
+[tool.setuptools.package-data]
+telegram_courses = ["migrations/*.sql"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests/unit", "tests/integration"]
 python_files = ["test_*.py"]

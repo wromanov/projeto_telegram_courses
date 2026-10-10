@@ -3,6 +3,7 @@
 *.session
 *.session-journal
 data/session/
+/data/catalog.sqlite3*
 .venv/
 .venv-replay/
 venv/

@@ -34,6 +34,7 @@ from telegram_courses.credentials import (
     CredentialVaultError,
     validate_credentials,
 )
+from telegram_courses.message_scanner import ScanGatewayError
 from telegram_courses.telethon_gateway import TelethonGateway
 
 
@@ -45,13 +46,17 @@ class _ArgumentParser(argparse.ArgumentParser):
 def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = _ArgumentParser(prog="telegram-courses", add_help=True)
     parser.add_argument(
-        "command", choices=("smoke", "auth", "channels", "credentials")
+        "command", choices=("smoke", "auth", "channels", "scan", "credentials")
     )
     parser.add_argument(
         "credentials_action", nargs="?", choices=("setup", "status")
     )
     parser.add_argument("--config", action="append")
     parser.add_argument("--log-level", action="append")
+    parser.add_argument("--channel-id", type=int)
+    parser.add_argument("--max-messages", type=int)
+    parser.add_argument("--timeout-seconds", type=float)
+    parser.add_argument("--database", default="data/catalog.sqlite3")
     args = parser.parse_args(argv)
     if (args.config is not None and len(args.config) != 1) or (
         args.log_level is not None and len(args.log_level) != 1
@@ -61,7 +66,53 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     args.log_level = args.log_level[0] if args.log_level else None
     if (args.command == "credentials") != (args.credentials_action is not None):
         raise ConfigurationError from None
+    if args.command == "scan":
+        if (
+            args.channel_id is None
+            or not args.channel_id
+            or not args.max_messages
+            or args.timeout_seconds is None
+        ):
+            raise ConfigurationError from None
+        if args.max_messages <= 0 or args.timeout_seconds <= 0:
+            raise ConfigurationError from None
+    elif any(value is not None for value in (args.channel_id, args.max_messages)):
+        raise ConfigurationError from None
     return args
+
+
+def _scan_channel(
+    *,
+    channel_id: int,
+    max_messages: int,
+    timeout_seconds: float,
+    database: str,
+    gateway_factory: Callable[[TelegramCredentials], object],
+    credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
+) -> int:
+    from telegram_courses.message_scanner import ScanRequest
+    from telegram_courses.scan_application import ScanApplication
+    from telegram_courses.sqlite_repository import SQLiteMessageRepository
+
+    application = ScanApplication(
+        gateway_factory,
+        credentials_loader,
+        SQLiteMessageRepository(database),
+    )
+    outcome = asyncio.run(
+        application.scan(
+            channel_id,
+            ScanRequest(max_messages=max_messages, timeout_seconds=timeout_seconds),
+        )
+    )
+    Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+        f"scan run={outcome.run_id} status={outcome.status.value} "
+        f"messages={outcome.messages_seen} media={outcome.media_seen}"
+        + (f" stop={outcome.stop_reason}" if outcome.stop_reason else ""),
+        markup=False,
+        highlight=False,
+    )
+    return 0 if outcome.status.value == "COMPLETE" else 4
 
 
 def _phone_prompt() -> str:
@@ -114,6 +165,16 @@ def _discovery_gateway(credentials: TelegramCredentials) -> TelethonGateway:
         credentials,
         receive_updates=False,
         catch_up=False,
+    )
+
+
+def _scan_gateway(credentials: TelegramCredentials) -> TelethonGateway:
+    return TelethonGateway(
+        credentials,
+        receive_updates=False,
+        catch_up=False,
+        request_retries=0,
+        connection_retries=0,
     )
 
 
@@ -291,6 +352,7 @@ def main(
     *,
     gateway_factory: Callable[..., object] = TelethonGateway,
     discovery_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
+    scan_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
     phone_prompt: Callable[[], str] = _phone_prompt,
     code_prompt: Callable[[], str] | None = None,
     password_prompt: Callable[[], str] | None = None,
@@ -298,6 +360,7 @@ def main(
     api_id_prompt: Callable[[], str] = lambda: input("Telegram API ID: "),
     api_hash_prompt: Callable[[], str] = lambda: _secret_prompt("Telegram API HASH: "),
     credential_vault_factory: Callable[[], CredentialVault] = CredentialVault,
+    credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
 ) -> int:
     try:
         args = _parse_arguments(argv)
@@ -327,6 +390,15 @@ def main(
                 ),
                 selection_prompt=selection_prompt,
             )
+        if args.command == "scan":
+            return _scan_channel(
+                channel_id=args.channel_id,
+                max_messages=args.max_messages,
+                timeout_seconds=args.timeout_seconds,
+                database=args.database,
+                gateway_factory=scan_gateway_factory or _scan_gateway,
+                credentials_loader=credentials_loader,
+            )
         line = (
             f"telegram-courses {__version__} config={configuration.config} "
             f"log_level={configuration.log_level}"
@@ -351,6 +423,16 @@ def main(
     except ChannelDiscoveryError as error:
         sys.stderr.write(f"{error}\n")
         return 3
+    except TimeoutError:
+        sys.stderr.write("scan timeout\n")
+        return 4
+    except ScanGatewayError as error:
+        sys.stderr.write(f"scan failed category={error.category}\n")
+        return 4
     except Exception:
         sys.stderr.write("internal error\n")
         return 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

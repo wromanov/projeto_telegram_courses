@@ -1,5 +1,67 @@
 # Registro de continuidade
 
+## S2 — aceite do scan SQLite real — 2026-10-10
+
+O banco local `data/catalog.sqlite3` foi inspecionado em modo somente leitura,
+sem acessar Telegram, credenciais ou sessão. Um único `scan_run` correspondente
+foi confirmado como `PARTIAL / MESSAGE_LIMIT`, com 10 mensagens e 5 mídias
+persistidas. O checkpoint permaneceu `PARTIAL`, associado ao mesmo run/canal;
+seu cursor corresponde à última mensagem confirmada dentro do watermark, sem
+avançar além dos dados persistidos.
+
+Integridade SQLite = PASS; foreign keys = PASS; unicidade de mensagem por
+canal/ID e mídia por mensagem/ordinal = PASS. Fechar e reabrir o banco preservou
+o mesmo estado agregado. A tabela `downloads` está vazia e `data/` contém apenas
+o banco e sidecars SQLite; nenhum arquivo de mídia foi baixado.
+
+```text
+ACTIVITY = S2 — Real Scan SQLite Acceptance
+SCAN_STATUS = PARTIAL / STOP_REASON=MESSAGE_LIMIT
+SQLITE_MESSAGES = 10
+SQLITE_MEDIA = 5
+SCAN_RUN = f91cbbe55540441d84092952e815e7e3 / matching run confirmed
+CHECKPOINT = PARTIAL / cursor consistent with committed messages and watermark
+FOREIGN_KEYS = PASS / no violations
+UNIQUENESS = PASS / no duplicate message or media keys
+SQLITE_REOPEN = PASS
+DATA_INTEGRITY = PASS / PRAGMA integrity_check=ok
+DOWNLOADS = NONE / zero download rows and no media files
+S2_FORMAL_ACCEPTANCE = ACCEPTED
+S2_STATUS = CLOSED
+TELEGRAM_ACCESS_THIS_ACCEPTANCE = NO
+CREDENTIALS_OR_SESSION_ACCESSED = NO
+CODE_OR_GIT_ACTIONS = NONE
+NEXT_ACTION = S3 entry review only; S3 NOT_STARTED and implementation not authorized
+```
+
+O aceite cobre o scan real reportado e sua persistência local conforme os
+critérios S2. O texto das mensagens não foi lido; os IDs foram comparados
+internamente para validar o cursor, sem serem exibidos ou copiados para a
+continuidade. Contrato congelado e implementação não foram alterados.
+
+## Checkpoint S2 — implementação integrada offline — 2026-10-10
+
+O contrato S2 foi revisado, aprovado e congelado após incorporar S2-OPEN-01.
+Texto integral fica no SQLite local até exclusão explícita, sem expiração
+automática; texto vazio é NULL; logs não recebem conteúdo; reconciliação de
+remoções remotas permanece fora da S2.
+
+Scanner, boundary de histórico no TelethonGateway, migration inicial SQLite,
+repository, persistência transacional, scan runs/checkpoints, retomada e
+integração de aplicação/CLI estão implementados. Evidência offline acumulada:
+140 testes + 11 subtests, Ruff e `git diff --check` PASS. Gateway fake e bancos
+temporários demonstraram scanner → persistência → checkpoint, edição,
+idempotência, rollback e recuperação após reinício. Nenhum Telegram real,
+credencial ou sessão foi acessado.
+
+S2 permanece `IMPLEMENTED_OFFLINE / REAL_VALIDATION_PENDING / NOT_CLOSED`.
+Validação controlada de histórico real exige autorização separada. HEAD factual
+na conclusão: `887d3e81036c8be7e43dd2b5fdb66d19704beb88`, branch
+`work/s0-bootstrap`; nenhuma ação Git de publicação. Ver [PROJECT_STATE](PROJECT_STATE.md),
+[SPRINTS — S2](planning/SPRINTS.md#s2--message-scanner--sqlite-persistence),
+[contrato S2](../contracts/S2_MESSAGE_SCANNER_SQLITE_CONTRACT.md) e
+[LAST_HANDOFF](handoff/LAST_HANDOFF.md).
+
 ## Checkpoint GOV-01 + fechamento formal S1-D — 2026-10-09
 
 Decisão aprovada: `KEEP_PINNED_BASELINE`. Os hashes das cinco fontes
