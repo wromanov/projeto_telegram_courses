@@ -30,4 +30,14 @@ class TelegramGateway(Protocol):
         limit: int,
     ) -> AsyncIterator[GatewayMessage]: ...
 
+    def stream_media(
+        self,
+        channel_id: int,
+        message_id: int,
+        media_ordinal: int,
+        *,
+        telegram_media_id: str,
+        expected_bytes: int,
+    ) -> AsyncIterator[bytes]: ...
+
     async def close(self) -> None: ...

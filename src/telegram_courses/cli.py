@@ -6,6 +6,7 @@ import argparse
 import asyncio
 import getpass
 import io
+import os
 import re
 import sys
 import unicodedata
@@ -39,6 +40,12 @@ from telegram_courses.credentials import (
     CredentialVaultError,
     validate_credentials,
 )
+from telegram_courses.download_repository import DownloadRepository
+from telegram_courses.downloads import (
+    DownloadError,
+    DownloadGatewayError,
+    SingleMediaDownloadApplication,
+)
 from telegram_courses.message_scanner import ScanGatewayError
 from telegram_courses.telethon_gateway import TelethonGateway
 
@@ -51,7 +58,7 @@ class _ArgumentParser(argparse.ArgumentParser):
 def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser = _ArgumentParser(prog="telegram-courses", add_help=True)
     parser.add_argument(
-        "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog")
+        "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog", "download")
     )
     parser.add_argument(
         "credentials_action", nargs="?", choices=("setup", "status", "build", "list", "show", "items")
@@ -59,6 +66,9 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--config", action="append")
     parser.add_argument("--log-level", action="append")
     parser.add_argument("--channel-id", type=int)
+    parser.add_argument("--telegram-message-id", type=int)
+    parser.add_argument("--media-ordinal", type=int)
+    parser.add_argument("--download-dir", default=os.environ.get("TELEGRAM_COURSES_DOWNLOAD_DIR", "downloads"))
     parser.add_argument("--max-messages", type=int)
     parser.add_argument("--timeout-seconds", type=float)
     parser.add_argument("--database", default="data/catalog.sqlite3")
@@ -90,6 +100,14 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
             raise ConfigurationError from None
         if args.max_messages <= 0 or args.timeout_seconds <= 0:
             raise ConfigurationError from None
+    elif args.command == "download":
+        if (
+            args.channel_id is None or args.channel_id == 0
+            or args.telegram_message_id is None or args.telegram_message_id <= 0
+            or args.media_ordinal is None or args.media_ordinal < 0
+            or args.max_messages is not None or args.timeout_seconds is not None
+        ):
+            raise ConfigurationError from None
     elif args.command == "catalog":
         if args.max_messages is not None or (
             args.credentials_action == "build" and (args.channel_id is None or not args.channel_id)
@@ -97,9 +115,70 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
             args.credentials_action in {"list"} and args.channel_id is not None
         ):
             raise ConfigurationError from None
-    elif any(value is not None for value in (args.channel_id, args.max_messages)):
+    elif any(value is not None for value in (args.channel_id, args.max_messages, args.telegram_message_id, args.media_ordinal)):
         raise ConfigurationError from None
     return args
+
+
+def _download_single(
+    *, channel_id: int, message_id: int, media_ordinal: int, database: str,
+    download_dir: str, gateway_factory: Callable[[TelegramCredentials], object] = TelethonGateway,
+    credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
+) -> int:
+    from telegram_courses.auth import AuthState
+
+    async def run() -> object:
+        class _LazyGateway:
+            def __init__(self) -> None:
+                self.gateway: object | None = None
+
+            async def stream_media(self, *args: object, **kwargs: object):
+                if self.gateway is None:
+                    try:
+                        self.gateway = gateway_factory(credentials_loader())
+                        state = await self.gateway.restore()
+                    except ConfigurationError:
+                        raise DownloadGatewayError("CONFIGURATION") from None
+                    except Exception:
+                        raise DownloadGatewayError("GATEWAY_FAILURE") from None
+                    if state is not AuthState.AUTHENTICATED:
+                        raise DownloadGatewayError("SESSION_INVALID")
+                async for chunk in self.gateway.stream_media(*args, **kwargs):
+                    yield chunk
+
+        lazy_gateway = _LazyGateway()
+        try:
+            repository = DownloadRepository(database)
+            await repository.migrate()
+            candidate = await repository.select_candidate(channel_id, message_id, media_ordinal)
+            if candidate is None:
+                raise DownloadError("MEDIA_NOT_ELIGIBLE")
+            initial = await repository.get_record(candidate.media_item_id)
+            Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+                f"selected channel_id={channel_id} telegram_message_id={message_id} "
+                f"media_ordinal={media_ordinal} expected_bytes={candidate.expected_bytes} "
+                f"initial_state={initial.state if initial else 'NEW'}",
+                markup=False, highlight=False,
+            )
+            application = SingleMediaDownloadApplication(
+                repository, lazy_gateway, download_dir,
+                progress_callback=lambda current, total: Console(
+                    file=sys.stdout, force_terminal=False, no_color=True
+                ).print(f"progress bytes={current}/{total}", markup=False, highlight=False),
+            )
+            return await application.download(channel_id, message_id, media_ordinal)
+        finally:
+            if lazy_gateway.gateway is not None:
+                await lazy_gateway.gateway.close()
+
+    result = asyncio.run(run())
+    Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+        f"download result={result.result} channel_id={channel_id} "
+        f"telegram_message_id={message_id} media_ordinal={media_ordinal} "
+        f"bytes={result.transferred_bytes} path={result.final_path}",
+        markup=False, highlight=False,
+    )
+    return 0
 
 
 def _scan_channel(
@@ -489,6 +568,7 @@ def main(
     api_hash_prompt: Callable[[], str] = lambda: _secret_prompt("Telegram API HASH: "),
     credential_vault_factory: Callable[[], CredentialVault] = CredentialVault,
     credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
+    download_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
 ) -> int:
     try:
         args = _parse_arguments(argv)
@@ -529,6 +609,14 @@ def main(
                 gateway_factory=scan_gateway_factory or _scan_gateway,
                 credentials_loader=credentials_loader,
             )
+        if args.command == "download":
+            return _download_single(
+                channel_id=args.channel_id, message_id=args.telegram_message_id,
+                media_ordinal=args.media_ordinal, database=args.database,
+                download_dir=args.download_dir,
+                gateway_factory=download_gateway_factory or gateway_factory,
+                credentials_loader=credentials_loader,
+            )
         line = (
             f"telegram-courses {__version__} config={configuration.config} "
             f"log_level={configuration.log_level}"
@@ -561,6 +649,9 @@ def main(
         return 4
     except CatalogError as error:
         sys.stderr.write(f"catalog failed category={error.category}\n")
+        return 4
+    except DownloadError as error:
+        sys.stderr.write(f"download failed category={error.category}\n")
         return 4
     except Exception:
         sys.stderr.write("internal error\n")

@@ -31,6 +31,7 @@ POLICY = PM-01 v1.0 / CANONICAL / ACTIVE
 | Contrato de implementação S1-B | [S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT](../contracts/S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT.md) | Offline auth/gateway; frozen for S1-B only |
 | Contrato S1-D | [S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md) | Aprovado e congelado em 2026-10-09 após GOV-01 RESOLVED; aceite funcional e formal PASS; S1-D CLOSED |
 | Contrato S2 | [S2_MESSAGE_SCANNER_SQLITE_CONTRACT](../contracts/S2_MESSAGE_SCANNER_SQLITE_CONTRACT.md) | Aprovado e congelado em 2026-10-10; implementação offline e aceite real SQLite PASS; S2 ACCEPTED / CLOSED conforme PROJECT_STATE |
+| Contrato S4 | [S4_SINGLE_MEDIA_DOWNLOAD_CONTRACT](../contracts/S4_SINGLE_MEDIA_DOWNLOAD_CONTRACT.md) | Congelado para a primeira mídia de Lesson; S4 ACCEPTED / CLOSED conforme PROJECT_STATE; limites S5–S9 preservados |
 | Procedimento de ambiente S0 | [S0_SETUP](../development/S0_SETUP.md) | Instruções; execução exige readiness/autorização |
 | Findings técnicos | [AUDITORIA_TECNICA](../audit/AUDITORIA_TECNICA_2026-10-05.md) | Contexto não normativo; risks/gates correntes resolvidos pelo plano |
 

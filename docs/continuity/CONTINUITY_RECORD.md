@@ -1,5 +1,102 @@
 # Registro de continuidade
 
+## Checkpoint corrente — S4-CLOSE-01 Formal Acceptance and Publication — 2026-10-10
+
+S4 foi formalmente aceita e encerrada. Os resultados offline informados pelo
+usuário foram: 19 testes focados, 186 testes completos e 11 subtests aprovados;
+Ruff e `git diff --check` passaram. A prova real foi limitada a uma mídia
+DOCUMENT de Lesson, com tamanho esperado e transferido de 6.199.635 bytes,
+exit 0, arquivo final íntegro e hash local igual ao SQLite isolado.
+
+Na segunda chamada, o resultado informado foi `ALREADY_DOWNLOADED`, exit 0 e
+sem progresso de transferência. A verificação posterior somente leitura
+informada pelo usuário confirmou uma linha de download, um arquivo final,
+nenhum `.part`, estado `DOWNLOADED`, tamanho e SHA-256 correspondentes; nenhum
+caminho privado foi registrado. Não houve nova transferência nesta atividade.
+
+O gate vertical passa com evidências S1–S3 para autenticação, descoberta,
+parsing e catálogo, e a evidência integrada S4 para download individual,
+integridade, organização e deduplicação. O aceite cobre apenas uma mídia. Fila
+ou lote pertence à S5, resume por offset à S6, sincronização incremental à S7
+e validação integrada abrangente no canal RASMOO à S9. S5 está PLANNED /
+NOT_STARTED e sua implementação não está autorizada.
+
+```text
+ACTIVITY = S4-CLOSE-01
+ACTIVITY_COMPLETION_PERCENT = 100%
+S4_STATUS = ACCEPTED / CLOSED
+S4_FORMAL_ACCEPTANCE = APPROVED
+S4_OFFLINE_VALIDATION = PASS / 19 focused, 186 full, 11 subtests
+S4_REAL_DOWNLOAD = PASS / one DOCUMENT, 6199635 bytes
+S4_FILE_INTEGRITY = PASS / expected size and local SHA-256 match
+S4_SQLITE_PERSISTENCE = PASS / user-provided read-only post-dedup check
+S4_REAL_DEDUPLICATION = PASS / ALREADY_DOWNLOADED; no second transfer
+S4_REGRESSION = PASS
+FIRST_VERTICAL_SLICE_GATE = PASS
+AUTH = PASS
+CHANNEL_DISCOVERY = PASS
+RASMOO_PARSE = PASS
+CATALOG_PERSISTENCE = PASS
+SINGLE_DOWNLOAD = PASS
+FILE_VALIDATION = PASS
+PATH_ORGANIZATION = PASS
+DEDUPLICATION = PASS
+SECOND_RUN_NO_DUPLICATE = PASS
+GIT_PUBLICATION = USER_AUTHORIZED / one scoped commit and push; exact result is authoritative in Git
+S5_STATUS = PLANNED / NOT_STARTED
+S5_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+SAFE_RESUME_POINT = Review S5 entry conditions; do not implement S5 without separate authorization
+```
+
+## Checkpoint corrente — S4-IMPL-01 — 2026-10-10
+
+O repo foi confirmado no baseline aprovado `143c1695f3c0fc1040bf46373d40bdb4c83b559f`, branch `work/s0-bootstrap`; a árvore estava limpa antes da atividade. A divergência anterior em `PROJECT_STATE`/handoff foi reconciliada. O contrato [S4 Single Media Download](../contracts/S4_SINGLE_MEDIA_DOWNLOAD_CONTRACT.md) está congelado para uma única mídia DOCUMENT associada a Lesson, e a implementação offline autorizada está em andamento.
+
+O fluxo adicionado contém query de elegibilidade e linhagem, migration 004 sobre a tabela `downloads` já existente, streaming Telethon limitado, arquivo `.part`, validação de tamanho/SHA-256, finalização sem sobrescrita, estado SQLite, recuperação e deduplicação; a CLI aceita `--channel-id`, `--telegram-message-id`, `--media-ordinal`, `--database` e `--download-dir`. Ruff, compileall e diff check passaram; 8 testes unitários S4 passaram; a migration 001–004 e unicidade foram verificadas em SQLite em memória; a prova Windows sintética de `os.rename` sem sobrescrita passou; 186 testes foram coletados, incluindo 11 novos cenários de integração offline. A execução dos testes SQLite integrados não retornou no executor assíncrono restrito do sandbox e foi interrompida; full pytest permanece pendente no PowerShell funcional. Não houve Telegram real, acesso a credenciais/sessão ou modificação do catálogo real; não houve staging/commit/push.
+
+```text
+S4_STATUS = IN_PROGRESS / OFFLINE IMPLEMENTATION
+S4_OFFLINE_VALIDATION = PARTIAL / UNIT PASS, INTEGRATION BLOCKED IN SANDBOX
+ACTIVITY_COMPLETION_PERCENT = 56%
+S4_FORMAL_ACCEPTANCE = PENDING
+FIRST_VERTICAL_SLICE_GATE = PENDING
+SAFE_RESUME_POINT = Run focused integration and full regression in functional PowerShell; see LAST_HANDOFF
+```
+
+## S4-REAL-01B — primeira mídia real e deduplicação — 2026-10-10
+
+O preflight confirmou o runtime Python 3.14.7 e os argumentos da CLI sem
+executar download. A origem SQLite foi aberta em modo somente leitura e copiada
+por Online Backup; a cópia passou integrity check, zero violações FK, 30
+mensagens, 26 mídias, parser Rasmoo e elegibilidade da seleção aprovada. A
+migration 004 e o índice único foram verificados somente na cópia. A sessão não
+foi inspecionada.
+
+A atividade parou antes da conexão: a checagem oficial da CLI não encontrou
+cofre de credenciais configurado neste executor, e uma única tentativa de
+migration pela rotina assíncrona ficou bloqueada e foi interrompida. Nenhuma
+invocação de download ocorreu; nenhum byte foi transferido; não há `.part` nem
+arquivo final desta atividade. A cópia criada dentro do executor não é
+reutilizável no PowerShell do usuário. O primeiro download e a segunda chamada
+continuam pendentes; não houve nova varredura, outro download ou ação Git.
+
+```text
+ACTIVITY = S4-REAL-01B
+ACTIVITY_COMPLETION_PERCENT = 28%
+STATUS = PARTIAL / PREFLIGHT PASS; BLOCKED BEFORE TELEGRAM CONNECTION
+TEMP_SQLITE_CREATED = PASS / consistent online backup; migration 004 only on copy
+SQLITE_INTEGRITY = PASS / integrity ok; zero FK violations
+DOWNLOAD_EXECUTIONS = 0
+TRANSFERRED_BYTES = 0
+DEDUPLICATION_CHECK_EXECUTIONS = 0
+FIRST_VERTICAL_SLICE_GATE = PENDING
+S4_FORMAL_ACCEPTANCE = PENDING
+NEW_SCAN = NO
+OTHER_DOWNLOADS = NONE
+GIT_ACTIONS = NONE
+SAFE_RESUME_POINT = Recreate the isolated copy and download directory in the user's functional PowerShell, then run only the authorized selection once; independently validate before the one deduplication invocation
+```
+
 ## S2 — aceite do scan SQLite real — 2026-10-10
 
 O banco local `data/catalog.sqlite3` foi inspecionado em modo somente leitura,

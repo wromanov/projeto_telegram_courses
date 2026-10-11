@@ -117,8 +117,9 @@ no canal real permanece planejada para S9.
 - **GATES:** `FIRST_VERTICAL_SLICE_GATE`.
 - **DEFINITION_OF_DONE:** All nine milestone checks pass end-to-end; isolated component tests alone do not satisfy this gate.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S4 and `FIRST_VERTICAL_SLICE_GATE` accepted; course-level selection/queue can build on proven single-item behavior.
-- **STATUS:** PLANNED / NOT_STARTED.
-- **IMPLEMENTATION_AUTHORIZATION:** NOT_GRANTED / requires separate explicit user authorization.
+- **STATUS:** ACCEPTED / CLOSED / formal acceptance and `FIRST_VERTICAL_SLICE_GATE` passed under S4-CLOSE-01.
+- **IMPLEMENTATION_AUTHORIZATION:** GRANTED for the bounded offline implementation and one real single-media validation; Git publication separately authorized by S4-CLOSE-01. No scope expansion is implied.
+- **CONTRACT:** [S4_SINGLE_MEDIA_DOWNLOAD_CONTRACT](../../contracts/S4_SINGLE_MEDIA_DOWNLOAD_CONTRACT.md), frozen for the first lesson media scope.
 
 ## S5 — Course/Module Selection + Download Planner + Download Queue
 
@@ -136,6 +137,7 @@ no canal real permanece planejada para S9.
 - **DEFINITION_OF_DONE:** Approved selection/planning/queue criteria and relevant tests pass; no duplicate or conflicting state is introduced.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S5 accepted; partial transfer state can be recovered by the next slice.
 - **STATUS:** PLANNED / NOT_STARTED.
+- **IMPLEMENTATION_AUTHORIZATION:** NOT_GRANTED / requires separate explicit user authorization.
 
 ## S6 — Partial Download + Resume + Recovery
 

@@ -15,5 +15,6 @@ def isolate_user_credentials_and_storage(
         "TELEGRAM_API_HASH",
         "TELEGRAM_COURSES_CONFIG",
         "TELEGRAM_COURSES_LOG_LEVEL",
+        "TELEGRAM_COURSES_DOWNLOAD_DIR",
     ):
         monkeypatch.delenv(name, raising=False)

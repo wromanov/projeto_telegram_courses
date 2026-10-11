@@ -4,7 +4,57 @@
 DOCUMENT_ROLE = LAST_HANDOFF
 PROJECT_ID = projeto_telegram_courses
 RECORDED_AT = 2026-10-10 / America/Sao_Paulo
-HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED / S2_CLOSED / S3_ACCEPTED / S3_CLOSED / S4_PLANNED_NOT_STARTED
+HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED / S2_CLOSED / S3_ACCEPTED / S3_CLOSED / S4_ACCEPTED / S4_CLOSED / FIRST_VERTICAL_SLICE_GATE_PASS / S5_PLANNED_NOT_STARTED
+```
+
+## Handoff vigente — S4-CLOSE-01 Formal Acceptance and Publication — 2026-10-10
+
+S4 está formalmente ACCEPTED / CLOSED. A regressão offline informada pelo
+usuário passou: 19 testes focados, 186 testes completos e 11 subtests; Ruff e
+`git diff --check` também passaram. A prova real cobriu uma mídia DOCUMENT de
+Lesson, de 6.199.635 bytes. O tamanho transferido e esperado coincidem, o
+arquivo final passou na validação de integridade e o SHA-256 local corresponde
+ao registro SQLite isolado.
+
+A segunda invocação retornou `ALREADY_DOWNLOADED`, exit 0 e sem progresso. A
+verificação pós-deduplicação somente leitura fornecida pelo usuário confirmou
+uma linha canônica `DOWNLOADED`, um arquivo final, zero `.part`, tamanho e hash
+válidos. Nenhum caminho local ou identificador privado foi preservado.
+
+O `FIRST_VERTICAL_SLICE_GATE` passa: autenticação e descoberta vêm das
+evidências S1; parsing RASMOO e catálogo persistido das evidências S2–S3; os
+critérios de download individual, integridade, organização e deduplicação vêm
+da prova S4 e da regressão integrada. O aceite continua limitado a uma mídia:
+fila/lote é S5, resume por offset é S6, sync incremental é S7, e validação
+integrada abrangente no canal RASMOO é S9.
+
+```text
+ACTIVITY = S4-CLOSE-01
+ACTIVITY_COMPLETION_PERCENT = 100%
+S4_STATUS = ACCEPTED / CLOSED
+S4_FORMAL_ACCEPTANCE = APPROVED
+S4_OFFLINE_VALIDATION = PASS / focused 19; full 186; subtests 11
+S4_REAL_DOWNLOAD = PASS / DOCUMENT / 6199635 bytes
+S4_FILE_INTEGRITY = PASS
+S4_SQLITE_PERSISTENCE = PASS / user-provided post-dedup read-only verification
+S4_REAL_DEDUPLICATION = PASS / ALREADY_DOWNLOADED / no second transfer
+S4_REGRESSION = PASS
+FIRST_VERTICAL_SLICE_GATE = PASS
+AUTH = PASS
+CHANNEL_DISCOVERY = PASS
+RASMOO_PARSE = PASS
+CATALOG_PERSISTENCE = PASS
+SINGLE_DOWNLOAD = PASS
+FILE_VALIDATION = PASS
+PATH_ORGANIZATION = PASS
+DEDUPLICATION = PASS
+SECOND_RUN_NO_DUPLICATE = PASS
+GIT_REVIEW = PASS / scoped files; remote tip matched local baseline
+SENSITIVE_DATA_CHECK = PASS / no credentials, sessions, databases, media or operational logs in candidate files
+GIT_PUBLICATION = USER_AUTHORIZED / one scoped commit and push; exact result is authoritative in Git
+S5_STATUS = PLANNED / NOT_STARTED
+S5_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+SAFE_RESUME_POINT = Review S5 entry conditions; do not implement S5 without separate authorization
 ```
 
 S1-B — Offline Authentication Flow & Telegram Gateway foi concluída após S1-A.
@@ -703,4 +753,85 @@ GIT_PUBLICATION = PENDING
 S4_STATUS = PLANNED / NOT_STARTED
 S4_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
 SAFE_RESUME_POINT = S4 entry review; implementation requires separate authorization
+```
+
+## Handoff vigente — S4-IMPL-01 Single Media Download — 2026-10-10
+
+O estado factual foi reconciliado: repo `C:\Users\walac\desenvolvimento\projeto_telegram_courses`, branch `work/s0-bootstrap`, HEAD `143c1695f3c0fc1040bf46373d40bdb4c83b559f`, worktree sem alterações prévias antes desta atividade. O contrato S4 foi criado e congelado somente para uma mídia DOCUMENT de Lesson. A implementação inclui seleção SQLite, migration aditiva 004, adapter Telethon `iter_download`, `.part`, SHA-256 local, finalização sem sobrescrita, reconciliação e comando CLI.
+
+Validação executada neste ambiente: 8 testes unitários focados PASS; prova Windows sintética de finalização no mesmo volume sem sobrescrita PASS; migration 001–004 e índice único exercitados em SQLite em memória PASS; Ruff em `src` e `tests` PASS; `compileall` PASS; `git diff --check` PASS; coleta pytest = 186 testes, incluindo 11 novos cenários de integração offline; Telethon local 1.45.0 e assinaturas de `iter_download`/`get_messages` confirmadas. A execução dos testes SQLite integrados foi tentada em diretório temporário fora do repositório, ficou sem retornar durante a primeira integração e foi interrompida; a suíte completa não foi executada. O runner do sandbox não confirmou causa raiz nesta tentativa; tratar como limitação de ambiente, não como falha ou aprovação do código integrado.
+
+```text
+ACTIVITY = S4-IMPL-01
+ACTIVITY_COMPLETION_PERCENT = 56%
+S4_STATUS = IN_PROGRESS / OFFLINE IMPLEMENTATION
+S4_CONTRACT = APPROVED / FROZEN_FOR_SINGLE_LESSON_MEDIA
+S4_IMPLEMENTATION_AUTHORIZATION = GRANTED / OFFLINE ONLY
+S4_OFFLINE_INTEGRATION = NOT_CONFIRMED / 11 integration tests added; sandbox async runner did not return
+S4_FULL_PYTEST = NOT_RUN / 186 collected
+S4_RUFF = PASS
+S4_FOCUSED_UNIT_TESTS = PASS / 8
+S4_WINDOWS_FINALIZATION_TEST = PASS / synthetic os.rename same-volume no-overwrite
+S4_MIGRATION_SMOKE = PASS / SQLite in-memory migrations 001–004 and unique media constraint
+S4_DIFF_CHECK = PASS
+REAL_TELEGRAM_ACCESS = NO
+REAL_MEDIA_DOWNLOAD = NONE
+REAL_CATALOG_SQLITE_MODIFICATION = NO
+GIT_ACTIONS = NONE
+S4_FORMAL_ACCEPTANCE = PENDING
+FIRST_VERTICAL_SLICE_GATE = PENDING
+SAFE_RESUME_POINT = Run focused integration tests, full pytest, Ruff and diff check in functional PowerShell using --basetemp under $env:TEMP; repair any reproducible code failures
+NEXT_ACTION = Complete offline integration and regression; do not perform real Telegram validation or Git publication
+```
+
+Comando curto para retomar no PowerShell funcional, mantendo os temporários
+fora do repositório:
+
+```powershell
+$s4TestTemp = Join-Path $env:TEMP 'telegram-courses-s4-focused'
+python -m pytest tests/unit/test_downloads.py tests/integration/test_download_flow.py -q --basetemp $s4TestTemp
+if ($LASTEXITCODE -ne 0) { throw 'S4 focused tests failed' }
+python -m pytest -q --basetemp (Join-Path $env:TEMP 'telegram-courses-s4-full')
+if ($LASTEXITCODE -ne 0) { throw 'Full pytest failed' }
+ruff check src tests
+if ($LASTEXITCODE -ne 0) { throw 'Ruff failed' }
+git diff --check
+if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed' }
+```
+
+## Handoff — S4-REAL-01B First Real Media Download and Deduplication — 2026-10-10
+
+Preflight only; no Telegram connection or download was made. Python 3.14.7 and
+CLI help were confirmed. The supplied catalog SQLite was opened read-only and
+copied with SQLite Online Backup; the isolated copy passed integrity, foreign
+key, message/media count, parser and selected-lesson eligibility checks.
+Migration 004 and its unique index passed on that copy. The synchronous
+preflight completed, but the project repository's async migration path blocked
+in this executor and was interrupted once. The CLI credential status reported
+no configured vault in this executor; no credential, DPAPI or session file was
+inspected. The executor-local temporary copy cannot be reused in the user's
+functional PowerShell.
+
+No CLI download invocation occurred, no media bytes were transferred, and no
+`.part` or final media file was created. The SQLite source was used read-only.
+No scan, other download or Git action occurred. S4 formal acceptance and the
+first vertical slice gate remain pending. Recreate the isolated copy and empty
+download directory in the user's functional PowerShell, then perform exactly
+one approved download, validate the file and SQLite row independently, and
+only then perform the single deduplication invocation.
+
+```text
+ACTIVITY = S4-REAL-01B
+ACTIVITY_COMPLETION_PERCENT = 28%
+STATUS = PARTIAL / PREFLIGHT PASS; BLOCKED BEFORE TELEGRAM CONNECTION
+SOURCE_SQLITE = READ_ONLY
+TEMP_SQLITE = ONLINE BACKUP PASS / MIGRATION 004 PASS ON COPY
+SQLITE_INTEGRITY = PASS / zero FK violations
+DOWNLOAD_EXECUTIONS = 0
+TRANSFERRED_BYTES = 0
+DEDUPLICATION_CHECK_EXECUTIONS = 0
+FIRST_VERTICAL_SLICE_GATE = PENDING
+S4_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Continue in functional PowerShell with the same approved media, same isolated DB copy, same temporary download root and bounded two-invocation protocol
+GIT_ACTIONS = NONE
 ```

@@ -57,6 +57,7 @@ _FAILURE_STAGES = frozenset({
     "AUTHORIZATION_CONFIRMATION",
     "SESSION_PERSISTENCE",
     "DISCONNECT",
+    "MEDIA_DOWNLOAD",
 })
 
 
@@ -668,6 +669,84 @@ class TelethonGateway:
         except Exception as error:
             self._record_failure("MESSAGE_HISTORY", error, AdapterError())
             self._raise_scan_failure(error)
+
+    async def _iterate_media(
+        self,
+        channel_id: int,
+        message_id: int,
+        media_ordinal: int,
+        *,
+        telegram_media_id: str,
+        expected_bytes: int,
+        chunk_bytes: int,
+    ):
+        from telethon import utils
+
+        from telegram_courses.downloads import DownloadGatewayError
+
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            raise DownloadGatewayError("SESSION_INVALID")
+        try:
+            entity = await self._input_entity_for_selected_channel(channel_id)
+            message = await self._client.get_messages(entity, ids=message_id)
+            if message is None or type(getattr(message, "id", None)) is not int or message.id != message_id:
+                raise DownloadGatewayError("MESSAGE_NOT_FOUND")
+            peer = getattr(message, "peer_id", None)
+            if peer is None or utils.get_peer_id(peer) != channel_id:
+                raise DownloadGatewayError("CHANNEL_MISMATCH")
+            raw_media = getattr(message, "media", None)
+            document = getattr(raw_media, "document", None) if raw_media is not None else None
+            if document is None or media_ordinal != 0:
+                raise DownloadGatewayError("MEDIA_MISMATCH")
+            actual_id = str(getattr(document, "id", ""))
+            actual_size = getattr(document, "size", None)
+            if actual_id != telegram_media_id or type(actual_size) is not int or actual_size != expected_bytes:
+                raise DownloadGatewayError("MEDIA_MISMATCH")
+            async for chunk in self._client.iter_download(
+                document, request_size=chunk_bytes, chunk_size=chunk_bytes
+            ):
+                if not isinstance(chunk, bytes) or not chunk or len(chunk) > chunk_bytes:
+                    raise DownloadGatewayError("INVALID_CHUNK")
+                yield chunk
+        except DownloadGatewayError:
+            raise
+        except Exception as error:
+            self._record_failure("MEDIA_DOWNLOAD", error, AdapterError())
+            try:
+                from telethon import errors
+                if isinstance(error, errors.FloodWaitError):
+                    raise DownloadGatewayError("RATE_LIMITED") from None
+                if isinstance(error, (OSError, TimeoutError, ConnectionError, asyncio.IncompleteReadError)):
+                    raise DownloadGatewayError("NETWORK") from None
+            except DownloadGatewayError:
+                raise
+            except Exception:
+                pass
+            raise DownloadGatewayError("GATEWAY_FAILURE") from None
+
+    def stream_media(
+        self,
+        channel_id: int,
+        message_id: int,
+        media_ordinal: int,
+        *,
+        telegram_media_id: str,
+        expected_bytes: int,
+        chunk_bytes: int = 256 * 1024,
+    ):
+        if (
+            type(channel_id) is not int or type(message_id) is not int
+            or type(media_ordinal) is not int or type(expected_bytes) is not int
+            or type(chunk_bytes) is not int or chunk_bytes <= 0 or chunk_bytes > 256 * 1024
+            or not telegram_media_id or expected_bytes < 0
+        ):
+            raise ValueError("invalid media stream request")
+        return self._iterate_media(
+            channel_id, message_id, media_ordinal,
+            telegram_media_id=telegram_media_id,
+            expected_bytes=expected_bytes,
+            chunk_bytes=chunk_bytes,
+        )
 
     def iter_channel_messages(
         self,
