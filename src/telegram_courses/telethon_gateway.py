@@ -143,6 +143,9 @@ class TelethonGateway:
             self._record_failure("SESSION_REUSE_CHECK", error, project_error)
             raise AdapterError from None
         self._client: Any | None = None
+        self._strict_budget_lock = asyncio.Lock()
+        self._strict_budget_streams = 0
+        self._strict_budget_previous_retries: int | None = None
         self._phone: str | None = None
         self._phone_code_hash: str | None = None
         self._state: AuthState | None = None
@@ -679,6 +682,7 @@ class TelethonGateway:
         telegram_media_id: str,
         expected_bytes: int,
         chunk_bytes: int,
+        reserve_chunk=None,
     ):
         from telethon import utils
 
@@ -702,12 +706,59 @@ class TelethonGateway:
             actual_size = getattr(document, "size", None)
             if actual_id != telegram_media_id or type(actual_size) is not int or actual_size != expected_bytes:
                 raise DownloadGatewayError("MEDIA_MISMATCH")
-            async for chunk in self._client.iter_download(
-                document, request_size=chunk_bytes, chunk_size=chunk_bytes
-            ):
-                if not isinstance(chunk, bytes) or not chunk or len(chunk) > chunk_bytes:
-                    raise DownloadGatewayError("INVALID_CHUNK")
-                yield chunk
+            stream = self._client.iter_download(
+                document, request_size=chunk_bytes, chunk_size=chunk_bytes,
+                file_size=expected_bytes,
+            )
+            if reserve_chunk is None:
+                async for chunk in stream:
+                    if not isinstance(chunk, bytes) or not chunk or len(chunk) > chunk_bytes:
+                        raise DownloadGatewayError("INVALID_CHUNK")
+                    yield chunk
+            else:
+                await self._begin_strict_budget_stream()
+                try:
+                    # Telethon 1.45 uses this hook for every GetFile request, including
+                    # its internal timeout/migration retries. The equal request/chunk
+                    # sizes select its direct iterator, which does not prefetch.
+                    request = getattr(stream, "_request", None)
+                    if not callable(request):
+                        raise DownloadGatewayError("BUDGET_ENFORCEMENT_UNAVAILABLE")
+
+                    async def reserved_request():
+                        try:
+                            reservation = await reserve_chunk(chunk_bytes)
+                        except Exception as error:
+                            from telegram_courses.downloads import DownloadError
+                            if isinstance(error, DownloadError):
+                                raise DownloadGatewayError(error.category) from None
+                            raise
+                        if reservation is None:
+                            raise DownloadGatewayError("TRANSFER_BUDGET_EXHAUSTED")
+                        try:
+                            data = await request()
+                        except BaseException:
+                            reservation.charge_uncertain()
+                            raise
+                        if not isinstance(data, (bytes, memoryview)):
+                            reservation.charge_uncertain()
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        try:
+                            reservation.received(len(data))
+                        except Exception as error:
+                            from telegram_courses.downloads import DownloadError
+                            if isinstance(error, DownloadError):
+                                raise DownloadGatewayError(error.category) from None
+                            raise
+                        return data
+
+                    stream._request = reserved_request
+                    async for chunk in stream:
+                        if not isinstance(chunk, bytes) or not chunk or len(chunk) > chunk_bytes:
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        yield chunk
+                finally:
+                    await self._end_strict_budget_stream()
         except DownloadGatewayError:
             raise
         except Exception as error:
@@ -715,7 +766,9 @@ class TelethonGateway:
             try:
                 from telethon import errors
                 if isinstance(error, errors.FloodWaitError):
-                    raise DownloadGatewayError("RATE_LIMITED") from None
+                    raise DownloadGatewayError(
+                        "RATE_LIMITED", retry_after_seconds=int(error.seconds)
+                    ) from None
                 if isinstance(error, (OSError, TimeoutError, ConnectionError, asyncio.IncompleteReadError)):
                     raise DownloadGatewayError("NETWORK") from None
             except DownloadGatewayError:
@@ -723,6 +776,29 @@ class TelethonGateway:
             except Exception:
                 pass
             raise DownloadGatewayError("GATEWAY_FAILURE") from None
+
+    async def _begin_strict_budget_stream(self) -> None:
+        from telegram_courses.downloads import DownloadGatewayError
+
+        if self._client is None:
+            raise DownloadGatewayError("SESSION_INVALID")
+        async with self._strict_budget_lock:
+            retries = getattr(self._client, "_request_retries", None)
+            if type(retries) is not int:
+                raise DownloadGatewayError("BUDGET_ENFORCEMENT_UNAVAILABLE")
+            if self._strict_budget_streams == 0:
+                self._strict_budget_previous_retries = retries
+                self._client._request_retries = 0
+            self._strict_budget_streams += 1
+
+    async def _end_strict_budget_stream(self) -> None:
+        if self._client is None:
+            return
+        async with self._strict_budget_lock:
+            self._strict_budget_streams -= 1
+            if self._strict_budget_streams == 0:
+                self._client._request_retries = self._strict_budget_previous_retries
+                self._strict_budget_previous_retries = None
 
     def stream_media(
         self,
@@ -733,6 +809,7 @@ class TelethonGateway:
         telegram_media_id: str,
         expected_bytes: int,
         chunk_bytes: int = 256 * 1024,
+        reserve_chunk=None,
     ):
         if (
             type(channel_id) is not int or type(message_id) is not int
@@ -746,6 +823,7 @@ class TelethonGateway:
             telegram_media_id=telegram_media_id,
             expected_bytes=expected_bytes,
             chunk_bytes=chunk_bytes,
+            reserve_chunk=reserve_chunk,
         )
 
     def iter_channel_messages(

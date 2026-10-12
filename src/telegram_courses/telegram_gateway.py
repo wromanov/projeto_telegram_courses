@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
-from typing import Protocol
+from typing import Awaitable, Callable, Protocol
 
 from telegram_courses.auth import AuthState
 from telegram_courses.channel_discovery import DiscoveryRequest, DiscoveryResult
@@ -38,6 +38,15 @@ class TelegramGateway(Protocol):
         *,
         telegram_media_id: str,
         expected_bytes: int,
+        reserve_chunk: Callable[[int], Awaitable["ChunkReservation | None"]] | None = None,
     ) -> AsyncIterator[bytes]: ...
 
     async def close(self) -> None: ...
+
+
+class ChunkReservation(Protocol):
+    def received(self, byte_count: int) -> None: ...
+
+    def release(self) -> None: ...
+
+    def charge_uncertain(self) -> None: ...

@@ -5,9 +5,9 @@
 **Execution model = INCREMENTAL_VERTICAL_SLICES**
 **Maximum active formal activities = 1**
 
-Estado corrente: PHASE 3 / S2 ACCEPTED / CLOSED / S3 ACCEPTED / CLOSED / S4
-ACCEPTED / CLOSED / FIRST_VERTICAL_SLICE_GATE PASS. S5 PLANNED / NOT_STARTED.
-Ver [PROJECT_STATE](../PROJECT_STATE.md).
+Estado corrente: PHASE 4 / S5 CLOSED / formal acceptance APPROVED / closure PASS.
+A prova abrange cinco mídias observadas em catálogo parcial; S6 está PLANNED /
+NOT_STARTED. Ver [PROJECT_STATE](../PROJECT_STATE.md).
 
 | Phase | Name | Sprint(s) | Outcome |
 |---|---|---|---|

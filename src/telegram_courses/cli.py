@@ -61,7 +61,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog", "download")
     )
     parser.add_argument(
-        "credentials_action", nargs="?", choices=("setup", "status", "build", "list", "show", "items")
+        "credentials_action", nargs="?", choices=("setup", "status", "build", "list", "show", "items", "plan", "queue")
     )
     parser.add_argument("--config", action="append")
     parser.add_argument("--log-level", action="append")
@@ -73,6 +73,11 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--timeout-seconds", type=float)
     parser.add_argument("--database", default="data/catalog.sqlite3")
     parser.add_argument("--parser-key")
+    parser.add_argument("--scope", choices=("channel", "course", "module", "lesson"), default="channel")
+    parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument("--max-media-items", type=int)
+    parser.add_argument("--max-transfer-bytes", type=int)
+    parser.add_argument("--confirm", action="store_true")
     args = parser.parse_args(argv)
     if (args.config is not None and len(args.config) != 1) or (
         args.log_level is not None and len(args.log_level) != 1
@@ -80,7 +85,13 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         raise ConfigurationError
     args.config = args.config[0] if args.config else None
     args.log_level = args.log_level[0] if args.log_level else None
-    if (args.command in {"credentials", "catalog"}) != (args.credentials_action is not None):
+    if args.command != "download" and (
+        args.max_media_items is not None or args.max_transfer_bytes is not None
+    ):
+        raise ConfigurationError from None
+    if args.command in {"credentials", "catalog"} and args.credentials_action is None:
+        raise ConfigurationError from None
+    if args.command not in {"credentials", "catalog", "download"} and args.credentials_action is not None:
         raise ConfigurationError from None
     if args.command == "credentials" and args.credentials_action not in {"setup", "status"}:
         raise ConfigurationError from None
@@ -101,8 +112,18 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         if args.max_messages <= 0 or args.timeout_seconds <= 0:
             raise ConfigurationError from None
     elif args.command == "download":
-        if (
-            args.channel_id is None or args.channel_id == 0
+        if args.credentials_action in {"plan", "queue"}:
+            if (args.channel_id is None or args.channel_id == 0
+                    or args.telegram_message_id is not None or args.media_ordinal is not None
+                    or args.max_messages is not None or args.timeout_seconds is not None
+                    or not 1 <= args.workers <= 2 or args.confirm and args.credentials_action != "queue"
+                    or args.max_media_items is not None and args.max_media_items <= 0
+                    or args.max_transfer_bytes is not None and args.max_transfer_bytes <= 0):
+                raise ConfigurationError from None
+        elif (
+            args.credentials_action is not None
+            or args.max_media_items is not None or args.max_transfer_bytes is not None
+            or args.channel_id is None or args.channel_id == 0
             or args.telegram_message_id is None or args.telegram_message_id <= 0
             or args.media_ordinal is None or args.media_ordinal < 0
             or args.max_messages is not None or args.timeout_seconds is not None
@@ -179,6 +200,177 @@ def _download_single(
         markup=False, highlight=False,
     )
     return 0
+
+
+def _download_batch(
+    *, args: argparse.Namespace,
+    selection_prompt: Callable[[str], str],
+    gateway_factory: Callable[[TelegramCredentials], object],
+    credentials_loader: Callable[[], TelegramCredentials],
+) -> int:
+    from telegram_courses.s5_downloads import (
+        DownloadPlanner,
+        DownloadQueue,
+        DownloadSelection,
+    )
+
+    planner = DownloadPlanner(args.database, args.download_dir)
+    console = Console(file=_CatalogOutput(sys.stdout), force_terminal=False, no_color=True, color_system=None)
+
+    async def make_plan():
+        node_id = None
+        if args.scope != "channel":
+            choices = planner.selectable_nodes(args.channel_id, args.scope)
+            if not choices:
+                raise DownloadError("NO_SELECTABLE_CONTENT")
+            for index, (_, title) in enumerate(choices, start=1):
+                console.print(f"[{index}] {_safe_terminal_text(title)}", markup=False, highlight=False)
+            if not sys.stdin.isatty() and selection_prompt is input:
+                raise ConfigurationError from None
+            answer = selection_prompt("Selecione o conteúdo ou Q para cancelar: ").strip()
+            if answer.casefold() == "q":
+                return None
+            if not answer.isdecimal() or not 1 <= int(answer) <= len(choices):
+                raise ConfigurationError from None
+            node_id = choices[int(answer) - 1][0]
+        return await planner.build(DownloadSelection(args.channel_id, args.scope, node_id))
+
+    plan = asyncio.run(make_plan())
+    if plan is None:
+        console.print("seleção cancelada", markup=False, highlight=False)
+        return 0
+    console.print(
+        f"Plano {plan.plan_id} | {_safe_terminal_text(plan.scope_title)} | aulas={plan.lesson_count} "
+        f"elegíveis={len(plan.eligible)} pendentes={len(plan.pending)} já válidas={len(plan.already_valid)} "
+        f"bloqueadas={len(plan.blocked)} excluídas={len(plan.excluded)} "
+        f"bytes pendentes={plan.pending_bytes} margem={plan.safety_margin}",
+        markup=False, highlight=False,
+    )
+    selected_count = len(plan.items)
+    expected_bytes = sum(
+        item.candidate.expected_bytes for item in plan.eligible if item.candidate is not None
+    )
+    unknown_sizes = sum(item.reason == "UNKNOWN_SIZE" for item in plan.excluded)
+    deterministic_plan = asyncio.run(planner.build(plan.selection))
+    deterministic_order = (
+        plan.plan_id == deterministic_plan.plan_id
+        and tuple(item.identity for item in plan.items)
+        == tuple(item.identity for item in deterministic_plan.items)
+    )
+    limit_checks = []
+    if args.max_media_items is not None:
+        limit_checks.append(selected_count <= args.max_media_items)
+    if args.max_transfer_bytes is not None:
+        limit_checks.extend((plan.pending_bytes <= args.max_transfer_bytes, unknown_sizes == 0))
+    limit_check = "NOT_CONFIGURED" if not limit_checks else "PASS" if all(limit_checks) else "FAIL"
+    for name, value in (
+        ("MODULE_SELECTED", "YES" if args.scope == "module" else "NO"),
+        ("LESSON_COUNT", plan.lesson_count),
+        ("MEDIA_COUNT", selected_count),
+        ("TOTAL_EXPECTED_BYTES", expected_bytes),
+        ("DETERMINISTIC_ORDER", "PASS" if deterministic_order else "FAIL"),
+        ("SELECTED_MEDIA_COUNT", selected_count),
+        ("PENDING_MEDIA_COUNT", len(plan.pending)),
+        ("ALREADY_VALID_COUNT", len(plan.already_valid)),
+        ("EXCLUDED_COUNT", len(plan.excluded) + len(plan.blocked)),
+        ("PENDING_BYTES", plan.pending_bytes),
+        ("CONFIGURED_MEDIA_LIMIT", args.max_media_items if args.max_media_items is not None else "UNLIMITED"),
+        ("CONFIGURED_BYTE_LIMIT", args.max_transfer_bytes if args.max_transfer_bytes is not None else "UNLIMITED"),
+        ("LIMIT_CHECK_RESULT", limit_check),
+    ):
+        console.print(f"{name}={value}", markup=False, highlight=False)
+    reasons: dict[str, int] = {}
+    for item in (*plan.excluded, *plan.blocked):
+        reasons[item.reason or item.status] = reasons.get(item.reason or item.status, 0) + 1
+    for reason, count in sorted(reasons.items()):
+        console.print(f"  {reason}: {count}", markup=False, highlight=False)
+    if not plan.catalog_complete:
+        console.print("catálogo parcial: o plano cobre somente o conteúdo observado", markup=False, highlight=False)
+    if args.credentials_action == "plan":
+        return 0 if deterministic_order else 4
+    if limit_check == "FAIL" or not deterministic_order:
+        console.print("execução bloqueada: prévia ou limites configurados não aprovados", markup=False, highlight=False)
+        return 4
+    if not plan.pending:
+        console.print("nenhuma transferência pendente; conteúdo completo ou sem itens elegíveis", markup=False, highlight=False)
+        return 0
+    if args.confirm:
+        confirmed = True
+    else:
+        if not sys.stdin.isatty() and selection_prompt is input:
+            raise ConfigurationError from None
+        confirmed = selection_prompt("Iniciar os downloads? [s/N] ").strip().casefold() in {"s", "sim", "y", "yes"}
+    if not confirmed:
+        console.print("execução não confirmada", markup=False, highlight=False)
+        return 0
+
+    from telegram_courses.auth import AuthState
+
+    class _LazyGateway:
+        def __init__(self) -> None:
+            self.gateway = None
+            self._initialization: asyncio.Task[object] | None = None
+
+        async def _initialize(self) -> object:
+            try:
+                self.gateway = gateway_factory(credentials_loader())
+                state = await self.gateway.restore()
+            except ConfigurationError:
+                raise DownloadGatewayError("CONFIGURATION") from None
+            except Exception:
+                raise DownloadGatewayError("GATEWAY_FAILURE") from None
+            if state is not AuthState.AUTHENTICATED:
+                raise DownloadGatewayError("SESSION_INVALID")
+            return self.gateway
+
+        async def stream_media(self, *call_args: object, **kwargs: object):
+            if self._initialization is None:
+                self._initialization = asyncio.create_task(self._initialize())
+            gateway = await self._initialization
+            async for chunk in gateway.stream_media(*call_args, **kwargs):
+                yield chunk
+        async def close(self) -> None:
+            if self.gateway is not None:
+                await self.gateway.close()
+
+    async def execute():
+        gateway = _LazyGateway()
+        try:
+            repository = DownloadRepository(args.database)
+            app = SingleMediaDownloadApplication(
+                repository, gateway, args.download_dir,
+                progress_callback=lambda current, total: console.print(
+                    f"progresso bytes={current}/{total}", markup=False, highlight=False
+                ),
+            )
+            queue = DownloadQueue(
+                repository, app, workers=args.workers,
+                max_media_items=args.max_media_items,
+                max_transfer_bytes=args.max_transfer_bytes,
+                progress_callback=lambda state: console.print(
+                    f"fila total={state['total']} pendentes={state['pending']} "
+                    f"em_execução={state['running']} concluídos={state['completed']} "
+                    f"já_baixados={state['already_valid']} falhos={state['failed']} "
+                    f"bytes={state['bytes_transferred']}/{state['bytes_expected']} "
+                    f"tempo={state['elapsed_seconds']}s velocidade={state['bytes_per_second']}B/s",
+                    markup=False, highlight=False,
+                ),
+            )
+            return await queue.run(plan)
+        finally:
+            await gateway.close()
+
+    result = asyncio.run(execute())
+    counts = {key: sum(status == key for _, status, _ in result.outcomes)
+              for key in ("COMPLETED", "ALREADY_VALID", "FAILED", "BLOCKED", "CANCELLED")}
+    console.print(
+        f"fila concluída total={len(result.outcomes)} concluídos={counts['COMPLETED']} "
+        f"já válidos={counts['ALREADY_VALID']} falhos={counts['FAILED']} bloqueados={counts['BLOCKED']} "
+        f"bytes transferidos={result.transferred_bytes} tentativas={result.attempts} "
+        f"tempo={result.elapsed_seconds:.1f}s",
+        markup=False, highlight=False,
+    )
+    return 4 if result.failed else (130 if result.cancelled else 0)
 
 
 def _scan_channel(
@@ -610,6 +802,13 @@ def main(
                 credentials_loader=credentials_loader,
             )
         if args.command == "download":
+            if args.credentials_action in {"plan", "queue"}:
+                return _download_batch(
+                    args=args,
+                    selection_prompt=selection_prompt,
+                    gateway_factory=download_gateway_factory or gateway_factory,
+                    credentials_loader=credentials_loader,
+                )
             return _download_single(
                 channel_id=args.channel_id, message_id=args.telegram_message_id,
                 media_ordinal=args.media_ordinal, database=args.database,

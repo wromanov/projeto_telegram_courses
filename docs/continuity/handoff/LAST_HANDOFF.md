@@ -3,59 +3,718 @@
 ```text
 DOCUMENT_ROLE = LAST_HANDOFF
 PROJECT_ID = projeto_telegram_courses
-RECORDED_AT = 2026-10-10 / America/Sao_Paulo
-HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED / S2_CLOSED / S3_ACCEPTED / S3_CLOSED / S4_ACCEPTED / S4_CLOSED / FIRST_VERTICAL_SLICE_GATE_PASS / S5_PLANNED_NOT_STARTED
+RECORDED_AT = 2026-10-12 / America/Sao_Paulo
+HANDOFF_STATUS = S1-A_PASS / S1-B_PASS / S1-C_PASS / S1-C-OFF-01_PASS / S1-D_CLOSED / CREDENTIAL_VAULT_PASS / FULL_REGRESSION_PASS / CONTRACT_FROZEN / GOV-01_RESOLVED / S1_CLOSED / S2_CLOSED / S3_ACCEPTED / S3_CLOSED / S4_ACCEPTED / S4_CLOSED / FIRST_VERTICAL_SLICE_GATE_PASS / S5_SAFETY_LIMIT_ADDENDUM / S5_REAL_PROOF_PASS / S5_FORMAL_ACCEPTANCE_APPROVED / S5_CLOSED
 ```
 
-## Handoff vigente — S4-CLOSE-01 Formal Acceptance and Publication — 2026-10-10
+## Handoff anterior — S5-REAL-FAILURE-DIAG-01 — 2026-10-11
 
-S4 está formalmente ACCEPTED / CLOSED. A regressão offline informada pelo
-usuário passou: 19 testes focados, 186 testes completos e 11 subtests; Ruff e
-`git diff --check` também passaram. A prova real cobriu uma mídia DOCUMENT de
-Lesson, de 6.199.635 bytes. O tamanho transferido e esperado coincidem, o
-arquivo final passou na validação de integridade e o SHA-256 local corresponde
-ao registro SQLite isolado.
+A investigação read-only encontrou quatro linhas de download com
+`FAILED_RETRYABLE`, `failure_category=SESSION_INVALID`, `error_details` igual à
+categoria, uma tentativa, zero bytes e quatro `.part` físicos vazios. SQLite
+passou em `integrity_check`, não teve erros FK. A mídia 5 concluiu com
+11.649.955 bytes e SHA-256 igual ao persistido. A prova continua preservada no
+`PROOF_ROOT` informado pelo usuário.
 
-A segunda invocação retornou `ALREADY_DOWNLOADED`, exit 0 e sem progresso. A
-verificação pós-deduplicação somente leitura fornecida pelo usuário confirmou
-uma linha canônica `DOWNLOADED`, um arquivo final, zero `.part`, tamanho e hash
-válidos. Nenhum caminho local ou identificador privado foi preservado.
+O código S5 publicava o gateway lazy antes de aguardar `restore()`. Dois workers
+podiam compartilhar esse gateway parcialmente inicializado: o segundo recebia
+`SESSION_INVALID` no guard anterior a qualquer pedido de entidade, mensagem ou
+arquivo, depois drenava os quatro itens restantes. Timestamps SQLite colocam
+as quatro falhas durante a transferência bem-sucedida. A causa é de alta
+confiança, mas não há trace da execução histórica. O transcript disponível é
+uma prévia anterior, encerrada sem confirmação às 18:55 locais; as linhas
+SQLite foram gravadas às 19:52–19:53 locais. A exceção Telethon original não
+está recuperável.
 
-O `FIRST_VERTICAL_SLICE_GATE` passa: autenticação e descoberta vêm das
-evidências S1; parsing RASMOO e catálogo persistido das evidências S2–S3; os
-critérios de download individual, integridade, organização e deduplicação vêm
-da prova S4 e da regressão integrada. O aceite continua limitado a uma mídia:
-fila/lote é S5, resume por offset é S6, sync incremental é S7, e validação
-integrada abrangente no canal RASMOO é S9.
+Depois de autorização do usuário, `mechanical_implementer` alterou somente
+`src/telegram_courses/cli.py`: todos os workers aguardam uma única tarefa de
+criação/restauração da sessão. A validação focalizada passou com harness
+temporário da classe `_LazyGateway` extraída do código atual: duas tarefas,
+restore bloqueado e compartilhado, zero streams antes da autenticação, ambos
+streams concorrentes após liberação, sessão inválida e falha de restore
+propagadas de forma sanitizada, inicialização lazy e fechamento uma vez. O
+executor precisou de loop seletor local sem I/O para contornar bloqueio do
+socketpair padrão; nenhum socket, Telegram, fila real ou prova real foi usado.
+Harness temporário removido; nenhum teste permanente foi adicionado. Não houve
+fila/download/Telegram nesta continuação e não houve ações Git. Aceite S5
+permanece pendente.
 
 ```text
-ACTIVITY = S4-CLOSE-01
+ACTIVITY = S5-REAL-FAILURE-DIAG-01
 ACTIVITY_COMPLETION_PERCENT = 100%
-S4_STATUS = ACCEPTED / CLOSED
-S4_FORMAL_ACCEPTANCE = APPROVED
-S4_OFFLINE_VALIDATION = PASS / focused 19; full 186; subtests 11
-S4_REAL_DOWNLOAD = PASS / DOCUMENT / 6199635 bytes
-S4_FILE_INTEGRITY = PASS
-S4_SQLITE_PERSISTENCE = PASS / user-provided post-dedup read-only verification
-S4_REAL_DEDUPLICATION = PASS / ALREADY_DOWNLOADED / no second transfer
-S4_REGRESSION = PASS
-FIRST_VERTICAL_SLICE_GATE = PASS
-AUTH = PASS
-CHANNEL_DISCOVERY = PASS
-RASMOO_PARSE = PASS
-CATALOG_PERSISTENCE = PASS
-SINGLE_DOWNLOAD = PASS
-FILE_VALIDATION = PASS
-PATH_ORGANIZATION = PASS
-DEDUPLICATION = PASS
-SECOND_RUN_NO_DUPLICATE = PASS
-GIT_REVIEW = PASS / scoped files; remote tip matched local baseline
-SENSITIVE_DATA_CHECK = PASS / no credentials, sessions, databases, media or operational logs in candidate files
-GIT_PUBLICATION = USER_AUTHORIZED / one scoped commit and push; exact result is authoritative in Git
-S5_STATUS = PLANNED / NOT_STARTED
-S5_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
-SAFE_RESUME_POINT = Review S5 entry conditions; do not implement S5 without separate authorization
+STATUS = COMPLETED / FIX VALIDATED SYNTHETICALLY; REAL VALIDATION PARTIAL
+ROOT_CAUSE = lazy gateway initialization race between two workers
+ROOT_CAUSE_CONFIDENCE = HIGH / persisted timing and code path; no historical trace
+DEFECT_CONFIRMED = YES
+ERROR_DETAILS = SESSION_INVALID / sanitized category only; raw Telethon error unavailable
+FAILED_MEDIA_COUNT = 4
+ZERO_BYTE_PART_FILES = 4
+DOWNLOADED_MEDIA = 1 / 11649955 bytes / physical SHA-256 matches SQLite
+RETRY_POLICY_FINDING = one attempt correct for terminal SESSION_INVALID; S5 does not retry it
+FIX = shared initialization task awaited before any stream
+SYNTHETIC_CONCURRENCY_TEST = PASS / one restore; no premature streams; two streams proceed concurrently after auth
+SINGLE_RESTORE_TEST = PASS
+NO_PREMATURE_STREAM_TEST = PASS
+INVALID_SESSION_TEST = PASS / SESSION_INVALID; no stream
+RESTORE_FAILURE_TEST = PASS / GATEWAY_FAILURE; no stream
+LAZY_INITIALIZATION_AND_CLOSE = PASS
+TESTS = TEMPORARY_SYNTHETIC_HARNESS / PASS / removed after execution
+QUEUE_EXECUTIONS = 0 / during this continuation
+GIT_ACTIONS = NONE
+S5_REAL_VALIDATION = PARTIAL / historical failed execution; post-fix validation pending
+S5_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Await separate authorization before controlled real resumption; preserve SQLite, successful media, four `.part` files and evidence; do not deduplicate
+NEXT_ACTION = Prepare a separately authorized controlled resumption; formal S5 acceptance remains pending
 ```
+
+## Handoff vigente — S5-FORMAL-CLOSURE-01 — Encerramento formal da S5 — 2026-10-12
+
+O usuário aprovou formalmente a S5 com as ressalvas documentadas e autorizou o encerramento documental sem commit ou push. S5 está CLOSED / PASS; a prova S5-REAL-PROOF-01 e o diagnóstico S5-REAL-FAILURE-DIAG-01 estão CLOSED / PASS. Os checkpoints anteriores preservam o histórico da falha inicial, diagnóstico, correção, recuperação e deduplicação.
+
+A prova real abrange somente cinco mídias observadas (CATALOG_SCOPE = PARTIAL); não declara completude do módulo remoto ou canal. Chamadas ao gateway/GetFile não foram diretamente observadas. SQLite original, mídia, manifestos e evidências devem permanecer preservados. Nesta atividade não houve validações, execuções de fila, mudanças de código ou operações Git de escrita.
+
+ACTIVITY = S5-FORMAL-CLOSURE-01
+ACTIVITY_COMPLETION_PERCENT = 100%
+STATUS = COMPLETED / DOCUMENTARY CLOSURE PASS
+USER_FORMAL_APPROVAL = GRANTED
+S5_FORMAL_ACCEPTANCE = APPROVED
+S5_STATUS = CLOSED
+S5_CLOSURE_RESULT = PASS
+S5_IMPLEMENTATION = COMPLETED
+S5_VALIDATION = PASS / offline 206 + 11 subtests; real proof PASS
+S5_REAL_PROOF_01 = CLOSED / PASS
+S5_REAL_FAILURE_DIAG_01 = CLOSED / PASS
+HISTORICAL_CHECKPOINTS = PRESERVED
+CATALOG_SCOPE = PARTIAL / five observed media only
+GATEWAY_DOWNLOAD_CALLS = NOT_DIRECTLY_OBSERVABLE
+SOURCE_CODE_CHANGES = NONE
+QUEUE_EXECUTIONS = 0
+SQLITE_MODIFICATIONS = NONE
+GIT_ADD = NO
+GIT_COMMIT = NO
+GIT_PUSH = NO
+S6_STATUS = PLANNED / NOT_STARTED
+NEXT_SAFE_ACTION = Await separate direction/authorization for S6 entry review; do not start it
+PROJECT_STATE_RECONCILIATION = PASS
+
+---
+
+## Handoff anterior — S5-REAL-PROOF-01 — Prova técnica concluída — 2026-10-12
+
+A prova real técnica passou conforme evidência fornecida pelo usuário: quatro
+downloads completos mais uma mídia válida reutilizada, total de cinco mídias
+íntegras, zero falhas e zero pendências. O acumulado de 73.071.671 bytes
+respeitou o limite de 83.886.080; dois workers foram observados. Diagnóstico da
+concorrência encerrado e correção sintética aprovada. A recuperação real e a
+deduplicação real passaram; a deduplicação ocorreu uma vez, exit 0, com cinco
+itens já válidos, zero pendências e zero transferência.
+
+As verificações informadas passaram: SHA256 vs SQLite, integridade de arquivos
+e SQLite, foreign keys; nenhum `.part` permaneceu. Arquivos e hashes ficaram
+inalterados. Manifest SHA-256:
+`aed7c3651c90827c54d83bbd35a23ca536a6452ef523e67542d8ca0a364136d6`. Catálogo
+parcial: a prova limita-se às cinco mídias observadas. Chamadas ao gateway não
+foram observadas diretamente. A fonte original não deve ser alterada; preserve
+SQLite e arquivos de prova.
+
+```text
+ACTIVITY = S5-REAL-PROOF-01
+ACTIVITY_COMPLETION_PERCENT = 100%
+STATUS = COMPLETED / TECHNICAL PROOF PASS
+CONCURRENCY_DIAGNOSIS = CLOSED
+SYNTHETIC_CORRECTION = PASS / APPROVED
+RECOVERY = PASS / 4 complete; 1 reused
+DEDUP = PASS / one execution; exit 0; 5 already valid; 0 pending; 0 transferred
+ACCUMULATED_BYTES = 73071671 / AUTHORIZED_LIMIT = 83886080 / RESPECTED
+WORKERS_OBSERVED = 2
+REAL_PROOF_MEDIA_COUNT = 5 / INTACT
+CATALOG_SCOPE = PARTIAL / only five observed media
+GATEWAY_CALLS = NOT_DIRECTLY_OBSERVED
+SHA256_VS_SQLITE = PASS
+FILES_INTEGRITY = PASS
+SQLITE_INTEGRITY = PASS
+FOREIGN_KEY_CHECK = PASS
+PART_FILES_REMAINING = 0
+FILES_UNCHANGED = YES
+HASHES_UNCHANGED = YES
+MANIFEST_SHA256 = aed7c3651c90827c54d83bbd35a23ca536a6452ef523e67542d8ca0a364136d6
+ORIGINAL_SOURCE = MUST_NOT_BE_ALTERED
+PROOF_SQLITE_AND_FILES = PRESERVE
+S5_REAL_VALIDATION = PASS / technical only
+S5_FORMAL_ACCEPTANCE = PENDING / explicit user acceptance required
+GIT_ACTIONS = NONE
+NEXT_ACTION = Await explicit S5 formal acceptance
+```
+
+## Handoff anterior — S5-REAL-PROOF-01 preflight — 2026-10-11
+
+O usuário autorizou uma única fila de recuperação das quatro mídias restantes
+do módulo 29 e uma única fila de deduplicação condicionada à validação integral.
+O preflight somente leitura passou: SQLite isolado íntegro, zero violações FK,
+mídia 598 já válida com size/hash conferidos, quatro mídias 599–602 planejadas
+como pendentes, sem bloqueios/exclusões, quatro `.part` vazios preservados.
+Plano: cinco itens, quatro pendentes, 61.421.716 bytes esperados. O limite
+restante é 72.236.125, aplicado pelo código antes de cada solicitação GetFile
+com reservas compartilhadas de até 256 KiB; não houve transferência nesta
+continuação. O catálogo é parcial e a CLI exige confirmação.
+
+Este runtime não conclui nem mesmo `asyncio.run(asyncio.sleep(0))`; o comando
+foi interrompido antes de fila ou Telegram. O procedimento a executar no
+PowerShell funcional do usuário deve reutilizar os caminhos existentes,
+validar o estado, chamar a CLI com dois workers e os caps 5/72.236.125, fazer
+uma única recuperação e parar em qualquer falha. Deduplicação só após
+`DOWNLOADED=5`, `PENDING=0`, `ALREADY_VALID=5`, integridade de arquivos e SQLite
+PASS. A recuperação usa 72.236.125 bytes; a deduplicação usa cap separado de 1
+byte. O código rejeita 0 e `None` significa sem cap; todos os tamanhos do plano
+são positivos, então qualquer pendência bloqueia antes dos workers. Com plano
+vazio, a CLI retorna antes de criar o gateway. A prova de deduplicação exige a
+prévia vazia, mensagem explícita sem itens pendentes e inventário/hashes
+idênticos depois. O procedimento usa `asyncio.run` normal no Windows e
+registra hashes da SQLite fonte antes e depois sem abri-la para escrita.
+Nenhum arquivo da prova foi alterado nesta preparação; não houve source code
+changes nem ações Git. Aceite formal S5 segue pendente.
+
+```text
+ACTIVITY = S5-REAL-PROOF-01
+ACTIVITY_COMPLETION_PERCENT = 55%
+STATUS = PARTIAL / PREFLIGHT PASS; LOCAL FUNCTIONAL WINDOWS RUNTIME REQUIRED
+DIAGNOSTIC_ACTIVITY = CLOSED_100_PERCENT
+SYNTHETIC_FIX_VALIDATION = PASS
+RESUME_PREFLIGHT = PASS_READ_ONLY
+FAILED_RETRYABLE_ELIGIBILITY = PLANNER PASS / four PENDING, no DB mutation
+PREVIOUS_COMPLETED_MEDIA_REUSED = YES / media 598 ALREADY_VALID
+RECOVERY_QUEUE_EXECUTIONS = 0
+RECOVERY_RESULT = NOT_RUN / executor cannot initialize functional asyncio event loop
+PREVIOUS_TRANSFER_BYTES = 11649955
+RECOVERY_TRANSFER_BYTES = NOT_RUN
+CUMULATIVE_TRANSFER_BYTES = 11649955 / before recovery
+CUMULATIVE_BUDGET_RESPECTED = PREFLIGHT PASS / request-level runtime accounting not yet exercised
+DOWNLOADED_MEDIA = 1
+FAILED_MEDIA = 4
+PENDING_MEDIA = 4
+WORKERS_CONFIGURED = 2
+WORKERS_OBSERVED = NOT_RUN
+FILES_INTEGRITY = PASS / media 598 verified; four `.part` files preserved
+SHA256_VERIFICATION = PASS / media 598 hash matches SQLite
+SQLITE_INTEGRITY = PASS / integrity ok; foreign keys clean
+PART_FILES_REMAINING = 4
+DEDUP_QUEUE_EXECUTIONS = 0
+DEDUP_RESULT = NOT_RUN / conditional
+DEDUP_TRANSFERRED_BYTES = NOT_RUN
+SOURCE_SQLITE_UNMODIFIED = YES
+SOURCE_CODE_CHANGES = NONE
+GIT_ACTIONS = NONE
+S5_REAL_VALIDATION = PARTIAL
+S5_FORMAL_ACCEPTANCE = PENDING
+NEXT_SAFE_ACTION = Run the supplied preflight-gated PowerShell procedure in the functional user runtime
+```
+
+## Handoff vigente — S5-REAL-UNBLOCK-01 Offline Closure and Module A Preview — 2026-10-11
+
+O usuário forneceu e autorizou registrar como evidência offline: Python 3.14.7;
+testes corretivos 4/4, focused S4/S5 56/56, regressão completa 206/206 + 11
+subtests, Ruff e diff check PASS, todos exit 0. Nenhum teste foi repetido.
+
+O catálogo RASMOO indicado foi copiado por SQLite Online Backup para arquivo
+temporário aberto com a fonte em read-only. `integrity_check` passou e migration
+004 foi aplicada somente na cópia. O planner async não retornou no executor,
+inclusive com Selector event loop process-local; o processo foi interrompido
+antes de apresentar resultado da CLI. Portanto, módulo, contagens, bytes,
+ordem e limite permanecem sem resultado de preview. A cópia temporária não é
+persistente após o encerramento do executor.
+
+```text
+ACTIVITY = S5-REAL-UNBLOCK-01 — Offline Closure and Module A Read-only Preview
+ACTIVITY_COMPLETION_PERCENT = 40%
+STATUS = PARTIAL
+OFFLINE_VALIDATION = PASS / user-provided; not rerun
+CORRECTED_TESTS = 4 PASSED
+FOCUSED_S4_S5 = 56 PASSED
+FULL_REGRESSION = 206 PASSED + 11 SUBTESTS
+RUFF = PASS
+DIFF_CHECK = PASS
+ONLINE_BACKUP = PASS / isolated temp copy
+MIGRATION_004 = PASS / isolated temp copy
+PLANNER_PREVIEW = BLOCKED / async planner did not return in executor
+MAX_MEDIA_ITEMS = 5
+MAX_TRANSFER_BYTES = 83886080
+WORKERS = 2 / requested preview value
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = 0
+SOURCE_SQLITE_WRITE = NO
+GIT_ACTIONS = NONE
+S5_REAL_VALIDATION = PENDING
+S5_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Run only the read-only CLI plan preview in functional PowerShell against a fresh SQLite Online Backup; apply migration 004 only on the copy. Do not run queue.
+NEXT_ACTION = Resume the module preview in functional PowerShell; do not repeat offline tests
+```
+
+## Handoff anterior — S5-REAL-UNBLOCK-01 — 2026-10-11
+
+### Continuação corretiva
+
+O diagnóstico read-only confirmou um `AttributeError` em `_Reservation.settle`:
+o limite era lido no objeto de reserva depois de contabilizar bytes. A closure
+agora captura o limite da fila. Testes refletem bytes cumulativos entre retries
+e uma segunda reserva recusada; a fila bloqueia byte cap com exclusão
+`UNKNOWN_SIZE`, conforme o contrato. A integração de seleção de curso testa o
+fluxo sem cap. `close()` agora está declarado em `TelegramGateway`.
+
+Ruff e `git diff --check` passaram. A tentativa focada local não encontrou a
+instalação base do Python 3.14 e terminou sem resultado de testes; o Python 3.15
+global não substitui o runtime fixado. Focados e regressão completa seguem
+pendentes. Execute os comandos preparados no [CONTINUITY_RECORD](../CONTINUITY_RECORD.md)
+em PowerShell funcional antes de qualquer preview; queue/Telegram continuam
+fora da autorização.
+
+```text
+ACTIVITY_COMPLETION_PERCENT = 72%
+STATUS = PARTIAL / VALIDATION PENDING
+FOCUSED_TESTS = NOT_VERIFIED / Python 3.14 base runtime unavailable
+FULL_REGRESSION = NOT_RUN
+RUFF = PASS
+DIFF_CHECK = PASS
+S5_OFFLINE_VALIDATION = PENDING
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = 0
+GIT_ACTIONS = NONE
+```
+
+A correção de orçamento deixa de confiar no callback após a escrita. Cada
+resposta de arquivo agora exige reserva atômica no orçamento global antes do
+pedido Telethon `GetFile`. A inspeção da versão local 1.45.x confirmou o caminho
+direto sem prefetch quando `request_size == chunk_size`; o adapter intercepta
+cada `_request`, incluindo os retries internos de timeout/migração, e desliga
+temporariamente retries RPC ocultos enquanto streams limitados estão ativos.
+Recebimentos concluídos debitam o tamanho efetivo; EOF sem payload libera a
+reserva; erro/cancelamento com payload incerto consome a reserva integral. A
+configuração original de retries é restaurada após todos os streams.
+
+O catálogo isolado RASMOO segue disponível e foi validado somente leitura
+(`integrity_check=ok`, 1 canal, 589 nós, 26 mídias). O usuário escolheu Módulo A
+com 5 aulas e 5 mídias, estimativa de 73.071.671 bytes, teto configurado de
+83.886.080 bytes e 2 workers futuros. A nova prévia read-only ainda não foi
+executada; o preview histórico de 30 MiB não serve como resultado do teto novo.
+
+A única tentativa de pytest nesta atividade encerrou com 53 erros durante
+fixture setup, antes de qualquer teste rodar, porque o executor negou criação
+de `tmp_path` no `--basetemp` externo. Não repetir pytest aqui. Ruff e
+`git diff --check` passaram depois da correção. O focused suite e a regressão
+completa seguem pendentes no PowerShell funcional do usuário; o comando está
+registrado no [CONTINUITY_RECORD](../CONTINUITY_RECORD.md). Nenhum acesso
+Telegram, sessão, credencial, download, escrita SQLite ou operação Git ocorreu.
+
+```text
+ACTIVITY = S5-REAL-UNBLOCK-01
+ACTIVITY_COMPLETION_PERCENT = 56%
+STATUS = PARTIAL
+ROOT_CAUSE = Budget callback ran after chunk receipt
+STREAMING_REQUEST_BOUNDARY = Telethon 1.45.x GetFile request / gated before _request
+CHUNK_CONTROL = request_size == chunk_size <= 256 KiB; direct path; no prefetch
+PREFETCH_BEHAVIOR = NONE ON PINNED DIRECT PATH / locally inspected source
+BUDGET_RESERVATION = Atomic invocation-wide per-request maximum
+BUDGET_ACCOUNTING = RECEIVED plus UNCERTAIN in-flight; RESERVED separately; no double count
+CONCURRENT_BUDGET_SAFETY = CODED / SYNTHETIC TEST PENDING
+RETRY_BUDGET_SAFETY = CODED / RUNTIME TEST PENDING
+CANCELLATION_SAFETY = UNCERTAIN REQUEST RESERVATION KEPT CONSUMED
+LIMIT_ENFORCEABILITY = PENDING_VALIDATION
+FOCUSED_TESTS = BLOCKED / 53 fixture setup errors; test bodies not entered
+BUDGET_TESTS = NOT_RUN
+FULL_REGRESSION = NOT_RUN
+RUFF = PASS
+DIFF_CHECK = PASS
+RASMOO_CATALOG = READ_ONLY / integrity ok; 1 channel, 589 nodes, 26 media
+MODULE_A_ELIGIBILITY = PREVIEW_PENDING / 5 lessons, 5 media, 73071671 expected bytes
+PLANNER_PREVIEW = NOT_RUN
+LIMIT_CHECK_RESULT = NOT_RUN
+WORKERS = 2 / future run only
+MAX_MEDIA_ITEMS = 5
+MAX_TRANSFER_BYTES = 83886080
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = 0
+GIT_ACTIONS = NONE
+S5_REAL_VALIDATION = PENDING
+S5_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Run focused and full suites in PowerShell with external basetemp; then run read-only Module A plan preview. Do not run queue; real execution requires separate authorization.
+```
+
+## Handoff vigente — S5-REAL-CANDIDATE-01 — 2026-10-11
+
+O inventário dos quatro módulos populados e o preview de download plan foram
+concluídos em cópia isolada. A menor subtree de módulo observado tem 5 mídias,
+5 aulas e 73.071.671 bytes (69,69 MiB), acima do teto fixo de 30 MiB. Os outros
+módulos têm 6, 7 e 8 mídias e totais maiores. O preview selecionou o menor,
+confirmou equivalência de escopo/ordem e retornou LIMIT_CHECK_RESULT=FAIL.
+Nenhum candidato definitivo foi encontrado. A origem do catálogo continua
+parcial; integridade ok e nenhum banco-fonte foi alterado.
+
+Os limites offline de contagem, reservas concorrentes, chunks, retries e falhas
+foram inspecionados no código. O orçamento compartilha reservas e conta cada
+chunk antes da escrita, mas sua callback só roda depois da recepção do chunk;
+um fluxo excedente pode passar até 256 KiB pela rede antes da rejeição. Isso,
+mais a incompletude do catálogo e a ausência de módulo dentro do orçamento,
+bloqueia qualquer prova real nesta preparação.
+
+```text
+ACTIVITY = S5-REAL-CANDIDATE-01
+ACTIVITY_COMPLETION_PERCENT = 100% / preparação concluída
+STATUS = BLOCKED
+S5_OFFLINE_VALIDATION = PASS / user evidence: 13 focused, 199 full, 11 subtests, Ruff, diff check; not rerun
+CANDIDATE_FOUND = NO
+PLANNER_PREVIEW = READ_ONLY / exit 0 / selection-plan equivalence PASS / limit FAIL
+WORKERS = 2 / preview configuration
+MAX_MEDIA_ITEMS = 5 / exact smallest-module size
+MAX_TRANSFER_BYTES = 31457280 / 30 MiB
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = 0
+SOURCE_CODE_CHANGES = NO
+REAL_SQLITE_MODIFICATION = NO
+GIT_ACTIONS = NONE
+S5_REAL_VALIDATION = PENDING
+S5_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Find a complete catalog with a full eligible module <=30 MiB, or obtain an explicit user decision changing the fixed scope/budget; close strict receive-side byte cap; then request/receive separate authorization before queue execution.
+```
+## Handoff histórico — S5-REAL-PREP-02 — 2026-10-11
+
+O perfil de limites configuráveis S5 foi implementado em `cli.py`,
+`s5_downloads.py` e `downloads.py`. `--max-media-items` e
+`--max-transfer-bytes` são opcionais em `download plan|queue`; quando omitidos,
+não criam teto fixo para downloads normais. Preview agora registra contagens,
+bytes, limites e resultado; a fila reavalia a seleção antes de workers. Para o
+teto byte a fila reserva o esperado de cada mídia em um orçamento compartilhado,
+conta cada chunk antes da escrita e mantém bytes de falhas/retries consumidos.
+Tamanho desconhecido bloqueia a execução byte-capped. Telethon valida a
+identidade/tamanho anunciado e emite chunks de até 256 KiB. O contrato S5 tem
+adendo delimitado; sem alteração à semântica de deduplicação S4.
+
+O SQLite S3 fornecido foi auditado read-only, copiado por Online Backup e a
+cópia passou integridade/FK. A migration 004 só foi aplicada à cópia; ela
+permanece fora do repositório porque a tentativa de remoção encontrou um handle
+SQLite aberto no executor. A auditoria final da origem permaneceu em 30 mensagens,
+26 mídias, 589 nós, 4 unresolved e zero downloads. O S4 de referência existe e
+ficou intacto. O inventário de 47 módulos ativos encontrou quatro populados,
+com 5–8 mídias elegíveis cada; nenhum módulo natural satisfaz a exigência de
+2–3. `planner.build()` não completou: o Python disponível trava na criação do
+socketpair Proactor do Windows. Focados também ficaram bloqueados; não repetir
+no sandbox. Ruff sem cache e diff check passaram.
+
+```text
+ACTIVITY = S5-REAL-PREP-02
+ACTIVITY_COMPLETION_PERCENT = 88%
+STATUS = PARTIAL
+S3_CATALOG_AVAILABLE = YES / read-only
+S4_REFERENCE_AVAILABLE = YES / untouched
+CANDIDATE_FOUND = NO / no full module with 2–3 eligible media
+MODULE_SELECTION = NONE
+LESSON_COUNT = N/A
+MEDIA_COUNT = N/A
+TOTAL_EXPECTED_BYTES = N/A
+PLANNER_PREVIEW = NOT_RUN / no matching candidate
+ELIGIBILITY = NO NATURAL CANDIDATE
+MEDIA_LIMIT_IMPLEMENTED = YES / functional test pending
+BYTE_LIMIT_IMPLEMENTED = YES / functional test pending
+CONCURRENT_BUDGET_SAFE = IMPLEMENTED / test blocked
+RETRY_BUDGET_SAFE = IMPLEMENTED / test blocked
+FOCUSED_TESTS = BLOCKED / local Python 3.14 runtime not usable
+FULL_REGRESSION = NOT_RUN
+RUFF = PASS
+DIFF_CHECK = PASS
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = 0
+SOURCE_DATABASE_MODIFICATION = NO
+GIT_ACTIONS = NONE
+S5_REAL_VALIDATION = PENDING
+S5_FORMAL_ACCEPTANCE = PENDING
+SAFE_RESUME_POINT = Validate focused S4/S5 tests in functional Python 3.14 PowerShell; obtain a natural 2–3-media module or ask user to revise candidate constraint
+```
+
+Comando de retomada para PowerShell funcional; os diretórios temporários ficam
+fora do repositório e o cacheprovider está desabilitado:
+
+```powershell
+$S5TestToken = [guid]::NewGuid().ToString('N')
+$S5FocusedTemp = Join-Path $env:TEMP "telegram-s5-prep-focused-$S5TestToken"
+$S5FullTemp = Join-Path $env:TEMP "telegram-s5-prep-full-$S5TestToken"
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_s5_queue_policy.py tests/integration/test_s5_download_flow.py tests/unit/test_downloads.py tests/integration/test_download_flow.py -q -p no:cacheprovider --basetemp $S5FocusedTemp
+if ($LASTEXITCODE -ne 0) { throw 'Focused S4/S5 tests failed' }
+.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp $S5FullTemp
+if ($LASTEXITCODE -ne 0) { throw 'Full regression failed' }
+.\.venv\Scripts\ruff.exe check src tests --no-cache
+if ($LASTEXITCODE -ne 0) { throw 'Ruff failed' }
+git diff --check
+if ($LASTEXITCODE -ne 0) { throw 'git diff --check failed' }
+```
+
+## Handoff histórico — S5-REAL-ENTRY-01 — 2026-10-11
+
+A evidência funcional pós-correção fornecida pelo usuário foi reconciliada:
+Python 3.14.7, 9 testes focados, 195 testes completos + 11 subtests, Ruff e
+diff check PASS, todos com exit 0. `S5_OFFLINE_IMPLEMENTATION = COMPLETE` e
+`S5_OFFLINE_VALIDATION = PASS`; nenhuma regressão foi repetida. S5 continua
+`IN_PROGRESS` e o aceite formal, `PENDING`.
+
+`data/catalog.sqlite3` existe, mas não é o catálogo RASMOO requerido: SQLite
+integrity `ok`, zero nós de catálogo, cinco mídias sem aula associada, zero
+linhas de download e nenhum canal com título RASMOO. Uma cópia via SQLite
+Online Backup foi feita com origem `mode=ro` + `query_only=ON`; a cópia passou
+integrity e foi removida. A cópia não continha módulos selecionáveis, então não
+houve preview real nem candidato. O snapshot de 5 mídias corresponde ao dado
+parcial antigo registrado no histórico, não à evidência RASMOO de 30 mensagens
+e 26 mídias.
+
+As opções existentes foram confirmadas em `cli.py`: `download plan|queue`,
+`--database`, `--download-dir`, `--channel-id`, `--scope` e `--workers` (1–2,
+padrão 2); `--confirm` é apenas de `queue`. Não há teto rígido de itens nem de
+bytes pendentes. `DISK_SAFETY_MARGIN` limita espaço livre exigido, não a soma
+que pode ser transferida. Antes de qualquer execução, corrigir isso em escopo
+próprio: propor atualização pontual ao contrato congelado e validação no
+planner/fila/CLI de `MAX_MEDIA_ITEMS=3` e `MAX_PENDING_BYTES=31457280`, sobre a
+mesma seleção recém-calculada, antes de construir gateway/workers ou fazer
+qualquer escrita, com testes negativos e zero efeitos colaterais. Nenhum código
+ou contrato foi alterado aqui.
+
+### PowerShell — preparação A–F
+
+Executar A somente quando o caminho da cópia correta RASMOO for conhecido. O
+caminho antigo `data/catalog.sqlite3` não serve para esta atividade. A rotina
+abaixo abre a origem em leitura somente e cria a cópia isolada; não executa
+migrations. Cada execução usa uma pasta exclusiva:
+
+```powershell
+$S5SourceDatabase = 'C:\caminho\para\catalogo-rasmoo.sqlite3'
+$S5ChannelId = [long](Read-Host 'ID técnico confirmado do canal RASMOO')
+$S5RunRoot = Join-Path $env:TEMP ('telegram-s5-real-' + [guid]::NewGuid().ToString('N'))
+$S5DatabaseCopy = Join-Path $S5RunRoot 'catalog-copy.sqlite3'
+$S5DownloadRoot = Join-Path $S5RunRoot 'downloads'
+New-Item -ItemType Directory -Path $S5RunRoot, $S5DownloadRoot | Out-Null
+$env:S5_SOURCE_DB = (Resolve-Path -LiteralPath $S5SourceDatabase).Path
+$env:S5_COPY_DB = $S5DatabaseCopy
+@'
+import os, sqlite3
+from pathlib import Path
+source_path = Path(os.environ['S5_SOURCE_DB']).resolve()
+source = sqlite3.connect(source_path.as_uri() + '?mode=ro', uri=True)
+source.execute('PRAGMA query_only=ON')
+target = sqlite3.connect(os.environ['S5_COPY_DB'])
+try:
+    source.backup(target)
+    result = target.execute('PRAGMA integrity_check').fetchone()[0]
+    if result != 'ok':
+        raise SystemExit('temporary copy integrity check failed')
+    print('TEMP_COPY=PASS; INTEGRITY=ok')
+finally:
+    target.close()
+    source.close()
+'@ | & .\.venv\Scripts\python.exe -
+if ($LASTEXITCODE -ne 0) { throw 'SQLite backup/preflight failed' }
+```
+
+**B — Preview e aprovação.** Só depois de A comprovar integridade e um módulo
+naturalmente adequado, execute o plan read-only. O CLI faz a seleção contextual;
+não pede node ID:
+
+```powershell
+.\.venv\Scripts\python.exe -m telegram_courses download plan --database $S5DatabaseCopy --download-dir $S5DownloadRoot --channel-id $S5ChannelId --scope module
+if ($LASTEXITCODE -ne 0) { throw 'S5 plan failed' }
+```
+
+Revisar o output do plan na própria tela e prosseguir somente se houver um
+módulo completo com 2–3 mídias elegíveis, `bytes pendentes <= 31457280`, sem
+bloqueados/unresolved/out-of-scope e com ordem determinística. Essas condições
+ainda não são protegidas pelo CLI atual; não aprovar fila antes da correção de
+hard caps e da autorização específica da execução.
+
+**C — Primeira execução (não executar nesta atividade).** Após fechar os
+hard caps e receber autorização específica, o comando real existente é:
+
+```powershell
+.\.venv\Scripts\python.exe -m telegram_courses download queue --database $S5DatabaseCopy --download-dir $S5DownloadRoot --channel-id $S5ChannelId --scope module --workers 2
+if ($LASTEXITCODE -ne 0) { throw 'S5 queue failed' }
+```
+
+Sem `--confirm`, o CLI pede confirmação interativa depois de recalcular e
+mostrar o plano. Conferir novamente o módulo/quantidade/bytes exibidos antes de
+responder. O comando não deve ser usado até a guarda rígida estar implementada.
+
+**D — Verificação física e SQLite (não executar nesta atividade).** Rode o
+mesmo `download plan` do passo B para reavaliar o módulo. O planner existente
+consulta o SQLite em leitura somente e valida os arquivos finais usando path
+determinístico, tamanho e SHA-256. Conferir que pendentes e bloqueados sejam
+zero e os resultados estejam válidos. Os comandos abaixo registram apenas
+agregados, não caminhos ou títulos:
+
+```powershell
+$S5Files = @(Get-ChildItem -LiteralPath $S5DownloadRoot -File -Recurse)
+"FINAL_FILES=$($S5Files.Count)"
+"PART_FILES=$(@($S5Files | Where-Object { $_.Name.EndsWith('.part', [System.StringComparison]::OrdinalIgnoreCase) }).Count)"
+$env:S5_VERIFY_DB = $S5DatabaseCopy
+@'
+import os, sqlite3
+from pathlib import Path
+db = Path(os.environ['S5_VERIFY_DB']).resolve()
+con = sqlite3.connect(db.as_uri() + '?mode=ro', uri=True)
+con.execute('PRAGMA query_only=ON')
+print('INTEGRITY=' + str(con.execute('PRAGMA integrity_check').fetchone()[0]))
+print('FOREIGN_KEY_VIOLATIONS=' + str(len(con.execute('PRAGMA foreign_key_check').fetchall())))
+print('DOWNLOAD_ROWS=' + str(con.execute('SELECT COUNT(*) FROM downloads').fetchone()[0]))
+print('DUPLICATE_MEDIA_ROWS=' + str(con.execute('SELECT COUNT(*) FROM (SELECT media_item_id FROM downloads GROUP BY media_item_id HAVING COUNT(*) > 1)').fetchone()[0]))
+print('DUPLICATE_FINAL_PATHS=' + str(con.execute("SELECT COUNT(*) FROM (SELECT final_path FROM downloads WHERE state='DOWNLOADED' GROUP BY final_path HAVING COUNT(*) > 1)").fetchone()[0]))
+con.close()
+'@ | & .\.venv\Scripts\python.exe -
+if ($LASTEXITCODE -ne 0) { throw 'Read-only SQLite checks failed' }
+```
+
+Conservar o escopo no diretório isolado e registrar contagens, não nomes de
+arquivos/títulos. O planner faz a verificação física/hash por mídia ao
+reconstruir o plano; as consultas acima não leem conteúdo de mensagem.
+
+**E — Uma execução de deduplicação (não executar nesta atividade).** Repetir o
+comando C exatamente uma vez, com a mesma cópia, channel, módulo, pasta e dois
+workers. Revisar o plano reavaliado e confirmar somente se os hard caps forem
+aplicados e todo item estiver `ALREADY_VALID`; a execução deve retornar sem
+streaming ou novos arquivos.
+
+**F — Verificação final.** Repetir o plan do passo B e as verificações do D.
+Comparar as contagens antes/depois: zero novas transferências, zero novos
+arquivos/downloads, nenhum duplicado e nenhum `.part`; integridade, tamanho e
+SHA-256 continuam válidos. Qualquer diferença interrompe o experimento.
+
+Não houve Telegram, gateway, sessão, credenciais, streaming, download, migration,
+escrita na origem ou ação Git nesta atividade. O próximo passo é localizar a
+cópia RASMOO correta e fechar o bloqueio dos hard caps; só então repetir A/B.
+O restante da preparação e os resultados estão em
+[CONTINUITY_RECORD](../CONTINUITY_RECORD.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+```text
+ACTIVITY = S5-REAL-ENTRY-01
+ACTIVITY_COMPLETION_PERCENT = 88%
+STATUS = PARTIAL / REAL CATALOG AND HARD-CAP BLOCKERS
+S5_OFFLINE_IMPLEMENTATION = COMPLETE
+S5_OFFLINE_VALIDATION = PASS / 9 focused; 195 full + 11 subtests
+CATALOG_AVAILABLE = FILE PRESENT / WRONG SNAPSHOT; NO RASMOO COURSE CATALOG
+SQLITE_SOURCE_READ_ONLY = PASS
+TEMPORARY_COPY = BACKUP AND INTEGRITY PASS / REMOVED
+CANDIDATE_FOUND = NO / BLOCKED
+SELECTION_SCOPE = NONE
+LESSON_COUNT = N/A
+MEDIA_COUNT = N/A
+TOTAL_EXPECTED_BYTES = N/A
+ELIGIBILITY_CHECK = BLOCKED / ZERO CATALOG NODES
+PLANNER_PREVIEW = NOT_RUN
+PENDING_COUNT = N/A
+EXCLUDED_COUNT = N/A
+ALREADY_VALID_COUNT = N/A
+WORKERS_PROPOSED = 2
+ITEM_LIMIT_ENFORCEABLE = NO / HARD GUARD REQUIRED
+BYTE_LIMIT_ENFORCEABLE = NO / HARD GUARD REQUIRED
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = 0
+GIT_ACTIONS = NONE
+MATERIAL_BLOCKERS = CORRECT RASMOO SQLITE SOURCE; HARD ITEM/BYTE CAPS ABSENT
+S5_REAL_VALIDATION = PENDING
+S5_FORMAL_ACCEPTANCE = PENDING
+FINAL_VERDICT = PARTIAL / PREPARATION RECORDED; PREVIEW AND EXECUTION BLOCKED
+NEXT_ACTION = Obtain the correct catalog and approve a narrow hard-cap contract/CLI correction before any real queue run
+```
+
+## Handoff anterior — S5-FIX-01-CONTINUATION — 2026-10-11
+
+A falha remanescente era um defeito S5: a linhagem física usada pelo planner
+divergia daquela retornada pelo seletor S4, produzindo `DOWNLOAD_ROOT_CHANGED`
+para arquivos válidos. O planner foi alinhado ao S4 vigente, preservando a
+ancestralidade completa para seleção/ordem. A expectativa de dois outcomes
+`ALREADY_VALID` foi mantida; a fila já suportava esses outcomes sem enfileirar
+itens válidos. O retorno sem pendências passou também a emitir progresso
+agregado. Nenhuma mudança no Downloader S4 ou nos contratos nesta atividade.
+
+Os testes agora cobrem execução/reexecução de módulo e curso, arquivos,
+hashes, tamanhos, SQLite e identidades sem duplicação, ausência de `.part`,
+zero novas chamadas/tarefas/tentativas/bytes e resumo coerente. A evidência e
+os limites da sonda síncrona PASS estão em
+[CONTINUITY_RECORD](../CONTINUITY_RECORD.md); pytest foi bloqueado no setup
+temporário em uma única tentativa. Ruff completo sem cache e diff check PASS.
+S5 offline validation e aceite permanecem PENDING; progresso desta atividade
+88% / PARTIAL. A regressão anterior fornecida pelo usuário tinha uma falha.
+
+Retomar em PowerShell funcional no root do repositório. Use um token novo
+por execução para evitar reutilização/limpeza de diretórios temporários antigos.
+Não há Telegram ou banco real nos comandos abaixo:
+
+```powershell
+$s5RunToken = [guid]::NewGuid().ToString('N').Substring(0, 8)
+$s5FocusedTemp = Join-Path $env:TEMP "telegram-s5-focused-$s5RunToken"
+$s5FullTemp = Join-Path $env:TEMP "telegram-s5-full-$s5RunToken"
+.\.venv\Scripts\python.exe -m pytest tests/unit/test_s5_queue_policy.py tests/integration/test_s5_download_flow.py tests/unit/test_downloads.py tests/integration/test_download_flow.py -q -p no:cacheprovider --basetemp $s5FocusedTemp
+if ($LASTEXITCODE -ne 0) { throw 'Focused S4/S5 tests failed' }
+.\.venv\Scripts\python.exe -m pytest -q -p no:cacheprovider --basetemp $s5FullTemp
+if ($LASTEXITCODE -ne 0) { throw 'Full regression failed' }
+.\.venv\Scripts\ruff.exe check src tests --no-cache
+if ($LASTEXITCODE -ne 0) { throw 'Ruff failed' }
+git diff --check
+if ($LASTEXITCODE -ne 0) { throw 'Diff check failed' }
+```
+
+Reconciliar os resultados em [PROJECT_STATE](../PROJECT_STATE.md) antes de
+qualquer validação/aceite S5. ROADMAP/SPRINTS ainda contêm o status anterior de
+S5, registrado como defasagem no estado. HEAD `e1e9f734e1cff0e105ab2135b7b09090465e2ac8`
+e branch `work/s0-bootstrap` preservados; sem staging, commit ou push.
+
+## Handoff anterior — S5-IMPL-01 — 2026-10-11
+
+O contrato [S5 Course Selection, Download Planner and Queue](../../contracts/S5_COURSE_SELECTION_PLANNER_QUEUE_CONTRACT.md)
+está APPROVED / FROZEN. O HEAD permanece
+`e1e9f734e1cff0e105ab2135b7b09090465e2ac8`, branch `work/s0-bootstrap`; as
+alterações estão no worktree, sem staging/commit/push.
+
+A implementação offline inclui seleção contextual, planner determinístico e
+somente leitura, execução via S4, até dois workers, três tentativas por mídia,
+FloodWait com duração e teto cumulativo de 120 segundos, preflight/recheck de
+disco, progresso Rich e uma integração sintética. Ruff e diff check passaram.
+Pytest ficou bloqueado no executor Windows sandbox durante setup de temp e
+execução async/aiosqlite; interrompido sem tratar como falha de código. Full
+pytest não foi executado; aceite formal permanece pendente.
+
+```text
+ACTIVITY = S5-IMPL-01
+ACTIVITY_COMPLETION_PERCENT = 76%
+STATUS = PARTIAL / IMPLEMENTATION PRESENT; TEST EXECUTION BLOCKED
+CONTRACT_STATUS = APPROVED / FROZEN
+COURSE_MODULE_LESSON_SELECTION = IMPLEMENTED / OFFLINE TEST PENDING
+DOWNLOAD_PLANNER = IMPLEMENTED / READ-ONLY
+QUEUE = IMPLEMENTED / EPHEMERAL / S4 REUSE
+WORKER_CONCURRENCY = DEFAULT 2 / ALLOWED 1..2
+RETRY_POLICY = MAX 3 ATTEMPTS INCLUDING INITIAL
+FLOODWAIT = retry_after_seconds PRESERVED / 120-SECOND CUMULATIVE CAP
+DISK_SAFETY = MAX(1 GiB, 10% PENDING BYTES)
+SQLITE_PERSISTENCE = REUSE S4 / NO QUEUE MIGRATION
+RUFF = PASS
+DIFF_CHECK = PASS
+FOCUSED_TESTS = BLOCKED / SANDBOX TEMP AND ASYNCIO-AIOSQLITE
+FULL_PYTEST = NOT_RUN
+REAL_TELEGRAM_ACCESS = NO
+REAL_DOWNLOADS = NONE
+GIT_ACTIONS = NONE
+S5_FORMAL_ACCEPTANCE = PENDING
+S5_REAL_VALIDATION = NOT_AUTHORIZED
+SAFE_RESUME_POINT = Run focused integration and full pytest from functional PowerShell with external basetemp and cacheprovider disabled; reconcile results before formal acceptance
+```
+
+## Handoff anterior — S5-ENTRY-01 — 2026-10-10
+
+O checkpoint de preparação contratual continua abaixo para histórico. O
+contrato foi posteriormente congelado e a implementação autorizada pela
+instrução explícita S5-IMPL-01.
+
+## Handoff anterior — S4-CLOSE-01 Formal Acceptance and Publication — 2026-10-10
+
+S4 formalmente ACCEPTED / CLOSED; `FIRST_VERTICAL_SLICE_GATE = PASS`. A
+regressão offline informada pelo usuário passou: 19 testes focados, 186 testes
+completos e 11 subtests; Ruff e `git diff --check` também passaram. A prova real
+cobriu uma mídia DOCUMENT de Lesson, 6.199.635 bytes, arquivo íntegro e
+SHA-256 correspondente ao registro SQLite isolado. A segunda invocação retornou
+`ALREADY_DOWNLOADED`, sem progresso de transferência ou duplicação. O aceite
+continua limitado a uma mídia; fila é S5, resume por offset S6, sync incremental
+S7 e validação integrada abrangente no canal RASMOO S9.
 
 S1-B — Offline Authentication Flow & Telegram Gateway foi concluída após S1-A.
 O modelo de autenticação, gateway, adapter Telethon, reutilização da sessão,

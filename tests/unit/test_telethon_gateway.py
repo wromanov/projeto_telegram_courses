@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 from telethon import errors
+from telethon.tl.types import PeerChannel
 
 from telegram_courses.auth import (
     AdapterError,
@@ -548,3 +549,76 @@ def test_scan_flood_wait_keeps_retry_duration_in_project_error() -> None:
     assert caught.value.category == "RATE_LIMITED"
     assert caught.value.retry_after_seconds == 47
     assert "FloodWait" not in str(caught.value)
+
+
+def test_capped_media_reserves_each_telethon_request_before_it_is_sent() -> None:
+    events = []
+
+    class Reservation:
+        def received(self, byte_count):
+            events.append(("received", byte_count))
+
+        def release(self):
+            events.append(("released",))
+
+        def charge_uncertain(self):
+            events.append(("uncertain",))
+
+    class Stream:
+        def __init__(self):
+            self.first = True
+
+        async def _request(self):
+            events.append(("request",))
+            return b"data"
+
+        def __aiter__(self):
+            return self
+
+        async def __anext__(self):
+            if not self.first:
+                raise StopAsyncIteration
+            self.first = False
+            return await self._request()
+
+    class MediaClient:
+        _request_retries = 1
+
+        async def get_input_entity(self, _channel_id):
+            return "peer"
+
+        async def get_messages(self, _entity, *, ids):
+            return SimpleNamespace(
+                id=ids,
+                peer_id=PeerChannel(123),
+                media=SimpleNamespace(document=SimpleNamespace(id=99, size=4)),
+            )
+
+        def iter_download(self, _document, **kwargs):
+            assert kwargs["request_size"] == kwargs["chunk_size"] == 4
+            assert kwargs["file_size"] == 4
+            return Stream()
+
+    adapter = object.__new__(TelethonGateway)
+    adapter._client = MediaClient()
+    adapter._state = AuthState.AUTHENTICATED
+    adapter._strict_budget_lock = asyncio.Lock()
+    adapter._strict_budget_streams = 0
+    adapter._strict_budget_previous_retries = None
+    adapter._record_failure = lambda *_args: None
+
+    async def reserve(amount):
+        events.append(("reserved", amount))
+        return Reservation()
+
+    async def exercise():
+        chunks = [chunk async for chunk in adapter._iterate_media(
+            -1000000000123, 5, 0, telegram_media_id="99", expected_bytes=4,
+            chunk_bytes=4, reserve_chunk=reserve,
+        )]
+        assert chunks == [b"data"]
+        assert events[:3] == [("reserved", 4), ("request",), ("received", 4)]
+        assert adapter._client._request_retries == 1
+        assert adapter._strict_budget_streams == 0
+
+    asyncio.run(exercise())

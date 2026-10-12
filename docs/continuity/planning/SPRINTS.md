@@ -136,8 +136,8 @@ no canal real permanece planejada para S9.
 - **GATES:** Course selection and queue acceptance.
 - **DEFINITION_OF_DONE:** Approved selection/planning/queue criteria and relevant tests pass; no duplicate or conflicting state is introduced.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S5 accepted; partial transfer state can be recovered by the next slice.
-- **STATUS:** PLANNED / NOT_STARTED.
-- **IMPLEMENTATION_AUTHORIZATION:** NOT_GRANTED / requires separate explicit user authorization.
+- **STATUS:** CLOSED / FORMAL ACCEPTANCE APPROVED / CLOSURE PASS. Offline validation PASS (206 passed + 11 subtests; 56 focused tests) and S5-REAL-PROOF-01 PASS; evidence covers five observed media only (CATALOG_SCOPE = PARTIAL), and gateway calls were not directly observable. Historical failure, correction, recovery and deduplication checkpoints are preserved; see [PROJECT_STATE](../PROJECT_STATE.md).
+- **IMPLEMENTATION_AUTHORIZATION:** Historical bounded authorizations are recorded in PROJECT_STATE and continuity checkpoints; this plan does not grant new authority or formal acceptance.
 
 ## S6 — Partial Download + Resume + Recovery
 

@@ -7,7 +7,7 @@ import hashlib
 import os
 import re
 import stat
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import AsyncIterator, Protocol
@@ -26,14 +26,16 @@ _LOCKS: dict[int, asyncio.Lock] = {}
 
 
 class DownloadError(Exception):
-    def __init__(self, category: str) -> None:
+    def __init__(self, category: str, *, retry_after_seconds: int | None = None) -> None:
         self.category = category
+        self.retry_after_seconds = retry_after_seconds
         super().__init__(category.lower().replace("_", " "))
 
 
 class DownloadGatewayError(Exception):
-    def __init__(self, category: str) -> None:
+    def __init__(self, category: str, *, retry_after_seconds: int | None = None) -> None:
         self.category = category
+        self.retry_after_seconds = retry_after_seconds
         super().__init__(category)
 
 
@@ -41,7 +43,16 @@ class DownloadGateway(Protocol):
     async def stream_media(
         self, channel_id: int, message_id: int, media_ordinal: int,
         *, telegram_media_id: str, expected_bytes: int,
+        reserve_chunk: Callable[[int], Awaitable["ChunkReservation | None"]] | None = None,
     ) -> AsyncIterator[bytes]: ...
+
+
+class ChunkReservation(Protocol):
+    def received(self, byte_count: int) -> None: ...
+
+    def release(self) -> None: ...
+
+    def charge_uncertain(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -154,6 +165,7 @@ class SingleMediaDownloadApplication:
         self, repository: DownloadRepository, gateway: DownloadGateway,
         download_root: str | Path, *, chunk_bytes: int = CHUNK_BYTES,
         progress_callback: Callable[[int, int], None] | None = None,
+        chunk_callback: Callable[[int], None] | None = None,
     ) -> None:
         if type(chunk_bytes) is not int or not 0 < chunk_bytes <= CHUNK_BYTES:
             raise ValueError("chunk_bytes must be between 1 and 256 KiB")
@@ -162,6 +174,8 @@ class SingleMediaDownloadApplication:
         self.download_root = Path(download_root)
         self.chunk_bytes = chunk_bytes
         self.progress_callback = progress_callback
+        self.chunk_callback = chunk_callback
+        self.chunk_reserver: Callable[[int], Awaitable[ChunkReservation | None]] | None = None
 
     async def download(self, channel_id: int, message_id: int, media_ordinal: int) -> DownloadOutcome:
         await self.repository.migrate()
@@ -233,13 +247,21 @@ class SingleMediaDownloadApplication:
         total = 0
         try:
             with partial.open("wb") as output:
+                stream_kwargs = {
+                    "telegram_media_id": candidate.telegram_media_id,
+                    "expected_bytes": candidate.expected_bytes,
+                }
+                if self.chunk_reserver is not None:
+                    stream_kwargs["reserve_chunk"] = self.chunk_reserver
                 async for chunk in self.gateway.stream_media(
                     candidate.channel_id, candidate.telegram_message_id, candidate.media_ordinal,
-                    telegram_media_id=candidate.telegram_media_id, expected_bytes=candidate.expected_bytes,
+                    **stream_kwargs,
                 ):
                     if not isinstance(chunk, bytes) or not chunk or len(chunk) > self.chunk_bytes:
                         raise DownloadError("INVALID_CHUNK")
                     total += len(chunk)
+                    if self.chunk_callback is not None:
+                        self.chunk_callback(len(chunk))
                     if total > candidate.expected_bytes:
                         raise DownloadError("SIZE_EXCEEDED")
                     output.write(chunk)
@@ -271,7 +293,10 @@ class SingleMediaDownloadApplication:
             raise
         except DownloadGatewayError as error:
             await self.repository.transition(candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total, failure_category=error.category)
-            raise DownloadError(error.category) from None
+            error_out = DownloadError(
+                error.category, retry_after_seconds=error.retry_after_seconds
+            )
+            raise error_out from None
         except Exception:
             if total == candidate.expected_bytes and 'digest' in locals():
                 candidate_hash = digest.hexdigest()
