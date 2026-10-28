@@ -1,2 +1,10 @@
 [logging]
 level = "INFO"
+
+[download]
+workers = 2
+attempts_per_media = 3
+directory = "downloads"
+
+[storage]
+database_path = "data/catalog.sqlite3"

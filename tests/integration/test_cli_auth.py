@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from telegram_courses import cli
 from telegram_courses.auth import AuthState, InvalidCode
 from telegram_courses.config import TelegramCredentials
@@ -62,7 +64,9 @@ def test_auth_failure_is_generic_and_secret_arguments_are_rejected(monkeypatch, 
     ) == 3
     result = capsys.readouterr()
     assert result.out == ""
-    assert result.err == "invalid authentication code\n"
+    event_line, message_line = result.err.splitlines()
+    assert json.loads(event_line)["event"] == "operation.failed"
+    assert message_line == "invalid authentication code"
     assert "secret-canary" not in result.err
     assert cli.main(["auth", "--code", "secret-canary"]) == 2
 

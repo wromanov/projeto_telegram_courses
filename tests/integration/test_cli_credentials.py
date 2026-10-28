@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from telegram_courses import cli
 from telegram_courses.auth import AuthState
 from telegram_courses.channel_discovery import (
@@ -86,7 +88,9 @@ def test_credentials_status_and_setup_failures_are_sanitized(
     ) == 2
     result = capsys.readouterr()
     assert result.out == ""
-    assert result.err == "configuration error\n"
+    event_line, message_line = result.err.splitlines()
+    assert json.loads(event_line)["event"] == "configuration.rejected"
+    assert message_line == "configuration error"
     assert "not-an-id-secret-sentinel" not in result.err
     assert SYNTHETIC_HASH not in result.err
 
@@ -159,5 +163,7 @@ def test_incomplete_environment_pair_fails_before_auth_or_channels(
 
     assert cli.main(["auth"], gateway_factory=gateway_factory) == 2
     output = capsys.readouterr()
-    assert output.err == "configuration error\n"
+    event_line, message_line = output.err.splitlines()
+    assert json.loads(event_line)["event"] == "configuration.rejected"
+    assert message_line == "configuration error"
     assert not called

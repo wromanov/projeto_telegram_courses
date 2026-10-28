@@ -294,3 +294,385 @@ Gates de contrato, implementação e aceite estão separados na seção 19 do
 [contrato consolidado](../contracts/S1D_CHANNEL_DISCOVERY_SELECTION_CONTRACT.md).
 A aprovação contratual não requer funcionalidades concluídas; não dispensa
 validações de aceite. Policies, binding e evidência Astra não alterados.
+
+## Aceite formal — contrato S6 de retomada e recuperação
+
+Fonte: aprovação formal explícita do usuário em 2026-10-12, atividade
+`S6-CONTRACT-FORMAL-CLOSURE-01`, para a versão local do
+[contrato S6](../contracts/S6_PARTIAL_DOWNLOAD_RESUME_RECOVERY_CONTRACT.md)
+após as correções C-01, C-02, C-03 e F-01.
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-12
+STATUS = APPROVED / FROZEN
+SCOPE = S6 contract only
+OD-01 = APPROVED
+OD-02 = APPROVED
+C-01 = INCORPORATED
+C-02 = INCORPORATED
+C-03 = INCORPORATED
+F-01 = RESOLVED
+ACCEPTANCE_CRITERIA_COUNT = 18
+S5_PREVIEW = OFFLINE
+CONDITIONAL_CANDIDATE = REMOTE VALIDATION ONLY AFTER USER CONFIRMATION
+REMOTE_VALIDATION = REQUIRED BEFORE APPEND
+GETFILE = PRE-REQUEST BUDGET RESERVATION REQUIRED
+S5_LIMITS = PRESERVED
+REAL_TELEGRAM_TECHNICAL_PROOF = FUTURE / NOT PERFORMED
+S6_STATUS = PLANNED / NOT_STARTED
+S6_IMPLEMENTATION_AUTHORIZATION = NO
+```
+
+O aceite congela somente o contrato e não constitui autorização de
+implementação, execução da prova Telegram ou avanço de S6.
+
+## Autorização explícita — S6-IMPL-01 offline
+
+Fonte: pedido direto do usuário em 2026-10-12, atividade
+`S6-IMPL-01`, fornecido no anexo `Texto colado.txt`.
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-12
+ACTIVITY = S6-IMPL-01
+IMPLEMENTATION_AUTHORIZATION = GRANTED / OFFLINE VERTICAL IMPLEMENTATION
+SCOPE = S6 contract implementation, synthetic tests, local SQLite temporary test fixtures, pytest/Ruff/diff checks
+CONTRACT_STATUS = APPROVED / FROZEN / UNCHANGED
+REAL_TELEGRAM_OPERATIONS = NOT_AUTHORIZED / 0
+SCHEMA_MIGRATIONS = NOT_AUTHORIZED
+GIT_ADD = NO
+GIT_COMMIT = NO
+GIT_PUSH = NO
+S6_FORMAL_ACCEPTANCE = PENDING SEPARATE REAL TECHNICAL GATE
+```
+
+A autorização cobre somente o trabalho offline descrito no pedido. Não
+autoriza prova real Telegram, alteração do contrato/schema, operações Git de
+publicação ou encerramento formal de S6.
+
+## Ratificação de diretrizes de desenho — contrato S6 V2 — 2026-10-17
+
+```text
+ACTIVITY = S6_V2_CONTRACT_APPROVAL_RATIFICATION
+DOCUMENT_ROLE = APPROVAL_RECORD / DESIGN_RATIFICATION
+PROJECT_ID = projeto_telegram_courses
+APPROVED_ARTIFACT = docs/contracts/S6_INTEGRITY_CONTRACT_V2_PROPOSAL_DRAFT.md
+APPROVED_ARTIFACT_SHA256 = C9C8A59B5F370B67A86D04CE7407517965711AE5E9780A17DED1C56A747BDF52
+APPROVAL_SCOPE = FIVE V2 DESIGN DIRECTIVES ONLY
+V2_DESIGN_APPROVED = YES
+V1_ACTIVE = YES
+V2_EFFECTIVE = NO
+IMPLEMENTATION_AUTHORIZED = NO
+S6_FORMAL_ACCEPTANCE = PENDING
+EFFECTIVE_DATE = NOT_SET
+```
+
+O usuário ratificou as cinco diretrizes de desenho abaixo para orientar uma futura implementação e revisão final do contrato. A aprovação não substitui nem altera o contrato S6 V1 canônico, não torna a proposta V2 efetiva e não concede autorização de implementação, execução Telegram, aceite formal S6 ou avanço/fechamento de sprint.
+
+1. **Modo operacional explícito:** `OPERATIONAL_ONLY` só pode ser escolhido explicitamente antes da execução. Sua evidência é `UNVERIFIED_ORIGIN`; não há downgrade automático. `REMOTE_HASH_REQUIRED` permanece o modo padrão.
+2. **Conclusão e evidência versionadas:** `COMPLETED_V2` é distinto de `DOWNLOADED` V1. A evidência é versionada e a compatibilidade deve ser segura; registros legados não recebem provas retroativas e consumidores que não reconheçam V2 falham fechados.
+3. **Critérios independentes:** operação, retomada, prova controlada por referência e cobertura de hashes remotos têm resultados separados. Nenhum resultado implica equivalência com outro.
+4. **Releitura sob S5:** a releitura integral de `[0,P)` deve reservar e debitar seu custo dentro do orçamento agregado S5 existente, respeitando todos os seus limites. Não se cria orçamento paralelo nem se ultrapassa o limite compartilhado.
+5. **Ativação futura controlada:** a V2 só pode ser adotada após implementação autorizada, validação dos critérios e nova autorização explícita. A aprovação atual não fixa data efetiva.
+
+### Condições e preservação
+
+- Até decisão futura de adoção e data efetiva, [S6 V1](../contracts/S6_PARTIAL_DOWNLOAD_RESUME_RECOVERY_CONTRACT.md) continua ativo, canônico e inalterado.
+- O DRAFT identificado pelo SHA-256 acima é preservado como artefato de desenho; esta ratificação não reescreve seu conteúdo.
+- Nenhum estado de sucesso pode ser persistido antes dos gates de evidência aplicáveis ao modo selecionado; em especial, `REFERENCE_MATCH` deve preceder qualquer estado persistido que denote sucesso.
+- Falha, ausência ou indisponibilidade de hashes remotos não autoriza fallback. Divergência válida e resposta inválida continuam sendo vetos. `REMOTE_HASH_REQUIRED` continua padrão.
+- A adoção deverá preservar compatibilidade de modo que consumidores legados não classifiquem `COMPLETED_V2` como `DOWNLOADED` verificado nem dedupliquem as duas garantias como equivalentes.
+
+### Impactos e riscos residuais reconhecidos
+
+A futura implementação poderá exigir migration SQLite aditiva, novo estado e evidência versionada, mudanças no downloader, gateway, CLI, fila/deduplicação e testes. Riscos reconhecidos incluem consumidores que assumem um conjunto fechado de estados; registros legados sem prova recuperável; custo de releitura de prefixos sob orçamento compartilhado; comportamento remoto de hashes/EOF não verificável; e a diferença entre coerência operacional, igualdade com uma referência e cobertura remota. A ratificação não resolve esses riscos por si só nem os converte em garantia.
+
+```text
+CANONICAL_CONTRACT_MODIFIED = NO
+SQLITE_OR_PART_MODIFIED = NO
+IMPLEMENTATION = NO
+TELEGRAM_CALLS = 0
+GIT_ADD_COMMIT_PUSH = NO
+NEXT_ACTION = OBTAIN_SEPARATE_IMPLEMENTATION_AUTHORIZATION
+```
+
+## Autorização explícita posterior — implementação offline S6 V2 — 2026-10-17
+
+Fonte: instrução direta do usuário nesta atividade, autorizando continuar a
+implementação offline S6 V2. Esta decisão posterior substitui
+`IMPLEMENTATION_AUTHORIZED = NO` da ratificação de desenho somente quanto ao
+escopo offline abaixo. Não altera o contrato S6 V1, as cinco diretrizes de
+desenho ratificadas nem os gates separados de prova real, ativação e aceite.
+
+```text
+DECISION_MAKER = USER
+DATE = 2026-10-17
+ACTIVITY = S6_V2_CONTROLLED_IMPLEMENTATION
+IMPLEMENTATION_AUTHORIZATION = GRANTED / OFFLINE ONLY
+SCOPE = OFFLINE SOURCE IMPLEMENTATION, SYNTHETIC TESTS, AND LOCAL VALIDATION AGAINST THE RATIFIED V2 DESIGN DRAFT
+SUBAGENTS_AUTHORIZED = UP TO 4 TOTAL
+V1_ACTIVE = YES
+V2_EFFECTIVE = NO
+TELEGRAM_OPERATIONS = NOT_AUTHORIZED
+ORIGINAL_PRODUCTION_SQLITE_MODIFICATION = NOT_AUTHORIZED
+ORIGINAL_PART_FILE_MODIFICATION = NOT_AUTHORIZED
+S6_FORMAL_ACCEPTANCE = PENDING SEPARATE GATE
+SPRINT_ADVANCEMENT = NOT_AUTHORIZED
+GIT_ADD = NO
+GIT_COMMIT = NO
+GIT_PUSH = NO
+```
+
+Esta autorização não torna o DRAFT V2 efetivo nem substitui a autorização
+posterior exigida para operação Telegram, adoção/ativação de V2, aceite formal
+S6, avanço de sprint ou publicação Git.
+
+## Resultado factual — implementação offline S6 V2 — 2026-10-17
+
+Este registro documenta o resultado informado da atividade autorizada; não é
+nova aprovação de produto nem decisão de ativação. A revisão independente
+retornou `ACCEPT` para os cinco achados tratados.
+
+```text
+ACTIVITY = S6_V2_CONTROLLED_IMPLEMENTATION
+IMPLEMENTATION = COMPLETE / OFFLINE
+OFFLINE_VALIDATION = PASS / RESULTS BELOW
+INDEPENDENT_RE_REVIEW = ACCEPT / FIVE FINDINGS
+REGRESSION_SEVEN_FILES = 146 PASSED / CLI SMOKE EXCLUDED
+CLI_SMOKE_T09_ISOLATED = 1 PASSED / test_t09_configuration_matrix_runs_through_cli
+FINAL_FOCUSED_REGRESSION = 59 PASSED / AFTER FINAL ADJUSTMENTS
+RUFF = PASS
+COMPILEALL = PASS
+DIFF_CHECK = PASS
+TRANSIENT_ENVIRONMENT_BLOCKS = TEMP_BASETEMP_PERMISSION_DENIED; LONG_BASENAME_PATH_TOO_LONG
+RERUNS = PASS / AUTHORIZED SHORT PATHS / TRANSIENT BLOCKS NOT CODE FAILURES
+V1_ACTIVE = YES
+V2_EFFECTIVE = NO
+REAL_TELEGRAM_CALLS = 0
+ORIGINAL_PRODUCTION_SQLITE_MODIFIED = NO
+ORIGINAL_PART_FILES_MODIFIED = NO
+S6_FORMAL_ACCEPTANCE = PENDING / SEPARATE AUTHORITY
+SPRINT_ADVANCEMENT = NOT_AUTHORIZED / NOT PERFORMED
+GIT_ADD_COMMIT_PUSH = NO
+EVIDENCE_REFERENCE = Root execution report in current activity; durable independent-review transcript not supplied
+```
+
+Permanecem pendentes de autoridade: revisão/decisão humana do resultado;
+eventual adoção de V2 e definição de data efetiva; eventual prova real Telegram
+sob gate explicitamente autorizado; aceite formal S6; avanço de sprint; e
+publicação Git. Este resultado offline não executa nem implica esses gates.
+
+
+## Decisão aprovada — S6 V2 stabilization and continuity — 2026-10-19
+
+Fonte: aprovação explícita do usuário na conversa referenciada **Projeto Telegram 2.0** e autorização operacional contida na atividade documental corrente.
+
+```text
+DECISION_MAKER = USER
+DECISION = ALTERNATIVE_B / BOUNDED HARNESS AND QA STRUCTURAL STABILIZATION
+ARCHITECTURAL_OPINION = Parecer de auditoria arquitetural — S6 V2 / read-only evidence
+PRINCIPAL_ARCHITECT = Astra / Medium / READ_ONLY / INVOKED ONCE / CLOSED / NO_REENTRY
+ROOT = GPT-6 Luna / XHIGH
+NEXT_ROLES = diagnostic_analyst Sol READ_ONLY; mechanical_implementer Luna WRITE_SCOPED; scriber Luna DOCUMENTATION_ONLY
+IMPLEMENTATION_SCOPE_THIS_ACTIVITY = DOCUMENTATION_AND_CHECKPOINT_ONLY
+OPTION_A_NATIVE_CODEX_EXECUTION = MUST_BE_EVALUATED_FIRST / NOT_DEMONSTRATED_IN_CURRENT_WORK_SESSION
+OPTION_B_LOCAL_OFFLINE_EXECUTOR = CONDITIONALLY_AUTHORIZED_IF_A_UNAVAILABLE / LATER_BOUNDED_ACTIVITY_ONLY
+POWERSHELL = 5.1 REQUIRED
+MAX_OFFLINE_CORRECTION_CYCLES_PER_BATCH = 4
+NO_REPEAT_SAME_FAILURE_SIGNATURE_WITHOUT_NEW_EVIDENCE = YES
+V1 = CANONICAL_AND_ACTIVE
+V2_GLOBAL = OFF
+TELEGRAM_RPC_DOWNLOAD_PROOF = NOT_IN_THIS_ACTIVITY
+S6_FORMAL_ACCEPTANCE = PENDING
+S7_S8 = DEFERRED
+GIT_ADD_COMMIT_PUSH = NO
+```
+
+Os gates `IMPLEMENTATION_COMPLETE`, `INTEGRATION_VALIDATED`, `NATIVE_REGRESSION_PASS`, `REAL_PROOF_PASS` e `USER_ACCEPTANCE` permanecem independentes. Esta decisão documental não declara nenhum desses gates aprovado.
+
+## Decisão formal — S6 aceita com exceções de escopo — 2026-10-25
+
+```text
+DECISION_ID = S6_ACCEPTANCE_WITH_EXCEPTIONS_2026-10-25
+DECISION_MAKER = USER
+DECISION_DATE = 2026-10-25 / America/Sao_Paulo
+USER_APPROVAL = EXPLICIT / "vamos em frente autorizo o fechamento"
+APPROVED_OPTION = B / ENCERRAMENTO COM ESCOPO REVISADO
+DECISION_SCOPE = ACCEPT S6 WITH FORMAL EXCEPTIONS + DOCUMENTARY CLOSURE/CHECKPOINT
+S6_ACCEPTANCE = ACCEPTED_WITH_EXCEPTIONS
+S6_STATUS = CLOSED_WITH_EXCEPTIONS / NOT V1_FULLY_CONFORMANT
+GATE_A_STATUS = PARTIAL / USER_ACCEPTED_HISTORICAL_EXTERNAL_EXIT_EVIDENCE_EXCEPTION
+GATE_B_STATUS = BLOCKED_BY_REMOTE_EVIDENCE / USER_ACCEPTED_SCOPE_EXCEPTION
+V1_ACTIVE = YES
+V2_GLOBAL = OFF
+S7_STATUS = NOT_STARTED / ENTRY_REVIEW_PENDING
+S8_STATUS = NOT_STARTED / DEFERRED_UNTIL_S7_DEPENDENCY
+GIT_ADD_COMMIT_PUSH = NOT_AUTHORIZED
+CODE_TEST_TELEGRAM_EXECUTION = NOT_AUTHORIZED
+```
+
+**Alcance aceito:** regressão funcional histórica 196/196 PASS; retomada física alinhada em processos distintos no perfil V2, checkpoint persistido de 8 MiB, arquivo final idêntico byte a byte e por SHA-256 a uma referência local no caso observado. A origem dessa referência permanece `DOCUMENTED_UNATTESTED`. `COMPLETED_V2` não equivale a `DOWNLOADED` V1, nem a homologação de produção.
+
+**Exceções aprovadas exclusivamente para o aceite e encerramento da sprint (não para enfraquecer os controles da aplicação):**
+- Critério S6 #1: aceitar demonstração funcional da retomada alinhada observada sem extrapolação de conformidade V1.
+- Critério S6 #4: dispensar para este aceite a comprovação remota integral de `[0,P)` antes do append e de `[0,E)` até EOF; a lacuna histórica de 36.954 bytes permanece não comprovada.
+- Critério S6 #6: diferir prova real de offset não alinhado/overlap e restringir a alegação de resultado real à retomada alinhada observada.
+- Critério S6 #11: diferir matriz integral de janelas de crash, `fsync`, checkpoint, rename, recuperação/ownership.
+- Critério S6 #12: diferir comprovação real de segunda execução com zero payload novo (deduplicação após resume).
+- Critério S6 #14: diferir a reconciliação documental completa de orçamento S5, `P` físico e `D` persistido para o caso de prova; manter limites S5 integralmente obrigatórios.
+- Critério S6 #15: diferir comprovação medida de disco livre e margem antes da escrita.
+- Critério S6 #18: diferir medição/threshold de memória limitada em arquivo grande.
+- Gate A processual, separado dos 18 critérios: aceitar para fechamento o recibo histórico de Harness com `Process.ExitCode=null` não observado, sem convertê-lo em PASS. A probe sintética posterior `PASS_SYNTHETIC` não fecha a evidência retroativa.
+
+**Preservações e limites:** os demais critérios classificados B/C no relatório continuam com o alcance de evidência indicado e não são recategorizados como A/PASS. O contrato S6 V1 segue aprovado, congelado e ativo, incluindo a exigência de integridade `REMOTE_HASH_REQUIRED` antes do writer, a recusa fail-closed quando não houver prova remota, e a proibição de falso `DOWNLOADED`. A exceção não autoriza fallback de integridade, relaxar orçamentos S5, habilitar V2 globalmente, reescrever provas históricas, publicar releases ou certificar produção.
+
+**Riscos rastreáveis / reabertura:** exigir prova adicional antes de declarar conformidade V1 integral ou habilitar retomada não alinhada de forma homologada; quando relevante, voltar a verificar prefixo remoto e EOF, crash/ownership, deduplicação, S5/`P`/`D`, disco, memória e exit externo do Harness conforme os critérios/gatilhos da seção 7 da [decisão técnica](../reports/S6_FINAL_ACCEPTANCE_DECISION_2026-10-25/REPORT.md). O fechamento administrativo da S6 não converte essas lacunas em conformidade técnica.
+
+**Fonte e autoridade:** aprovação expressa do usuário no chat **Projeto Telegram 3.0**, após apresentação e explicação integral da Opção B e de suas exceções; relatório decisório: [S6_FINAL_ACCEPTANCE_DECISION_2026-10-25](../reports/S6_FINAL_ACCEPTANCE_DECISION_2026-10-25/REPORT.md). Esta entrada registra a dispensa/versionamento de escopo de aceite, sem alterar o texto do contrato original (§§4, 9, 10 e S6-OD-01).
+
+**Transição:** autoriza somente o checkpoint documental de fechamento. A próxima unidade é **S7 — revisão de entrada e preparação**, sem início automático de implementação. S8 depende da sequência e da conclusão/aceite de S7. Testes, Harness, Telegram/RPC, downloads, modificações de código, adoção V2 e Git exigem autorizações próprias.
+
+## Ratificação formal — Contrato integrado S7 + S8 — 2026-10-25
+
+```text
+DECISION_ID = S7_S8_CONTRACT_RATIFICATION_2026-10-25
+DECISION_MAKER = USER
+USER_APPROVAL = EXPLICIT / "ok, aprovo"
+CONTRACT = docs/contracts/S7_S8_INCREMENTAL_SYNC_OPERATIONAL_HARDENING_IMPLEMENTATION_CONTRACT.md
+CONTRACT_VERSION = 1.0
+CONTRACT_STATUS = APPROVED / FROZEN
+RATIFICATION_SCOPE = CONTRACT_BASELINE_ONLY
+IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+S7_STATUS = ENTRY_REVIEW_PENDING / NOT_STARTED
+S8_STATUS = DEFERRED / NOT_STARTED
+V1_ACTIVE = YES
+V2_GLOBAL = OFF
+TESTS_OR_TELEGRAM_OR_GIT_AUTHORIZATION = NOT_GRANTED
+```
+
+O usuário aprovou o contrato integrado S7 + S8 v1.0 apresentado no chat Projeto Telegram 3.0. A ratificação congela as regras de sincronização incremental, checkpoints, reconciliação, endurecimento operacional e gates separados por sprint; não autoriza implementação, testes, acesso Telegram, alteração de dados reais ou publicação Git. A revisão de entrada e a execução S7 dependem de autorização posterior; S8 depende da aceitação S7. Contrato normativo: [S7_S8_IMPLEMENTATION_CONTRACT](../contracts/S7_S8_INCREMENTAL_SYNC_OPERATIONAL_HARDENING_IMPLEMENTATION_CONTRACT.md).
+
+## Autorização corretiva offline da S7 — 2026-10-26
+
+~~~text
+DECISION_ID = S7_CONTRACTED_CORRECTIVE_IMPLEMENTATION_2026-10-26
+DECISION_MAKER = USER
+USER_APPROVAL = EXPLICIT / pedido direto anexado a esta atividade
+CONTRACT = docs/contracts/S7_ROOT_CAUSE_CORRECTION_IMPLEMENTATION_CONTRACT_2026-10-25.md
+CONTRACT_STATUS = APPROVED
+IMPLEMENTATION_AUTHORIZATION = AUTHORIZED_OFFLINE_S7_ONLY
+IMPLEMENTATION_SCOPE = FIX-01..FIX-06 e dependências técnicas explicitadas no contrato corretivo
+VALIDATION_AUTHORIZATION = GATES A-F / offline / conforme ordem e limites do pedido
+EXECUTION_MODE = MULTI-AGENT / codex-task-router invocado
+S8_STATUS = NOT_AUTHORIZED / DEFERRED
+S6_STATUS = CLOSED_WITH_EXCEPTIONS
+V1_ACTIVE = YES
+V2_GLOBAL = OFF
+S5_BUDGETS = PRESERVED
+REMOTE_HASH_REQUIRED = PRESERVED
+FAIL_CLOSED = PRESERVED
+REAL_TELEGRAM_OR_RPC = NOT_AUTHORIZED
+REAL_DOWNLOADS = NOT_AUTHORIZED
+ORIGINAL_DATABASES_PARTS_AND_S6_PROOFS = PRESERVE
+GIT_STAGE_COMMIT_PUSH_RESET_CLEAN = NOT_AUTHORIZED
+S7_ACCEPTANCE = PENDING_USER_APPROVAL
+~~~
+
+O usuário aprovou expressamente o contrato corretivo indicado e autorizou somente implementação e validação offline da S7, incluindo até dois ciclos corretivos fundamentados. A atividade aplicou essa autorização: os gates offline A–F terminaram, com duas correções limitadas ao fixture de teste RASMOO. Este registro não concede aceite formal da sprint, não muda o contrato integrado S7 + S8 congelado, não autoriza S8, operações reais, alteração das provas S6 ou publicação Git. Os 20 casos históricos continuam 9 V2 / 9 CLI / 2 migration; seus node IDs e recibos permanecem UNRECONCILED.
+
+Evidência: [relatório da implementação corretiva S7](../reports/S7_CORRECTIVE_IMPLEMENTATION_2026-10-26/REPORT.md). Fonte da aprovação: pedido do usuário anexado a esta atividade, datado de 2026-10-26.
+
+## Decisão formal — aceite da S7 com exceções — 2026-10-26
+
+```text
+DECISION_ID = S7_ACCEPT_WITH_EXCEPTIONS_2026-10-26
+DECISION_DATE = 2026-10-26
+DECISION_AUTHORITY = USER_EXPLICIT
+APPROVED_OPTION = OPTION_B
+S7_ACCEPTANCE = APPROVED_WITH_EXCEPTIONS
+S7_STATUS = CLOSED_WITH_EXCEPTIONS
+ACCEPTED_EXCEPTIONS = S7-EX-01, S7-EX-02, S7-EX-03, S7-EX-04
+S7_A1 = PROVEN_OFFLINE
+S7_A2 = PARTIAL / EX-01 ACCEPTED
+S7_A3 = PROVEN_OFFLINE
+S7_A4 = PARTIAL / EX-02 ACCEPTED
+S7_A5 = PROVEN_OFFLINE
+S7_A6 = PARTIAL / EX-03 ACCEPTED
+S7_EX_04 = ACCEPTED
+HISTORICAL_NODE_IDS = UNRECONCILED / 9 V2 + 9 CLI + 2 migration
+REGRESSION = 340_PASS_11_SUBTESTS / HISTORICAL IMPLEMENTATION RESULT
+S6_STATUS = CLOSED_WITH_EXCEPTIONS
+S6_GATE_A = PARTIAL
+S6_GATE_B = BLOCKED_BY_REMOTE_EVIDENCE
+V1_ACTIVE = YES
+V2_GLOBAL = OFF
+S5_BUDGETS = PRESERVED
+REMOTE_HASH_REQUIRED = PRESERVED
+FAIL_CLOSED = PRESERVED
+S8_STATUS = DEFERRED
+S8_IMPLEMENTATION_AUTHORIZATION = NOT_GRANTED
+CODE_CHANGES = NO
+TEST_EXECUTIONS = 0
+REAL_TELEGRAM_CALLS = 0
+GIT_PUBLICATION = NO
+```
+
+Por decisão expressa do usuário, a S7 é aceita com as quatro exceções abaixo. Os critérios A2, A4 e A6 continuam parciais; este aceite não declara conformidade integral da S7 nem homologa exclusão remota positiva. O resultado de regressão é evidência histórica do relatório corretivo e não foi repetido nesta atividade.
+
+1. **S7-EX-01 — A2 / evidência de cancelamento e crash.** Aceitar a lacuna de prova direta sem marcar A2 como PASS. O aceite não dispensa risco material caso surja evidência de perda, salto, promoção indevida ou corrupção. Reabertura objetiva: atividade separada autorizada exercita cancelamento nas fronteiras críticas, fecha/reabre o SQLite, compara IDs e checkpoints e comprova ausência de avanço parcial.
+2. **S7-EX-02 — A4-C / exclusão remota positiva.** Confirmar exclusão positiva e tombstones ficam fora do escopo homologado. Não criar tombstone por inferência, não excluir arquivos fisicamente e não prometer detecção universal. Reabrir somente com fonte positiva, política e transação aprovadas e testes correspondentes.
+3. **S7-EX-03 — A6 / falha global do catálogo.** Aceitar apenas o caminho de sucesso genérico/RASMOO e parcial coberto pelas fixtures. A assertion do caminho negativo falta, embora o código mostre falha e exit 4. Reabrir para provar `catalog=FAILED`, exit não zero e sem sucesso global.
+4. **S7-EX-04 — rastreabilidade histórica.** Aceitar resultados atuais como evidência nova, sem dizer que os 20 nodes históricos passaram. Manter grupos 9/9/2, IDs e recibos `UNRECONCILED`. Reabrir somente se fontes originais permitirem reconciliação individual.
+
+Fontes: decisão do usuário nesta atividade; [parecer final S7](../reports/S7_FINAL_ACCEPTANCE_DECISION_2026-10-26/REPORT.md); [relatório corretivo S7](../reports/S7_CORRECTIVE_IMPLEMENTATION_2026-10-26/REPORT.md). A próxima atividade planejada é S8 — Operational Hardening —, ainda diferida e sem autorização de implementação. Qualquer autorização de S8 exige decisão separada. Esta decisão não modifica contratos congelados, provas S6, código, testes ou dados originais, nem autoriza operações Telegram/RPC, downloads ou publicação Git.
+
+## Decisão formal — aceite da S8 com limites documentados — 2026-10-28
+
+```text
+DECISION_ID = S8_FORMAL_ACCEPTANCE_2026-10-28
+DECISION_DATE = 2026-10-28 / America/Sao_Paulo
+DECISION_AUTHORITY = USER_EXPLICIT / "sim aprovo s8"
+S8_ACCEPTANCE = APPROVED_WITH_DOCUMENTED_LIMITATIONS
+S8_STATUS = CLOSED_WITH_EXCEPTIONS
+IMPLEMENTATION = COMPLETE
+OFFLINE_INTEGRATION = PASS
+FOCUSED_REGRESSION = 32 PASSED / 0 FAILED
+OFFLINE_REGRESSION = 366 PASSED / 11 SUBTESTS PASSED / 0 FAILED
+STATIC_CHECKS = RUFF_PASS / COMPILEALL_PASS / GIT_DIFF_CHECK_PASS
+S8_A1 = PASS_OFFLINE
+S8_A2 = PASS_OFFLINE
+S8_A3 = PASS_OFFLINE_WITH_NFR02_QUANTITATIVE_LIMIT_NOT_ESTABLISHED
+INT_A = PASS_OFFLINE
+INT_B = PASS_OFFLINE_WITH_PRIOR_EXCEPTIONS_PRESERVED
+S8_EX_01 = NFR02_NO_FORMAL_MEMORY_THRESHOLD / SYNTHETIC_TRACEMALLOC_NOT_TOTAL_RSS
+S8_EX_02 = NO_REAL_TELEGRAM_HOMOLOGATION / REAL_CHANNEL_VALIDATION_RESERVED_FOR_S9
+S6_STATUS = CLOSED_WITH_EXCEPTIONS
+S7_STATUS = CLOSED_WITH_EXCEPTIONS
+V1_ACTIVE = YES
+V2_GLOBAL = OFF
+S5_BUDGETS_AND_REMOTE_HASH_REQUIRED = PRESERVED
+S9_STATUS = PLANNED / NOT_STARTED / IMPLEMENTATION_NOT_AUTHORIZED
+S10_STATUS = PLANNED / NOT_STARTED
+GIT_STAGE_COMMIT_PUSH = NOT_AUTHORIZED_BY_THIS_DECISION / NOT_EXECUTED
+S8_GIT_CHECKPOINT = PENDING_SEPARATE_AUTHORIZATION
+```
+
+O usuário aprovou formalmente a S8 após receber o resultado da remediação focalizada,
+a regressão offline concluída e os limites técnicos de evidência. O aceite
+encerra a unidade S8 **com os limites documentados acima**, sem afirmar
+homologação de operação Telegram real nem comprovação quantitativa integral
+de NFR-02 (pico de 942.996 bytes em tracemalloc de fluxo sintético de 16 MiB,
+payload pré-alocado não rastreado; sem limiar aprovado).
+
+A regressão real no ambiente local Windows/Python 3.14.7 passou
+366 testes e 11 subtestes, sem falhas, após a correção da fixture de disk gate,
+a proteção contra traceback sensível em falhas do logger e a adequação das
+assertivas CLI aos eventos JSON sanitizados. Os gates estáticos passaram.
+Registro técnico: [S8 Operational Hardening](../reports/S8_OPERATIONAL_HARDENING_IMPLEMENTATION/REPORT.md).
+
+Esta decisão não elimina exceções S6/S7, não ativa V2, não altera contratos
+congelados nem autoriza sessão/Telegram/RPC reais, escrita em dados operacionais,
+início da S9, stage, commit ou push. O próximo passo natural é o checkpoint Git
+local S8, condicionado a autorização específica do usuário; S9 requer gate
+e autorização próprios.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import stat
 import subprocess
@@ -23,8 +24,45 @@ def _normalized(path: Path) -> str:
     return os.path.normcase(os.path.abspath(path))
 
 
-def _snapshot(root: Path) -> dict[str, tuple[object, ...]]:
+def _tracked_paths() -> tuple[str, ...]:
+    result = subprocess.run(
+        ["git", "ls-files", "--cached", "--", ":/"],
+        cwd=RepoRoot, text=True, capture_output=True, check=True,
+    )
+    return tuple(result.stdout.splitlines())
+
+
+def _snapshot(
+    root: Path, tracked_paths: tuple[str, ...] | None = None
+) -> dict[str, tuple[object, ...]]:
+    """Snapshot only tracked repository files (or all entries under a test temp dir).
+
+    The repository oracle intentionally excludes untracked WIP, pytest evidence,
+    local data, and S6 artifacts. The invocation's dedicated tmp_path is still
+    recursively checked so test-created side effects remain visible.
+    """
     result: dict[str, tuple[object, ...]] = {}
+    if tracked_paths is not None:
+        for relative in tracked_paths:
+            path = root / Path(relative)
+            if not os.path.lexists(path):
+                result[relative] = ("missing",)
+                continue
+            info = path.stat(follow_symlinks=False)
+            attributes = int(getattr(info, "st_file_attributes", 0))
+            if attributes & 0x400 or stat.S_ISLNK(info.st_mode):
+                result[relative] = (
+                    "reparse", attributes, getattr(info, "st_reparse_tag", None),
+                    info.st_mode, os.readlink(path),
+                )
+            elif stat.S_ISREG(info.st_mode):
+                result[relative] = (
+                    "file", attributes, info.st_mode, info.st_size,
+                    hashlib.sha256(path.read_bytes()).hexdigest(),
+                )
+            else:
+                result[relative] = ("other", attributes, info.st_mode)
+        return result
     root_info = root.stat(follow_symlinks=False)
     root_attributes = int(getattr(root_info, "st_file_attributes", 0))
     if root_attributes & 0x400 or stat.S_ISLNK(root_info.st_mode):
@@ -87,7 +125,7 @@ def _assert_no_mutation(
     before_temp: dict[str, tuple[object, ...]],
     tmp_path: Path,
 ) -> None:
-    after_repo = _snapshot(RepoRoot)
+    after_repo = _snapshot(RepoRoot, _tracked_paths())
     after_temp = _snapshot(tmp_path)
     assert before_repo == after_repo
     assert before_temp == after_temp
@@ -101,7 +139,7 @@ def _invoke(
     tmp_path: Path,
     environment: dict[str, str],
 ) -> subprocess.CompletedProcess[str]:
-    before_repo = _snapshot(RepoRoot)
+    before_repo = _snapshot(RepoRoot, _tracked_paths())
     before_temp = _snapshot(tmp_path)
     result = subprocess.run(
         [str(executable), *arguments],
@@ -150,7 +188,16 @@ def _assert_success(
 def _assert_configuration_error(result: subprocess.CompletedProcess[str]) -> None:
     assert result.returncode == 2
     assert result.stdout == ""
-    assert result.stderr == "configuration error\n"
+    lines = result.stderr.splitlines()
+    assert len(lines) == 2
+    event = json.loads(lines[0])
+    assert event["severity"] == "WARNING"
+    assert event["component"] == "cli.config"
+    assert event["event"] == "configuration.rejected"
+    assert event["context"] == {"category": "CONFIGURATION", "status": "FAILED"}
+    assert lines[1] == "configuration error"
+    assert "api_hash" not in result.stderr.casefold()
+    assert "secret" not in result.stderr.casefold()
 
 
 def test_t10a_smoke_from_repository_root(
@@ -286,12 +333,20 @@ def test_t09_configuration_matrix_runs_through_cli(
 def test_t10e_internal_error_is_generic_and_has_no_side_effects(
     tmp_path: Path,
 ) -> None:
-    before_repo = _snapshot(RepoRoot)
+    before_repo = _snapshot(RepoRoot, _tracked_paths())
     before_temp = _snapshot(tmp_path)
     with patch.object(cli, "load_configuration", side_effect=RuntimeError("secret")):
         with patch("sys.stdout") as stdout, patch("sys.stderr") as stderr:
             result = cli.main(["smoke"])
-    _assert_no_mutation(before_repo, before_temp, tmp_path)
+    assert before_repo == _snapshot(RepoRoot, _tracked_paths())
+    assert before_temp == _snapshot(tmp_path)
     assert result == 1
     stdout.write.assert_not_called()
-    stderr.write.assert_called_once_with("internal error\n")
+    writes = [entry.args[0] for entry in stderr.write.call_args_list]
+    assert len(writes) == 2
+    assert json.loads(writes[0])["event"] == "operation.failed"
+    assert json.loads(writes[0])["context"] == {
+        "category": "INTERNAL", "status": "FAILED",
+    }
+    assert writes[1] == "internal error\n"
+    assert "secret" not in "".join(writes)

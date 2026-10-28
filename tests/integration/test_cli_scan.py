@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 
 import aiosqlite
 
@@ -64,4 +65,6 @@ def test_scan_cli_requires_explicit_timeout(tmp_path, capsys) -> None:
         scan_gateway_factory=lambda _credentials: None,
     )
     assert status == 2
-    assert capsys.readouterr().err == "configuration error\n"
+    event_line, message_line = capsys.readouterr().err.splitlines()
+    assert json.loads(event_line)["event"] == "configuration.rejected"
+    assert message_line == "configuration error"

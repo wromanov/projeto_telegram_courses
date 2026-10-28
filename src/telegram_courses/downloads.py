@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
 import os
 import re
+import shutil
 import stat
 import uuid
 from collections.abc import Awaitable, Callable
@@ -21,6 +23,7 @@ from telegram_courses.download_repository import (
     DownloadRepository,
     _process_is_alive,
 )
+from telegram_courses.operational_logging import emit_operational_event
 from telegram_courses.s6_integrity import (
     V2_EFFECTIVE,
     assess_remote_hashes,
@@ -32,7 +35,14 @@ from telegram_courses.s6_integrity import (
 CHUNK_BYTES = 256 * 1024
 _RESERVED = re.compile(r"^(CON|PRN|AUX|NUL|COM[1-9]|LPT[1-9])(?:\..*)?$", re.IGNORECASE)
 _INVALID = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+_SAFE_ERROR_CATEGORY = re.compile(r"^[A-Z][A-Z0-9_]{0,63}$")
 _LOCKS: dict[int, asyncio.Lock] = {}
+
+
+def _safe_error_category(value: object) -> str:
+    if isinstance(value, str) and _SAFE_ERROR_CATEGORY.fullmatch(value):
+        return value
+    return "UNKNOWN"
 
 
 class DownloadError(Exception):
@@ -41,18 +51,56 @@ class DownloadError(Exception):
         failure_phase: str | None = None,
         remote_hash_events: tuple[dict[str, object], ...] | None = None,
     ) -> None:
-        self.category = category
-        self.retry_after_seconds = retry_after_seconds
+        self.category = _safe_error_category(category)
+        self.retry_after_seconds = (
+            retry_after_seconds
+            if self.category == "RATE_LIMITED"
+            and type(retry_after_seconds) is int
+            and retry_after_seconds >= 0
+            else None
+        )
         self.failure_phase = failure_phase
         self.remote_hash_events = remote_hash_events or ()
-        super().__init__(category.lower().replace("_", " "))
+        super().__init__(self.category.lower().replace("_", " "))
 
 
 class DownloadGatewayError(Exception):
     def __init__(self, category: str, *, retry_after_seconds: int | None = None) -> None:
-        self.category = category
-        self.retry_after_seconds = retry_after_seconds
-        super().__init__(category)
+        self.category = _safe_error_category(category)
+        self.retry_after_seconds = (
+            retry_after_seconds
+            if self.category == "RATE_LIMITED"
+            and type(retry_after_seconds) is int
+            and retry_after_seconds >= 0
+            else None
+        )
+        super().__init__(self.category)
+
+
+def _assert_disk_capacity(
+    download_root: Path,
+    remaining_bytes: int,
+    free_space: Callable[[Path], int],
+) -> None:
+    """Fail closed before a standalone transfer when its size is known."""
+    if type(remaining_bytes) is not int or remaining_bytes < 0:
+        raise DownloadError("UNKNOWN_SIZE")
+    if remaining_bytes == 0:
+        return
+
+    probe = download_root.expanduser().absolute()
+    while not probe.exists() and probe != probe.parent:
+        probe = probe.parent
+    try:
+        available_bytes = free_space(probe)
+    except Exception:
+        raise DownloadError("STORAGE_UNAVAILABLE") from None
+    if type(available_bytes) is not int or available_bytes < 0:
+        raise DownloadError("STORAGE_UNAVAILABLE")
+
+    safety_margin = max(1024**3, int(remaining_bytes * 0.10))
+    if available_bytes < remaining_bytes + safety_margin:
+        raise DownloadError("INSUFFICIENT_DISK_SPACE")
 
 
 class DownloadGateway(Protocol):
@@ -293,6 +341,7 @@ class SingleMediaDownloadApplication:
         download_root: str | Path, *, chunk_bytes: int = CHUNK_BYTES,
         progress_callback: Callable[[int, int], None] | None = None,
         chunk_callback: Callable[[int], None] | None = None,
+        free_space: Callable[[Path], int] | None = None,
     ) -> None:
         if type(chunk_bytes) is not int or not 0 < chunk_bytes <= CHUNK_BYTES:
             raise ValueError("chunk_bytes must be between 1 and 256 KiB")
@@ -302,6 +351,7 @@ class SingleMediaDownloadApplication:
         self.chunk_bytes = chunk_bytes
         self.progress_callback = progress_callback
         self.chunk_callback = chunk_callback
+        self.free_space = free_space or (lambda path: shutil.disk_usage(path).free)
         self.chunk_reserver: Callable[[int], Awaitable[ChunkReservation | None]] | None = None
         self.operation_reserver: Callable[[int], Awaitable[object | None]] | None = None
         self.pre_append_check: Callable[[int], Awaitable[bool]] | None = None
@@ -418,8 +468,19 @@ class SingleMediaDownloadApplication:
             ):
                 raise DownloadError("UNOWNED_PARTIAL_EXISTS")
         physical = partial.stat().st_size if part_exists else 0
+        if type(candidate.expected_bytes) is not int:
+            raise DownloadError("UNKNOWN_SIZE")
         if physical > candidate.expected_bytes:
             raise DownloadError("PARTIAL_SIZE_EXCEEDED")
+        if self.pre_append_check is None:
+            # S5 queue runs install a batch reservation-aware pre-append gate.
+            # A direct S4 invocation must still check capacity before claiming
+            # state, creating a partial, or requesting transfer payload.
+            _assert_disk_capacity(
+                self.download_root,
+                candidate.expected_bytes - physical,
+                self.free_space,
+            )
         resuming = part_exists and record is not None
         try:
             final.parent.mkdir(parents=True, exist_ok=True)
@@ -549,16 +610,17 @@ class SingleMediaDownloadApplication:
             await self.repository.transition(candidate.media_item_id, "DOWNLOADED", downloaded_bytes=total)
             return DownloadOutcome("DOWNLOADED", candidate, final, received, local_hash)
         except asyncio.CancelledError:
-            await self._preserve_checkpoint(candidate, partial, total)
-            await self.repository.transition(candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total, failure_category="CANCELLED")
+            await self._record_failure_state(candidate, partial, total, "CANCELLED")
             raise
         except DownloadError as error:
-            await self._preserve_checkpoint(candidate, partial, total)
-            await self.repository.transition(candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total, failure_category=error.category)
+            await self._record_failure_state(
+                candidate, partial, total, error.category
+            )
             raise
         except DownloadGatewayError as error:
-            await self._preserve_checkpoint(candidate, partial, total)
-            await self.repository.transition(candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total, failure_category=error.category)
+            await self._record_failure_state(
+                candidate, partial, total, error.category
+            )
             error_out = DownloadError(
                 error.category, retry_after_seconds=error.retry_after_seconds
             )
@@ -572,9 +634,70 @@ class SingleMediaDownloadApplication:
                     candidate_hash = None
                 if candidate_hash and _matches(final, candidate.expected_bytes, candidate_hash):
                     raise DownloadError("STATE_COMMIT_PENDING") from None
-            await self._preserve_checkpoint(candidate, partial, total)
-            await self.repository.transition(candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total, failure_category="TRANSFER_FAILED")
+            await self._record_failure_state(
+                candidate, partial, total, "TRANSFER_FAILED"
+            )
             raise DownloadError("TRANSFER_FAILED") from None
+
+    async def _record_failure_state(
+        self,
+        candidate: DownloadCandidate,
+        partial: Path,
+        total: int,
+        category: str,
+    ) -> None:
+        safe_category = _safe_error_category(category)
+        try:
+            checkpoint_saved = await self._preserve_checkpoint(
+                candidate, partial, total
+            )
+            if not checkpoint_saved:
+                emit_operational_event(
+                    "download_cleanup_failed",
+                    component="download",
+                    level=logging.WARNING,
+                    category=safe_category,
+                    state="CHECKPOINT",
+                )
+        except asyncio.CancelledError:
+            emit_operational_event(
+                "download_cleanup_cancelled",
+                component="download",
+                level=logging.WARNING,
+                category=safe_category,
+                state="CHECKPOINT",
+            )
+        except Exception:
+            emit_operational_event(
+                "download_cleanup_failed",
+                component="download",
+                level=logging.WARNING,
+                category=safe_category,
+                state="CHECKPOINT",
+            )
+        try:
+            await self.repository.transition(
+                candidate.media_item_id,
+                "FAILED_RETRYABLE",
+                downloaded_bytes=total,
+                failure_category=safe_category,
+            )
+        except asyncio.CancelledError:
+            emit_operational_event(
+                "download_cleanup_cancelled",
+                component="download",
+                level=logging.WARNING,
+                category=safe_category,
+                state="FAILED_RETRYABLE",
+            )
+        except Exception:
+            emit_operational_event(
+                "download_cleanup_failed",
+                component="download",
+                level=logging.WARNING,
+                category=safe_category,
+                state="FAILED_RETRYABLE",
+            )
 
     async def _download_v2_locked(
         self,
@@ -635,6 +758,34 @@ class SingleMediaDownloadApplication:
                 current_pool = pool
                 pool = None
                 await current_pool.close()
+
+        def warn_v2_cleanup(category: str, state: str) -> None:
+            try:
+                emit_operational_event(
+                    "download_cleanup_failed",
+                    component="download",
+                    level=logging.WARNING,
+                    category=_safe_error_category(category),
+                    state=state,
+                )
+            except Exception:
+                # Cleanup diagnostics must never replace the primary outcome.
+                pass
+
+        async def best_effort_v2_cleanup(
+            action: Callable[[], Awaitable[object]],
+            *,
+            category: str,
+            state: str,
+        ) -> None:
+            try:
+                outcome = await action()
+                if outcome is False:
+                    warn_v2_cleanup(category, state)
+            except asyncio.CancelledError:
+                warn_v2_cleanup(category, f"{state}_CANCELLED")
+            except Exception:
+                warn_v2_cleanup(category, state)
 
         try:
             if integrity_mode == "TRUSTED_REFERENCE":
@@ -1118,46 +1269,72 @@ class SingleMediaDownloadApplication:
                     "UNVERIFIED_ORIGIN" if evidence_class == "OPERATIONAL_ONLY" else "REFERENCE_MATCH",
                 )
             except asyncio.CancelledError:
-                await self._preserve_checkpoint(candidate, partial, total)
-                await self.repository.transition(
-                    candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total,
-                    failure_category="CANCELLED",
+                await best_effort_v2_cleanup(
+                    lambda: self._preserve_checkpoint(candidate, partial, total),
+                    category="CANCELLED",
+                    state="CHECKPOINT",
                 )
-                await self.repository.update_v2_attempt(
-                    attempt_id, status="FAILED_RETRYABLE", details={"reason": "CANCELLED"},
-                    requests=requests, bytes_reserved=total_reserve, bytes_received=received,
+                await best_effort_v2_cleanup(
+                    lambda: self.repository.transition(
+                        candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total,
+                        failure_category="CANCELLED",
+                    ),
+                    category="CANCELLED",
+                    state="FAILED_RETRYABLE",
+                )
+                await best_effort_v2_cleanup(
+                    lambda: self.repository.update_v2_attempt(
+                        attempt_id, status="FAILED_RETRYABLE", details={"reason": "CANCELLED"},
+                        requests=requests, bytes_reserved=total_reserve, bytes_received=received,
+                    ),
+                    category="CANCELLED",
+                    state="V2_ATTEMPT",
                 )
                 raise
             except (DownloadError, DownloadGatewayError) as error:
                 category = error.category
+                remote_hash_events = tuple(
+                    getattr(error, "remote_hash_events", ())
+                )
                 if category in {"RATE_LIMITED", "NETWORK", "GATEWAY_FAILURE", "TRANSFER_FAILED"}:
                     remote_class = "REMOTE_HASH_UNAVAILABLE"
-                await self._preserve_checkpoint(candidate, partial, total)
-                try:
-                    await self.repository.transition(
+                await best_effort_v2_cleanup(
+                    lambda: self._preserve_checkpoint(candidate, partial, total),
+                    category=category,
+                    state="CHECKPOINT",
+                )
+                await best_effort_v2_cleanup(
+                    lambda: self.repository.transition(
                         candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=total,
                         failure_category=category,
-                    )
-                except ValueError:
-                    pass
-                await self.repository.update_v2_attempt(
-                    attempt_id, status="BLOCKED" if category in {
-                        "BUDGET_BLOCK", "REMOTE_HASH_DIVERGENT", "REMOTE_HASH_INVALID_RESPONSE",
-                        "BLOCKED_CONTRADICTORY_REMOTE_EVIDENCE", "PREFIX_CONFLICT", "REFERENCE_MISMATCH",
-                    } else "FAILED_RETRYABLE",
-                    details={
-                        "reason": category,
-                        "remote_hash_class": remote_class,
-                        "remote_hash_events": list(getattr(error, "remote_hash_events", ())),
-                    },
-                    remote_hash_class=remote_class if remote_class != "REMOTE_HASH_ABSENT" else None,
-                    requests=requests, bytes_reserved=total_reserve, bytes_received=received,
+                    ),
+                    category=category,
+                    state="FAILED_RETRYABLE",
+                )
+                await best_effort_v2_cleanup(
+                    lambda: self.repository.update_v2_attempt(
+                        attempt_id, status="BLOCKED" if category in {
+                            "BUDGET_BLOCK", "REMOTE_HASH_DIVERGENT", "REMOTE_HASH_INVALID_RESPONSE",
+                            "BLOCKED_CONTRADICTORY_REMOTE_EVIDENCE", "PREFIX_CONFLICT", "REFERENCE_MISMATCH",
+                        } else "FAILED_RETRYABLE",
+                        details={
+                            "reason": category,
+                            "remote_hash_class": remote_class,
+                            "remote_hash_events": list(remote_hash_events),
+                        },
+                        remote_hash_class=remote_class if remote_class != "REMOTE_HASH_ABSENT" else None,
+                        requests=requests, bytes_reserved=total_reserve, bytes_received=received,
+                    ),
+                    category=category,
+                    state="V2_ATTEMPT",
                 )
                 if isinstance(error, DownloadGatewayError):
                     raise DownloadError(category, retry_after_seconds=error.retry_after_seconds) from None
                 raise
             finally:
-                await close_pool()
+                await best_effort_v2_cleanup(
+                    close_pool, category="TRANSFER_FAILED", state="POOL_CLOSE"
+                )
         except (DownloadError, DownloadGatewayError) as error:
             failure_details: dict[str, object] = {"reason": error.category}
             remote_hash_events = getattr(error, "remote_hash_events", ())
@@ -1166,12 +1343,16 @@ class SingleMediaDownloadApplication:
                 failure_details["remote_hash_class"] = remote_class
             if remote_class is not None and remote_class != "REMOTE_HASH_ABSENT":
                 failure_details["remote_hash_class"] = remote_class
-            await self.repository.update_v2_attempt(
-                attempt_id, status="BLOCKED", details=failure_details,
-                remote_hash_class=(
-                    remote_class if remote_class != "REMOTE_HASH_ABSENT" else None
+            await best_effort_v2_cleanup(
+                lambda: self.repository.update_v2_attempt(
+                    attempt_id, status="BLOCKED", details=failure_details,
+                    remote_hash_class=(
+                        remote_class if remote_class != "REMOTE_HASH_ABSENT" else None
+                    ),
+                    requests=requests, bytes_reserved=total_reserve, bytes_received=received,
                 ),
-                requests=requests, bytes_reserved=total_reserve, bytes_received=received,
+                category=error.category,
+                state="V2_ATTEMPT",
             )
             if isinstance(error, DownloadGatewayError):
                 raise DownloadError(
@@ -1179,7 +1360,9 @@ class SingleMediaDownloadApplication:
                 ) from None
             raise
         finally:
-            await close_pool()
+            await best_effort_v2_cleanup(
+                close_pool, category="TRANSFER_FAILED", state="POOL_CLOSE"
+            )
 
     @staticmethod
     def _v2_evidence_matches(
@@ -1337,7 +1520,7 @@ class SingleMediaDownloadApplication:
 
     async def _preserve_checkpoint(
         self, candidate: DownloadCandidate, partial: Path, fallback_size: int
-    ) -> None:
+    ) -> bool:
         try:
             if partial.is_file() and not partial.is_symlink():
                 with partial.open("r+b") as output:
@@ -1345,5 +1528,6 @@ class SingleMediaDownloadApplication:
                     os.fsync(output.fileno())
                 fallback_size = partial.stat().st_size
                 await self.repository.checkpoint(candidate.media_item_id, fallback_size)
+            return True
         except (OSError, DownloadInProgress, ValueError):
-            pass
+            return False

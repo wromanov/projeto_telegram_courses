@@ -189,7 +189,7 @@ no canal real permanece planejada para S9.
 - **INTEGRATED_IMPLEMENTATION_CONTRACT:** [S7 + S8 contract v1.0](../../contracts/S7_S8_INCREMENTAL_SYNC_OPERATIONAL_HARDENING_IMPLEMENTATION_CONTRACT.md) / APPROVED_FROZEN 2026-10-25; S8 implementation dependent on S7 acceptance and separate authorization.
 
 - **SPRINT_ID:** S8
-- **STATUS:** PLANNED / NOT_STARTED / DEFERRED; implementation authorization not granted. Requires separate explicit authorization.
+- **STATUS:** CLOSED_WITH_EXCEPTIONS / FORMALLY_ACCEPTED_BY_USER_2026-10-28 / OFFLINE_REGRESSION_PASS_366_PLUS_11_SUBTESTS; limits on NFR-02 quantitative memory proof and real Telegram validation remain documented. Implementation authorization was provided by separate S8 Card; S9 remains not authorized.
 - **OBJECTIVE:** Harden failures, retries, logging, disk safety, progress, and configuration for normal operation.
 - **SCOPE:** Error taxonomy, bounded retry, FloodWait handling, structured operational logs, disk-capacity gate, configuration validation, bounded concurrency review.
 - **OUT_OF_SCOPE:** GUI, distributed execution, unlimited workers, new product capabilities not in the approved requirements.
@@ -202,7 +202,7 @@ no canal real permanece planejada para S9.
 - **GATES:** Operational hardening acceptance; disk-capacity and credential/session protection checks.
 - **DEFINITION_OF_DONE:** Approved operational requirements and relevant tests pass; unresolved security/operational blockers are absent.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S8 accepted; real-channel RASMOO validation can be performed with bounded scope.
-- **STATUS:** PLANNED / NOT_STARTED.
+- **STATUS:** CLOSED_WITH_EXCEPTIONS / APPROVED_WITH_DOCUMENTED_LIMITATIONS. Evidência e decisão: [relatório S8](../../reports/S8_OPERATIONAL_HARDENING_IMPLEMENTATION/REPORT.md) e [aceite formal S8](../../governance/APPROVALS_AND_DECISIONS.md#decisão-formal--aceite-da-s8-com-limites-documentados--2026-10-28). A validação real permanece planejada para S9, não iniciada.
 
 ## S9 — RASMOO Real-Channel Acceptance
 

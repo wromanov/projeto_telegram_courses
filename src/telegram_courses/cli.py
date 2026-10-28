@@ -48,6 +48,10 @@ from telegram_courses.downloads import (
     SingleMediaDownloadApplication,
 )
 from telegram_courses.message_scanner import ScanGatewayError
+from telegram_courses.operational_logging import (
+    configure_operational_logging,
+    emit_operational_event,
+)
 from telegram_courses.telethon_gateway import TelethonGateway
 
 
@@ -57,6 +61,17 @@ class _ArgumentParser(argparse.ArgumentParser):
 
 
 def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
+    raw_arguments = list(argv) if argv is not None else sys.argv[1:]
+
+    def supplied_once(option: str) -> bool:
+        count = sum(
+            token == option or token.startswith(f"{option}=")
+            for token in raw_arguments
+        )
+        if count > 1:
+            raise ConfigurationError from None
+        return count == 1
+
     parser = _ArgumentParser(prog="telegram-courses", add_help=True)
     parser.add_argument(
         "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog", "download")
@@ -69,7 +84,10 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--channel-id", type=int)
     parser.add_argument("--telegram-message-id", type=int)
     parser.add_argument("--media-ordinal", type=int)
-    parser.add_argument("--download-dir", default=os.environ.get("TELEGRAM_COURSES_DOWNLOAD_DIR", "downloads"))
+    parser.add_argument(
+        "--download-dir",
+        default=os.environ.get("TELEGRAM_COURSES_DOWNLOAD_DIR", "downloads"),
+    )
     parser.add_argument("--max-messages", type=int)
     parser.add_argument("--timeout-seconds", type=float)
     parser.add_argument("--incremental", action="store_true")
@@ -78,6 +96,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--parser-key")
     parser.add_argument("--scope", choices=("channel", "course", "module", "lesson"), default="channel")
     parser.add_argument("--workers", type=int, default=2)
+    parser.add_argument("--attempts-per-media", type=int, default=3)
     parser.add_argument("--max-media-items", type=int)
     parser.add_argument("--max-transfer-bytes", type=int)
     parser.add_argument(
@@ -87,13 +106,23 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--reference-manifest")
     parser.add_argument("--confirm", action="store_true")
-    args = parser.parse_args(argv)
+    args = parser.parse_args(raw_arguments)
     if (args.config is not None and len(args.config) != 1) or (
         args.log_level is not None and len(args.log_level) != 1
     ):
         raise ConfigurationError
     args.config = args.config[0] if args.config else None
     args.log_level = args.log_level[0] if args.log_level else None
+    args.cli_download_dir = (
+        args.download_dir if supplied_once("--download-dir") else None
+    )
+    args.cli_database_path = args.database if supplied_once("--database") else None
+    args.cli_workers = args.workers if supplied_once("--workers") else None
+    args.cli_attempts_per_media = (
+        args.attempts_per_media
+        if supplied_once("--attempts-per-media")
+        else None
+    )
     if args.command != "download" and (
         args.max_media_items is not None or args.max_transfer_bytes is not None
         or args.integrity_mode != "REMOTE_HASH_REQUIRED" or args.reference_manifest is not None
@@ -140,6 +169,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
                     or args.telegram_message_id is not None or args.media_ordinal is not None
                     or args.max_messages is not None or args.timeout_seconds is not None
                     or not 1 <= args.workers <= 2 or args.confirm and args.credentials_action != "queue"
+                    or not 1 <= args.attempts_per_media <= 3
                     or args.max_media_items is not None and args.max_media_items <= 0
                     or args.max_transfer_bytes is not None and args.max_transfer_bytes <= 0):
                 raise ConfigurationError from None
@@ -150,6 +180,10 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
             or args.telegram_message_id is None or args.telegram_message_id <= 0
             or args.media_ordinal is None or args.media_ordinal < 0
             or args.max_messages is not None or args.timeout_seconds is not None
+        ):
+            raise ConfigurationError from None
+        if args.credentials_action not in {"plan", "queue"} and (
+            args.cli_workers is not None or args.cli_attempts_per_media is not None
         ):
             raise ConfigurationError from None
     elif args.command == "catalog":
@@ -396,7 +430,11 @@ def _download_batch(
         console.print("execução bloqueada: prévia ou limites configurados não aprovados", markup=False, highlight=False)
         return 4
     if not plan.pending:
-        console.print("nenhuma transferência pendente; conteúdo completo ou sem itens elegíveis", markup=False, highlight=False)
+        console.print(
+            "status=SKIPPED nenhuma transferência pendente; conteúdo completo ou sem itens elegíveis",
+            markup=False,
+            highlight=False,
+        )
         return 0
     if args.confirm:
         confirmed = True
@@ -457,6 +495,7 @@ def _download_batch(
             )
             queue = DownloadQueue(
                 repository, app, workers=args.workers,
+                attempts_per_media=args.attempts_per_media,
                 max_media_items=args.max_media_items,
                 max_transfer_bytes=args.max_transfer_bytes,
                 integrity_mode=args.integrity_mode,
@@ -486,8 +525,21 @@ def _download_batch(
                   "COMPLETED", "COMPLETED_V2", "RECOVERED_V2", "ALREADY_COMPLETED_V2",
                   "ALREADY_VALID", "FAILED", "BLOCKED", "CANCELLED",
               )}
+    completed_count = counts["COMPLETED"]
+    failed_count = counts["FAILED"] + counts["BLOCKED"]
+    skipped_count = counts["ALREADY_VALID"] + sum(
+        status in {"EXCLUDED", "SKIPPED"} for _, status, _ in result.outcomes
+    )
+    if result.cancelled:
+        final_status = "CANCELLED"
+    elif failed_count:
+        final_status = "PARTIAL" if completed_count or counts["ALREADY_VALID"] else "FAILED"
+    elif completed_count:
+        final_status = "COMPLETED"
+    else:
+        final_status = "SKIPPED"
     console.print(
-        f"fila concluída total={len(result.outcomes)} concluídos={counts['COMPLETED']} "
+        f"status={final_status} fila concluída total={len(result.outcomes)} concluídos={counts['COMPLETED']} "
         f"concluídos_v2={counts['COMPLETED_V2'] + counts['RECOVERED_V2']} "
         f"já_concluídos_v2={counts['ALREADY_COMPLETED_V2']} "
         f"já válidos={counts['ALREADY_VALID']} falhos={counts['FAILED']} bloqueados={counts['BLOCKED']} "
@@ -495,7 +547,17 @@ def _download_batch(
         f"tempo={result.elapsed_seconds:.1f}s",
         markup=False, highlight=False,
     )
-    return 4 if result.failed else (130 if result.cancelled else 0)
+    emit_operational_event(
+        "download.queue.finished",
+        component="cli.download",
+        status=final_status,
+        items_total=len(result.outcomes),
+        items_completed=completed_count,
+        items_failed=failed_count,
+        items_skipped=skipped_count,
+        workers=args.workers,
+    )
+    return 130 if result.cancelled else (4 if result.failed else 0)
 
 
 def _scan_channel(
@@ -938,7 +1000,16 @@ def main(
         configuration = load_configuration(
             config_path=args.config,
             log_level=args.log_level,
+            workers=args.cli_workers,
+            attempts_per_media=args.cli_attempts_per_media,
+            download_dir=args.cli_download_dir,
+            database_path=args.cli_database_path,
         )
+        args.workers = configuration.workers
+        args.attempts_per_media = configuration.attempts_per_media
+        args.download_dir = configuration.download_dir
+        args.database = configuration.database_path
+        configure_operational_logging(configuration.log_level)
         if args.command == "credentials":
             if args.credentials_action == "setup":
                 return _credentials_setup(
@@ -1004,30 +1075,84 @@ def main(
         ).print(line, markup=False, highlight=False, soft_wrap=True)
         return 0
     except ConfigurationError:
+        configure_operational_logging("INFO")
+        emit_operational_event(
+            "configuration.rejected",
+            component="cli.config",
+            level=30,
+            category="CONFIGURATION",
+            status="FAILED",
+        )
         sys.stderr.write("configuration error\n")
         return 2
     except CredentialVaultError:
         sys.stderr.write("credentials vault error\n")
         return 2
     except AuthenticationError as error:
+        emit_operational_event(
+            "operation.failed", component="cli.auth", level=40,
+            category="AUTHENTICATION", status="FAILED",
+        )
         sys.stderr.write(f"{error}\n")
         return 3
     except ChannelDiscoveryError as error:
+        category = getattr(error, "category", "ACCESS")
+        if not isinstance(category, str):
+            category = getattr(category, "value", "ACCESS")
+        emit_operational_event(
+            "operation.failed", component="cli.discovery", level=40,
+            category=category, status="FAILED",
+        )
         sys.stderr.write(f"{error}\n")
         return 3
     except TimeoutError:
+        emit_operational_event(
+            "operation.failed", component="cli.scan", level=40,
+            category="TIMEOUT", status="FAILED",
+        )
         sys.stderr.write("scan timeout\n")
         return 4
     except ScanGatewayError as error:
+        emit_operational_event(
+            "operation.failed", component="cli.scan", level=40,
+            category=error.category, status="FAILED",
+        )
         sys.stderr.write(f"scan failed category={error.category}\n")
         return 4
     except CatalogError as error:
+        emit_operational_event(
+            "operation.failed", component="cli.catalog", level=40,
+            category=error.category, status="FAILED",
+        )
         sys.stderr.write(f"catalog failed category={error.category}\n")
         return 4
     except DownloadError as error:
+        status = (
+            "BLOCKED"
+            if error.category in {"INSUFFICIENT_DISK_SPACE", "TRANSFER_BUDGET_EXHAUSTED"}
+            else "FAILED"
+        )
+        emit_operational_event(
+            "operation.failed", component="cli.download", level=40,
+            category=error.category, status=status,
+        )
         sys.stderr.write(f"download failed category={error.category}\n")
         return 4
+    except KeyboardInterrupt:
+        emit_operational_event(
+            "operation.cancelled", component="cli", level=30,
+            status="CANCELLED",
+        )
+        sys.stderr.write("operation cancelled\n")
+        return 130
     except Exception:
+        # Configuration may have failed before the logger was initialized;
+        # do not reuse an earlier invocation's possibly closed stderr.
+        configure_operational_logging("INFO")
+        emit_operational_event(
+            "operation.failed", component="cli", level=40,
+            category="INTERNAL", status="FAILED",
+        )
         sys.stderr.write("internal error\n")
         return 1
 

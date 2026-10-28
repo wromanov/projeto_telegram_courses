@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import json
+import logging
+import random
 import shutil
 import sqlite3
 import time
@@ -26,6 +28,7 @@ from telegram_courses.downloads import (
     _reject_reparse_path,
     destination_paths,
 )
+from telegram_courses.operational_logging import emit_operational_event
 
 GIB = 1024**3
 MAX_WORKERS = 2
@@ -443,6 +446,7 @@ class DownloadQueue:
         attempts_per_media: int = 3,
         free_space: Callable[[Path], int] | None = None,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
+        random_uniform: Callable[[float, float], float] = random.uniform,
         clock: Callable[[], float] = time.monotonic,
         progress_callback: Callable[[dict[str, int]], None] | None = None,
         max_media_items: int | None = None,
@@ -466,6 +470,7 @@ class DownloadQueue:
         self.workers, self.attempts_per_media = workers, attempts_per_media
         self.free_space = free_space or (lambda path: shutil.disk_usage(path).free)
         self.sleep = sleep
+        self.random_uniform = random_uniform
         self.clock = clock
         self.progress_callback = progress_callback
         self.max_media_items = max_media_items
@@ -876,6 +881,14 @@ class DownloadQueue:
                             if type(retry_after) is not int or retry_after < 0:
                                 break
                             delay = max(1, retry_after)
+                            emit_operational_event(
+                                "download_floodwait_observed",
+                                component="download_queue",
+                                level=logging.WARNING,
+                                category=error.category,
+                                attempt=attempt + 1,
+                                retry_after_seconds=delay,
+                            )
                             async with self._rate_lock:
                                 self._cooldown_until = max(self._cooldown_until, self.clock() + delay)
                             if waits + delay > FLOODWAIT_MAX_SECONDS or attempt + 1 >= self.attempts_per_media:
@@ -890,11 +903,24 @@ class DownloadQueue:
                             "REMOTE_HASH_UNAVAILABLE", "REMOTE_HASHES_UNAVAILABLE",
                         } or attempt + 1 >= self.attempts_per_media:
                             break
+                        # Full jitter prevents synchronized workers from
+                        # repeating transient failures in lockstep. The attempt
+                        # budget bounds the exponential window without adding a
+                        # separate retry cap or wait budget.
+                        delay = self.random_uniform(0.0, float(2**attempt))
+                        emit_operational_event(
+                            "download_retry_scheduled",
+                            component="download_queue",
+                            level=logging.WARNING,
+                            category=error.category,
+                            attempt=attempt + 1,
+                        )
+                        await self.sleep(delay)
+                    except asyncio.CancelledError:
+                        raise
                     except Exception:
                         last_error = DownloadError("TRANSFER_FAILED")
                         break
-                    except asyncio.CancelledError:
-                        raise
                 if last_error is not None:
                     if last_error.category == "INSUFFICIENT_DISK_SPACE":
                         stop.set()

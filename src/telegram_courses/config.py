@@ -1,17 +1,34 @@
-"""Load and validate the minimal S0 configuration."""
+"""Load and validate local application settings and credentials."""
 
 from __future__ import annotations
 
 import os
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 _DEFAULT_CONFIG_PATH = Path("config/settings.toml")
 _LOG_LEVELS = {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
-_SENSITIVE_KEYS = {"api_id", "api_hash", "password", "session", "session_string"}
+_SENSITIVE_KEYS = {
+    "api_id",
+    "api_hash",
+    "api_key",
+    "access_token",
+    "auth_token",
+    "bot_token",
+    "client_secret",
+    "credential",
+    "credentials",
+    "password",
+    "refresh_token",
+    "secret",
+    "secret_key",
+    "session",
+    "session_string",
+    "token",
+}
 
 
 class ConfigurationError(Exception):
@@ -22,6 +39,10 @@ class ConfigurationError(Exception):
 class Configuration:
     config: str
     log_level: str
+    workers: int = 2
+    attempts_per_media: int = 3
+    download_dir: str = "downloads"
+    database_path: str = "data/catalog.sqlite3"
 
 
 @dataclass(frozen=True)
@@ -82,7 +103,7 @@ def _validate_log_level(value: Any) -> str:
 
 def _read_configuration(
     config_path: str | None, environ: Mapping[str, str]
-) -> tuple[str, str | None]:
+) -> tuple[str, dict[str, Any]]:
     environment_path = environ.get("TELEGRAM_COURSES_CONFIG")
     explicit_path = config_path if config_path is not None else environment_path
     selected_path = explicit_path if explicit_path is not None else _DEFAULT_CONFIG_PATH
@@ -99,7 +120,7 @@ def _read_configuration(
     except FileNotFoundError:
         if explicit_path is not None:
             raise ConfigurationError from None
-        return "defaults", None
+        return "defaults", {}
     except OSError:
         raise ConfigurationError from None
 
@@ -109,31 +130,145 @@ def _read_configuration(
         raise ConfigurationError from None
 
     _validate_sensitive_keys(data)
-    if set(data) - {"logging"}:
+    if set(data) - {"logging", "download", "storage"}:
         raise ConfigurationError
-    level: str | None = None
+    settings: dict[str, Any] = {}
     if "logging" in data:
         logging = data["logging"]
         if not isinstance(logging, dict) or set(logging) - {"level"}:
             raise ConfigurationError
         if "level" in logging:
-            level = _validate_log_level(logging["level"])
-    return "file", level
+            settings["log_level"] = _validate_log_level(logging["level"])
+    if "download" in data:
+        download = data["download"]
+        if not isinstance(download, dict) or set(download) - {
+            "workers", "attempts_per_media", "directory"
+        }:
+            raise ConfigurationError
+        if "workers" in download:
+            settings["workers"] = _validate_workers(download["workers"])
+        if "attempts_per_media" in download:
+            settings["attempts_per_media"] = _validate_attempts(
+                download["attempts_per_media"]
+            )
+        if "directory" in download:
+            settings["download_dir"] = _validate_path_setting(
+                download["directory"]
+            )
+    if "storage" in data:
+        storage = data["storage"]
+        if not isinstance(storage, dict) or set(storage) - {"database_path"}:
+            raise ConfigurationError
+        if "database_path" in storage:
+            settings["database_path"] = _validate_path_setting(
+                storage["database_path"]
+            )
+    return "file", settings
+
+
+def _validate_workers(value: Any) -> int:
+    if type(value) is not int or not 1 <= value <= 2:
+        raise ConfigurationError
+    return value
+
+
+def _validate_attempts(value: Any) -> int:
+    if type(value) is not int or not 1 <= value <= 3:
+        raise ConfigurationError
+    return value
+
+
+def _validate_path_setting(value: Any) -> str:
+    if not isinstance(value, str) or not value.strip() or "\x00" in value:
+        raise ConfigurationError
+    return value
+
+
+def _environment_integer(
+    environ: Mapping[str, str], name: str, validate: Callable[[Any], int]
+) -> int | None:
+    if name not in environ:
+        return None
+    raw = environ[name]
+    if not raw.isascii() or not raw.isdecimal():
+        raise ConfigurationError
+    return validate(int(raw))
 
 
 def load_configuration(
-    *, config_path: str | None = None, log_level: str | None = None
+    *,
+    config_path: str | None = None,
+    log_level: str | None = None,
+    workers: int | None = None,
+    attempts_per_media: int | None = None,
+    download_dir: str | None = None,
+    database_path: str | None = None,
+    environ: Mapping[str, str] | None = None,
 ) -> Configuration:
-    """Return the public config indicator and effective logging level."""
-    environ = os.environ
-    indicator, file_level = _read_configuration(config_path, environ)
+    """Resolve CLI, environment, TOML, then application defaults."""
+    source = os.environ if environ is None else environ
+    indicator, file_settings = _read_configuration(config_path, source)
 
-    environment_level = environ.get("TELEGRAM_COURSES_LOG_LEVEL")
+    environment_level = source.get("TELEGRAM_COURSES_LOG_LEVEL")
     if environment_level is not None:
         _validate_log_level(environment_level)
     cli_level = _validate_log_level(log_level) if log_level is not None else None
 
+    environment_workers = _environment_integer(
+        source, "TELEGRAM_COURSES_WORKERS", _validate_workers
+    )
+    environment_attempts = _environment_integer(
+        source, "TELEGRAM_COURSES_ATTEMPTS_PER_MEDIA", _validate_attempts
+    )
+    environment_download_dir = source.get("TELEGRAM_COURSES_DOWNLOAD_DIR")
+    if environment_download_dir is not None:
+        _validate_path_setting(environment_download_dir)
+    environment_database = source.get("TELEGRAM_COURSES_DATABASE_PATH")
+    if environment_database is not None:
+        _validate_path_setting(environment_database)
+
+    cli_workers = _validate_workers(workers) if workers is not None else None
+    cli_attempts = (
+        _validate_attempts(attempts_per_media)
+        if attempts_per_media is not None
+        else None
+    )
+    cli_download_dir = (
+        _validate_path_setting(download_dir) if download_dir is not None else None
+    )
+    cli_database = (
+        _validate_path_setting(database_path) if database_path is not None else None
+    )
+
     return Configuration(
         config=indicator,
-        log_level=cli_level or environment_level or file_level or "INFO",
+        log_level=cli_level or environment_level or file_settings.get("log_level", "INFO"),
+        workers=(
+            cli_workers
+            if cli_workers is not None
+            else environment_workers
+            if environment_workers is not None
+            else file_settings.get("workers", 2)
+        ),
+        attempts_per_media=(
+            cli_attempts
+            if cli_attempts is not None
+            else environment_attempts
+            if environment_attempts is not None
+            else file_settings.get("attempts_per_media", 3)
+        ),
+        download_dir=(
+            cli_download_dir
+            if cli_download_dir is not None
+            else environment_download_dir
+            if environment_download_dir is not None
+            else file_settings.get("download_dir", "downloads")
+        ),
+        database_path=(
+            cli_database
+            if cli_database is not None
+            else environment_database
+            if environment_database is not None
+            else file_settings.get("database_path", "data/catalog.sqlite3")
+        ),
     )
