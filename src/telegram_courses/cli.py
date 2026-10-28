@@ -42,6 +42,7 @@ from telegram_courses.credentials import (
 )
 from telegram_courses.download_repository import DownloadRepository
 from telegram_courses.downloads import (
+    CHUNK_BYTES,
     DownloadError,
     DownloadGatewayError,
     SingleMediaDownloadApplication,
@@ -71,12 +72,20 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--download-dir", default=os.environ.get("TELEGRAM_COURSES_DOWNLOAD_DIR", "downloads"))
     parser.add_argument("--max-messages", type=int)
     parser.add_argument("--timeout-seconds", type=float)
+    parser.add_argument("--incremental", action="store_true")
+    parser.add_argument("--reconcile-window", type=int)
     parser.add_argument("--database", default="data/catalog.sqlite3")
     parser.add_argument("--parser-key")
     parser.add_argument("--scope", choices=("channel", "course", "module", "lesson"), default="channel")
     parser.add_argument("--workers", type=int, default=2)
     parser.add_argument("--max-media-items", type=int)
     parser.add_argument("--max-transfer-bytes", type=int)
+    parser.add_argument(
+        "--integrity-mode",
+        choices=("REMOTE_HASH_REQUIRED", "OPERATIONAL_ONLY", "TRUSTED_REFERENCE"),
+        default="REMOTE_HASH_REQUIRED",
+    )
+    parser.add_argument("--reference-manifest")
     parser.add_argument("--confirm", action="store_true")
     args = parser.parse_args(argv)
     if (args.config is not None and len(args.config) != 1) or (
@@ -87,6 +96,11 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     args.log_level = args.log_level[0] if args.log_level else None
     if args.command != "download" and (
         args.max_media_items is not None or args.max_transfer_bytes is not None
+        or args.integrity_mode != "REMOTE_HASH_REQUIRED" or args.reference_manifest is not None
+    ):
+        raise ConfigurationError from None
+    if args.command != "scan" and (
+        args.incremental or args.reconcile_window is not None
     ):
         raise ConfigurationError from None
     if args.command in {"credentials", "catalog"} and args.credentials_action is None:
@@ -111,7 +125,16 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
             raise ConfigurationError from None
         if args.max_messages <= 0 or args.timeout_seconds <= 0:
             raise ConfigurationError from None
+        if args.incremental:
+            if args.reconcile_window is None or args.reconcile_window < 0:
+                raise ConfigurationError from None
+        elif args.reconcile_window is not None:
+            raise ConfigurationError from None
     elif args.command == "download":
+        if (
+            args.integrity_mode == "TRUSTED_REFERENCE"
+        ) != (args.reference_manifest is not None):
+            raise ConfigurationError from None
         if args.credentials_action in {"plan", "queue"}:
             if (args.channel_id is None or args.channel_id == 0
                     or args.telegram_message_id is not None or args.media_ordinal is not None
@@ -143,9 +166,20 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
 
 def _download_single(
     *, channel_id: int, message_id: int, media_ordinal: int, database: str,
-    download_dir: str, gateway_factory: Callable[[TelegramCredentials], object] = TelethonGateway,
+    download_dir: str, integrity_mode: str = "REMOTE_HASH_REQUIRED",
+    reference_manifest_path: str | None = None,
+    gateway_factory: Callable[[TelegramCredentials], object] = TelethonGateway,
     credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
 ) -> int:
+    if integrity_mode != "REMOTE_HASH_REQUIRED":
+        Console(file=sys.stdout, force_terminal=False, no_color=True).print(
+            f"modo selecionado={integrity_mode} garantia pretendida="
+            f"{'UNVERIFIED_ORIGIN' if integrity_mode == 'OPERATIONAL_ONLY' else 'REFERENCE_MATCH'} "
+            "limitação=V2_EFFECTIVE_NO; estimativa=use download queue plan; "
+            "bloqueado antes de banco/RPC/payload",
+            markup=False, highlight=False,
+        )
+        return 4
     from telegram_courses.auth import AuthState
 
     async def run() -> object:
@@ -187,7 +221,11 @@ def _download_single(
                     file=sys.stdout, force_terminal=False, no_color=True
                 ).print(f"progress bytes={current}/{total}", markup=False, highlight=False),
             )
-            return await application.download(channel_id, message_id, media_ordinal)
+            return await application.download(
+                channel_id, message_id, media_ordinal,
+                integrity_mode=integrity_mode,
+                reference_manifest_path=reference_manifest_path,
+            )
         finally:
             if lazy_gateway.gateway is not None:
                 await lazy_gateway.gateway.close()
@@ -246,6 +284,18 @@ def _download_batch(
         f"bytes pendentes={plan.pending_bytes} margem={plan.safety_margin}",
         markup=False, highlight=False,
     )
+    for item in plan.pending:
+        if item.status == "CONDITIONAL_RESUME_CANDIDATE" and item.candidate is not None:
+            expected = item.candidate.expected_bytes
+            console.print(
+                "CONDITIONAL_RESUME_CANDIDATE "
+                f"message={item.identity[1]} E={expected} P={item.part_bytes} "
+                f"E-P={expected - item.part_bytes} W={item.wire_offset} O={item.overlap_bytes} "
+                f"payload_estimate={item.estimated_payload_bytes} "
+                f"additional_disk_estimate={item.estimated_additional_disk_bytes} "
+                "estimate=PROVISIONAL remote_validation=REQUIRED",
+                markup=False, highlight=False,
+            )
     selected_count = len(plan.items)
     expected_bytes = sum(
         item.candidate.expected_bytes for item in plan.eligible if item.candidate is not None
@@ -286,8 +336,62 @@ def _download_batch(
         console.print(f"  {reason}: {count}", markup=False, highlight=False)
     if not plan.catalog_complete:
         console.print("catálogo parcial: o plano cobre somente o conteúdo observado", markup=False, highlight=False)
+    mode = args.integrity_mode
+    guarantee = {
+        "REMOTE_HASH_REQUIRED": "REMOTE_HASH_FULL / V1 fail-closed",
+        "OPERATIONAL_ONLY": "OPERATIONAL_ONLY / UNVERIFIED_ORIGIN",
+        "TRUSTED_REFERENCE": "REFERENCE_MATCH; hashes remotos permanecem independentes",
+    }[mode]
+    if mode == "OPERATIONAL_ONLY":
+        reread = sum(
+            ((item.part_bytes + CHUNK_BYTES - 1) // CHUNK_BYTES) * CHUNK_BYTES
+            for item in plan.pending
+        )
+        transfer = sum(
+            ((max(0, item.candidate.expected_bytes - item.wire_offset) + CHUNK_BYTES - 1)
+             // CHUNK_BYTES) * CHUNK_BYTES
+            for item in plan.pending if item.candidate is not None
+        )
+        cost = f"releitura_reservada={reread} transfer_reservado={transfer} total={reread + transfer} bytes"
+        limitation = "origem não verificada criptograficamente"
+    elif mode == "TRUSTED_REFERENCE":
+        transfer = sum(item.estimated_payload_bytes or 0 for item in plan.pending)
+        cost = f"payload_estimado={transfer} bytes; releitura_integral_de_prefixo=0"
+        limitation = "referência local e manifesto devem permanecer estáveis; não prova origem Telegram"
+    else:
+        cost = "releitura adicional=0; custo exato de hashes depende das faixas remotas"
+        limitation = "qualquer ausência, indisponibilidade, resposta inválida ou divergência não permite downgrade"
+    console.print(
+        f"modo selecionado={mode} garantia pretendida={guarantee} "
+        f"limitação={limitation} custo={cost}",
+        markup=False, highlight=False,
+    )
     if args.credentials_action == "plan":
         return 0 if deterministic_order else 4
+    if mode == "TRUSTED_REFERENCE":
+        if len(plan.pending) != 1 or plan.pending[0].candidate is None:
+            console.print("bloqueado: TRUSTED_REFERENCE exige exatamente um item pendente", markup=False, highlight=False)
+            return 4
+        from telegram_courses.s6_integrity import load_reference
+        candidate = plan.pending[0].candidate
+        try:
+            load_reference(
+                args.reference_manifest,
+                channel_id=candidate.channel_id,
+                telegram_message_id=candidate.telegram_message_id,
+                media_ordinal=candidate.media_ordinal,
+                telegram_media_id=candidate.telegram_media_id,
+                expected_bytes=candidate.expected_bytes,
+            )
+        except (OSError, ValueError):
+            console.print("bloqueado: referência ou manifesto inválido para o item selecionado", markup=False, highlight=False)
+            return 4
+    if mode != "REMOTE_HASH_REQUIRED":
+        console.print(
+            "execução bloqueada: V2_EFFECTIVE=NO; nenhum modo V2 pode iniciar RPC ou payload",
+            markup=False, highlight=False,
+        )
+        return 4
     if limit_check == "FAIL" or not deterministic_order:
         console.print("execução bloqueada: prévia ou limites configurados não aprovados", markup=False, highlight=False)
         return 4
@@ -329,6 +433,14 @@ def _download_batch(
             gateway = await self._initialization
             async for chunk in gateway.stream_media(*call_args, **kwargs):
                 yield chunk
+        async def get_file_hashes(self, *call_args: object, **kwargs: object):
+            if self._initialization is None:
+                self._initialization = asyncio.create_task(self._initialize())
+            gateway = await self._initialization
+            getter = getattr(gateway, "get_file_hashes", None)
+            if not callable(getter):
+                raise DownloadGatewayError("REMOTE_HASHES_UNAVAILABLE")
+            return await getter(*call_args, **kwargs)
         async def close(self) -> None:
             if self.gateway is not None:
                 await self.gateway.close()
@@ -347,6 +459,8 @@ def _download_batch(
                 repository, app, workers=args.workers,
                 max_media_items=args.max_media_items,
                 max_transfer_bytes=args.max_transfer_bytes,
+                integrity_mode=args.integrity_mode,
+                reference_manifest_path=args.reference_manifest,
                 progress_callback=lambda state: console.print(
                     f"fila total={state['total']} pendentes={state['pending']} "
                     f"em_execução={state['running']} concluídos={state['completed']} "
@@ -361,10 +475,21 @@ def _download_batch(
             await gateway.close()
 
     result = asyncio.run(execute())
+    for identity, status, detail in result.outcomes:
+        if status in {"COMPLETED_V2", "RECOVERED_V2", "ALREADY_COMPLETED_V2"}:
+            console.print(
+                f"evidência obtida item={identity} resultado={status} detalhe={detail}",
+                markup=False, highlight=False,
+            )
     counts = {key: sum(status == key for _, status, _ in result.outcomes)
-              for key in ("COMPLETED", "ALREADY_VALID", "FAILED", "BLOCKED", "CANCELLED")}
+              for key in (
+                  "COMPLETED", "COMPLETED_V2", "RECOVERED_V2", "ALREADY_COMPLETED_V2",
+                  "ALREADY_VALID", "FAILED", "BLOCKED", "CANCELLED",
+              )}
     console.print(
         f"fila concluída total={len(result.outcomes)} concluídos={counts['COMPLETED']} "
+        f"concluídos_v2={counts['COMPLETED_V2'] + counts['RECOVERED_V2']} "
+        f"já_concluídos_v2={counts['ALREADY_COMPLETED_V2']} "
         f"já válidos={counts['ALREADY_VALID']} falhos={counts['FAILED']} bloqueados={counts['BLOCKED']} "
         f"bytes transferidos={result.transferred_bytes} tentativas={result.attempts} "
         f"tempo={result.elapsed_seconds:.1f}s",
@@ -381,6 +506,8 @@ def _scan_channel(
     database: str,
     gateway_factory: Callable[[TelegramCredentials], object],
     credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
+    incremental: bool = False,
+    reconcile_window: int = 0,
 ) -> int:
     from telegram_courses.message_scanner import ScanRequest
     from telegram_courses.scan_application import ScanApplication
@@ -394,16 +521,60 @@ def _scan_channel(
     outcome = asyncio.run(
         application.scan(
             channel_id,
-            ScanRequest(max_messages=max_messages, timeout_seconds=timeout_seconds),
+            ScanRequest(
+                max_messages=max_messages,
+                timeout_seconds=timeout_seconds,
+                mode="INCREMENTAL" if incremental else "FULL",
+                reconcile_window=reconcile_window if incremental else 0,
+            ),
         )
     )
-    Console(file=sys.stdout, force_terminal=False, no_color=True).print(
-        f"scan run={outcome.run_id} status={outcome.status.value} "
-        f"messages={outcome.messages_seen} media={outcome.media_seen}"
-        + (f" stop={outcome.stop_reason}" if outcome.stop_reason else ""),
-        markup=False,
-        highlight=False,
-    )
+    console = Console(file=sys.stdout, force_terminal=False, no_color=True)
+    if incremental:
+        catalog_result = None
+        catalog_state = "NOT_REBUILT"
+        if outcome.status.value == "COMPLETE":
+            try:
+                catalog_result = asyncio.run(
+                    CatalogApplication(SQLiteCatalogRepository(database)).build(channel_id)
+                )
+                catalog_state = f"COMPLETE parser={catalog_result.parser_key}"
+            except Exception as error:
+                category = getattr(error, "category", type(error).__name__.upper())
+                catalog_state = f"FAILED reason={category}"
+        unverified = (
+            "pending" if outcome.messages_unverified is None
+            else str(outcome.messages_unverified)
+        )
+        high_water = (
+            str(outcome.high_water_confirmed)
+            if outcome.has_confirmed_high_water
+            else "none"
+        )
+        console.print(
+            f"sync channel={channel_id} mode=incremental max_messages={max_messages} "
+            f"reconcile_window={reconcile_window} run={outcome.run_id} "
+            f"status={outcome.status.value} new={outcome.messages_inserted} "
+            f"updated={outcome.messages_updated} unchanged={outcome.messages_unchanged} "
+            f"unverified={unverified} media_unverified={outcome.media_unverified} "
+            f"checkpoint_confirmed={high_water} "
+            f"cursor={outcome.last_message_id if outcome.last_message_id is not None else 'none'}"
+            + f" catalog={catalog_state}"
+            + (f" stop={outcome.stop_reason}" if outcome.stop_reason else ""),
+            markup=False,
+            highlight=False,
+        )
+    else:
+        console.print(
+            f"scan run={outcome.run_id} status={outcome.status.value} "
+            f"messages={outcome.messages_seen} media={outcome.media_seen} "
+            f"media_unverified={outcome.media_unverified}"
+            + (f" stop={outcome.stop_reason}" if outcome.stop_reason else ""),
+            markup=False,
+            highlight=False,
+        )
+    if incremental:
+        return 0 if outcome.status.value == "COMPLETE" and catalog_result is not None else 4
     return 0 if outcome.status.value == "COMPLETE" else 4
 
 
@@ -800,6 +971,8 @@ def main(
                 database=args.database,
                 gateway_factory=scan_gateway_factory or _scan_gateway,
                 credentials_loader=credentials_loader,
+                incremental=args.incremental,
+                reconcile_window=args.reconcile_window or 0,
             )
         if args.command == "download":
             if args.credentials_action in {"plan", "queue"}:
@@ -813,6 +986,8 @@ def main(
                 channel_id=args.channel_id, message_id=args.telegram_message_id,
                 media_ordinal=args.media_ordinal, database=args.database,
                 download_dir=args.download_dir,
+                integrity_mode=args.integrity_mode,
+                reference_manifest_path=args.reference_manifest,
                 gateway_factory=download_gateway_factory or gateway_factory,
                 credentials_loader=credentials_loader,
             )

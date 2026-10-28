@@ -8,7 +8,7 @@
 DOCUMENT_ROLE = EXECUTION_PLAN
 RECONCILED_AT = 2026-10-09 / America/Sao_Paulo
 
-A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](../../product/REQUIREMENTS.md) é a authority dos requisitos; [ROADMAP.md](ROADMAP.md) define as fases. O estado corrente e toda autorização ficam em [PROJECT_STATE.md](../PROJECT_STATE.md). Critérios abaixo são evidências planejadas, não resultados já obtidos.
+A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](../../product/REQUIREMENTS.md) é a authority dos requisitos; [ROADMAP.md](ROADMAP.md) define as fases. O estado corrente e toda autorização ficam em PROJECT_STATE.md (authority canônica mantida localmente e omitida da baseline pública). Critérios abaixo são evidências planejadas, não resultados já obtidos.
 
 ## S0 — Repository / Project Bootstrap
 
@@ -40,7 +40,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **FLOODWAIT_RETRY_OWNERSHIP:** APPROVED (design decision only; no implementation evidence).
 - **S1_DOR:** PASS; evidence: `docs/reports/S1_DOR_GAP_REVIEW_2026-10-07.md`; S1-B offline implementation authorization and result are recorded in `docs/governance/APPROVALS_AND_DECISIONS.md` and `PROJECT_STATE.md`.
 - **S1-B_OFFLINE_AUTHENTICATION_GATEWAY:** PASS; frozen contract: `docs/contracts/S1B_AUTHENTICATION_GATEWAY_IMPLEMENTATION_CONTRACT.md`; offline full pytest and Ruff PASS; no real Telegram authentication, credential or session.
-- **NEXT_CANDIDATE:** S2 — Message Scanner + SQLite Persistence; S1 has been formally accepted and closed after GOV-01 resolution (see [PROJECT_STATE](../PROJECT_STATE.md) and the S1-D contract). S2 remains PLANNED / NOT_STARTED and requires its own entry review and implementation authorization.
+- **NEXT_CANDIDATE:** S2 — Message Scanner + SQLite Persistence; S1 has been formally accepted and closed after GOV-01 resolution (see PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública) and the S1-D contract). S2 remains PLANNED / NOT_STARTED and requires its own entry review and implementation authorization.
 - **S1-C_ENTRY_REVIEW:** PASS / READINESS_BLOCKERS = NONE; read-only review result supplied for the S1 checkpoint; readiness does not grant execution authorization.
 - **DELIVERABLES:** Authenticated gateway path and channel discovery flow.
 - **TESTS:** Unit tests without Telegram login for application behavior; separate Telegram integration checks for authentication and channel discovery.
@@ -65,7 +65,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **GATES:** Scanner and persistence acceptance.
 - **DEFINITION_OF_DONE:** Requirement criteria, unit/local integration tests and migrations pass. S2 closure also requires separately authorized Telegram history acceptance; offline validation alone does not close this sprint.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S2 accepted; persisted scan input is available for parser work. S3 remains NOT_STARTED and implementation requires separate authorization.
-- **STATUS:** ACCEPTED / CLOSED. Offline evidence: 140 pytest tests + 11 subtests, Ruff and diff check PASS. Real scan SQLite acceptance: PARTIAL / MESSAGE_LIMIT, 10 messages, 5 media; checkpoint, foreign keys, uniqueness, integrity, no downloads, and close/reopen PASS. See [PROJECT_STATE](../PROJECT_STATE.md) and [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
+- **STATUS:** ACCEPTED / CLOSED. Offline evidence: 140 pytest tests + 11 subtests, Ruff and diff check PASS. Real scan SQLite acceptance: PARTIAL / MESSAGE_LIMIT, 10 messages, 5 media; checkpoint, foreign keys, uniqueness, integrity, no downloads, and close/reopen PASS. See PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública) and CONTINUITY_RECORD (authority canônica mantida localmente e omitida da baseline pública).
 
 ## S3 — RASMOO Parser + Catalog CLI
 
@@ -82,7 +82,7 @@ A sequência S0–S10 vem do baseline do usuário, seção 7. [REQUIREMENTS.md](
 - **GATES:** Catalog/parser acceptance; parser correctness before mass download.
 - **DEFINITION_OF_DONE:** Approved parser/catalog criteria and corresponding tests pass; no parser performs infrastructure work.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S3 accepted; catalog can identify a selectable lesson/media item.
-- **STATUS:** ACCEPTED / CLOSED. `S3-MAG-01` PASS; generic core and RasmooParser PASS; real catalog validation PASS_WITH_SCOPE; idempotency PASS; Windows CLI PASS; full regression 167 passed + 11 subtests; Ruff and diff check PASS. See [PROJECT_STATE](../PROJECT_STATE.md) and [CONTINUITY_RECORD](../CONTINUITY_RECORD.md).
+- **STATUS:** ACCEPTED / CLOSED. `S3-MAG-01` PASS; generic core and RasmooParser PASS; real catalog validation PASS_WITH_SCOPE; idempotency PASS; Windows CLI PASS; full regression 167 passed + 11 subtests; Ruff and diff check PASS. See PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública) and CONTINUITY_RECORD (authority canônica mantida localmente e omitida da baseline pública).
 
 O scan real limitou-se a 30 mensagens e 26 mídias, encerrando por
 `MESSAGE_LIMIT`; não cobre o canal inteiro. A gramática aprovada limita-se aos
@@ -136,7 +136,7 @@ no canal real permanece planejada para S9.
 - **GATES:** Course selection and queue acceptance.
 - **DEFINITION_OF_DONE:** Approved selection/planning/queue criteria and relevant tests pass; no duplicate or conflicting state is introduced.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S5 accepted; partial transfer state can be recovered by the next slice.
-- **STATUS:** CLOSED / FORMAL ACCEPTANCE APPROVED / CLOSURE PASS. Offline validation PASS (206 passed + 11 subtests; 56 focused tests) and S5-REAL-PROOF-01 PASS; evidence covers five observed media only (CATALOG_SCOPE = PARTIAL), and gateway calls were not directly observable. Historical failure, correction, recovery and deduplication checkpoints are preserved; see [PROJECT_STATE](../PROJECT_STATE.md).
+- **STATUS:** CLOSED / FORMAL ACCEPTANCE APPROVED / CLOSURE PASS. Offline validation PASS (206 passed + 11 subtests; 56 focused tests) and S5-REAL-PROOF-01 PASS; evidence covers five observed media only (CATALOG_SCOPE = PARTIAL), and gateway calls were not directly observable. Historical failure, correction, recovery and deduplication checkpoints are preserved; see PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública).
 - **IMPLEMENTATION_AUTHORIZATION:** Historical bounded authorizations are recorded in PROJECT_STATE and continuity checkpoints; this plan does not grant new authority or formal acceptance.
 
 ## S6 — Partial Download + Resume + Recovery
@@ -147,18 +147,30 @@ no canal real permanece planejada para S9.
 - **OUT_OF_SCOPE:** Incremental catalog synchronization and optimization unrelated to recovery.
 - **DEPENDENCIES:** S4 single-download/file-commit contract; S5 queue behavior where applicable.
 - **FUNCTIONAL_REQUIREMENTS:** FR-12; related FR-08/FR-09.
-- **TECHNICAL_REQUIREMENTS:** Application-controlled resume; `.part` validation; offset from physical partial size; adapter-supported streaming; exact expected-size validation; optional hash; atomic finalization; never falsely mark complete.
+- **TECHNICAL_REQUIREMENTS:** As frozen in the S6 contract: physical offset authority; SHA-256 remote range coverage for the complete prefix; aligned stream plus validated overlap; fsync before SQLite checkpoint; existing state recovery; S5 queue/budget/disk reuse; no schema migration; atomic no-overwrite finalization.
 - **DELIVERABLES:** Restart-safe partial download recovery and resume path.
 - **TESTS:** Unit tests for state transitions; local `.part` recovery integration; technical real-large-file test: interrupt deliberately, restart, refetch message/media, resume, validate, finalize, persist `DOWNLOADED`.
 - **ACCEPTANCE_CRITERIA:** Recovery produces the correct complete file and state after a controlled interruption; technical validation passes before declaring resume complete.
 - **GATES:** Large-file resume technical validation.
 - **DEFINITION_OF_DONE:** Recovery criteria and technical test pass; otherwise FR-12 resume capability remains open.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S6 accepted; checkpoint/state behavior available for incremental synchronization.
-- **STATUS:** PLANNED / NOT_STARTED.
+- **STATUS:** ACCEPTED / CLOSED_WITH_EXCEPTIONS on 2026-10-25 by explicit user approval of Option B. The V1 technical gates remain Gate A PARTIAL and Gate B BLOCKED_BY_REMOTE_EVIDENCE; this is not V1 full conformity. See decision (authority canônica mantida localmente e omitida da baseline pública) and [final matrix](../../reports/S6_FINAL_ACCEPTANCE_DECISION_2026-10-25/REPORT.md). S7 entry review pending; implementation not authorized.
+- **CONTRACT_STATUS:** APPROVED / FROZEN by formal user acceptance on 2026-10-12; see [S6 contract](../../contracts/S6_PARTIAL_DOWNLOAD_RESUME_RECOVERY_CONTRACT.md) and PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública).
+- **IMPLEMENTATION_AUTHORIZATION:** GRANTED by direct user request for S6-IMPL-01 / OFFLINE ONLY. No real Telegram access, schema changes or Git publication.
+- **OFFLINE_VALIDATION:** PASS / previous baseline: 65 focused S6/S4/S5 tests and full pytest 215 passed + 11 subtests. Current A2 remediation: 82 focused S4/S5/S6 tests and one full pytest run with 247 passed + 11 subtests (251.16s); Ruff and compileall PASS. `git diff --check` reports inherited historical whitespace in `CONTINUITY_RECORD.md` (trailing whitespace at line 106 and a blank line at EOF); not cleaned to preserve that checkpoint.
+- **REAL_TELEGRAM_TECHNICAL_PROOF:** PARTIAL / aligned common OPERATIONAL_ONLY two-process proof PASS on 2026-10-18; nonaligned proof not accepted. Formal S6 scope-revised acceptance granted 2026-10-25 with technical proof exceptions; no V1 full conformance implied.
+- **S6-A2_PREFIX_BOUNDARY_REMEDIATION:** OFFLINE PASS / existing S6-D02 applied without contract change. Crossing variable-length remote hash ranges are checked using local `[a,P)` plus remote complement `[P,b)` before any write; the aligned stream begins at `W=floor(P/262144)*262144`, and overlap `O=P-W` is compared before append. Validation replies count toward runtime byte totals; `.part` length remains the physical checkpoint. Existing S5 reservations, queue, retry, SQLite checkpoint/fsync and no-overwrite behavior remain in force.
+- **S6-A2_VALIDATION:** PASS / 82 focused S4/S5/S6 tests; one full offline pytest run, 247 passed + 11 subtests in 251.16s; Ruff and compileall PASS. `git diff --check` WARNING / trailing whitespace at `CONTINUITY_RECORD.md:106` and blank line at EOF, apparently inherited from a preserved historical checkpoint; left unchanged. Independent Validator static review PASS; its own pytest was not run after its sandbox asyncio smoke failure. Root ran tests outside sandbox under Python 3.14.7 after asyncio smoke PASS.
+- **S6-A2_REAL_RESUME:** ALIGNED_PROOF_PASS / one user-authorized common aligned proof completed with full-file and SQLite/checkpoint validation. No nonaligned proof was executed or authorized; obtain a separate user decision before any further real operation. Formal acceptance remains pending and this plan does not authorize another real operation.
 
 ## S7 — Incremental Synchronization
 
+- **INTEGRATED_IMPLEMENTATION_CONTRACT:** [S7 + S8 contract v1.0](../../contracts/S7_S8_INCREMENTAL_SYNC_OPERATIONAL_HARDENING_IMPLEMENTATION_CONTRACT.md) / APPROVED_FROZEN 2026-10-25; does not authorize execution.
+
 - **SPRINT_ID:** S7
+- **STATUS:** CLOSED_WITH_EXCEPTIONS / APPROVED_WITH_EXCEPTIONS by explicit user decision on 2026-10-26 (OPTION_B). A1/A3/A5 are proven only in the documented offline scope; A2/A4/A6 remain PARTIAL under accepted EX-01/02/03. EX-04 is accepted; historical failure IDs/receipts remain unreconciled. This is not full S7 conformity and does not positively homologate remote deletion. See the [formal closure report](../../reports/S7_FORMAL_CLOSURE_2026-10-26/REPORT.md), [acceptance decision](../../reports/S7_FINAL_ACCEPTANCE_DECISION_2026-10-26/REPORT.md), [corrective implementation report](../../reports/S7_CORRECTIVE_IMPLEMENTATION_2026-10-26/REPORT.md), approval record (authority canônica mantida localmente e omitida da baseline pública), and PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública).
+- **ACCEPTANCE_CRITERIA_STATUS:** S7_A1=PROVEN_OFFLINE; S7_A2=PARTIAL / EX-01 ACCEPTED; S7_A3=PROVEN_OFFLINE; S7_A4=PARTIAL / EX-02 ACCEPTED; S7_A5=PROVEN_OFFLINE; S7_A6=PARTIAL / EX-03 ACCEPTED; S7_EX_04=ACCEPTED; HISTORICAL_NODE_IDS=UNRECONCILED (9 V2 / 9 CLI / 2 migration).
+- **REGRESSION_EVIDENCE:** 340_PASS_11_SUBTESTS / historical result from corrective implementation report; not executed during formal closure.
 - **OBJECTIVE:** Synchronize newly available/changed channel messages incrementally using persisted checkpoints.
 - **SCOPE:** Incremental scanner/checkpoint handling and reconciliation with the persisted catalog.
 - **OUT_OF_SCOPE:** Full redesign of parser/download flows or scheduling not defined by requirements.
@@ -170,12 +182,14 @@ no canal real permanece planejada para S9.
 - **ACCEPTANCE_CRITERIA:** Execuções incrementais e checkpoints atendem FR-10 sem duplicar catálogo/downloads; definir e validar o alcance de detecção de edições/remoções antes do início de S7, com fixtures de mudança e recuperação de scan incompleto.
 - **GATES:** Incremental synchronization acceptance.
 - **DEFINITION_OF_DONE:** Approved sync criteria and related tests pass; repeated runs are consistent.
-- **NEXT_SPRINT_ENTRY_CONDITIONS:** S7 accepted; operational error/retry/logging controls are ready for hardening.
-- **STATUS:** PLANNED / NOT_STARTED.
+- **NEXT_SPRINT_ENTRY_CONDITIONS:** S7 formally closed with exceptions; S8 Definition of Ready/readiness and separate express implementation authorization are required before starting.
 
 ## S8 — Operational Hardening
 
+- **INTEGRATED_IMPLEMENTATION_CONTRACT:** [S7 + S8 contract v1.0](../../contracts/S7_S8_INCREMENTAL_SYNC_OPERATIONAL_HARDENING_IMPLEMENTATION_CONTRACT.md) / APPROVED_FROZEN 2026-10-25; S8 implementation dependent on S7 acceptance and separate authorization.
+
 - **SPRINT_ID:** S8
+- **STATUS:** PLANNED / NOT_STARTED / DEFERRED; implementation authorization not granted. Requires separate explicit authorization.
 - **OBJECTIVE:** Harden failures, retries, logging, disk safety, progress, and configuration for normal operation.
 - **SCOPE:** Error taxonomy, bounded retry, FloodWait handling, structured operational logs, disk-capacity gate, configuration validation, bounded concurrency review.
 - **OUT_OF_SCOPE:** GUI, distributed execution, unlimited workers, new product capabilities not in the approved requirements.

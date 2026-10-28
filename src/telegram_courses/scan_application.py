@@ -42,6 +42,9 @@ class ScanApplication:
         try:
             await deadline.wait(self._repository.migrate())
             deadline.check()
+            if request.mode == "INCREMENTAL":
+                await deadline.wait(self._repository.mark_abandoned_sync_runs_interrupted())
+                deadline.check()
             credentials = self._credentials()
             deadline.check()
             gateway = self._gateway_factory(credentials)

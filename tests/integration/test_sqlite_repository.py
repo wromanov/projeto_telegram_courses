@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import asyncio
+from importlib.resources import files
 
 import aiosqlite
 import pytest
 
+import telegram_courses.sqlite_repository as sqlite_repository_module
 from telegram_courses.auth import AuthState
 from telegram_courses.config import TelegramCredentials
 from telegram_courses.message_scanner import GatewayMedia, GatewayMessage, ScanStatus
@@ -31,10 +33,94 @@ def test_migration_idempotence_wal_foreign_keys_and_reopen(tmp_path) -> None:
         try:
             assert (await (await db.execute("PRAGMA foreign_keys")).fetchone())[0] == 1
             assert (await (await db.execute("PRAGMA journal_mode")).fetchone())[0].lower() == "wal"
+            assert (await (await db.execute("PRAGMA busy_timeout")).fetchone())[0] == repository.busy_timeout_ms
             assert (await (await db.execute("SELECT text FROM messages WHERE channel_id=?", (CHAT,))).fetchone())[0] is None
             assert (await (await db.execute("SELECT last_message_id FROM sync_checkpoints WHERE scan_run_id='run-1'")).fetchone())[0] == 20
             versions = await (await db.execute("SELECT version FROM schema_migrations")).fetchall()
-            assert [row[0] for row in versions] == [1]
+            assert [row[0] for row in versions] == [1, 6, 7]
+        finally:
+            await db.close()
+
+    asyncio.run(exercise())
+
+
+def test_corrective_migration_failure_rolls_back_schema_and_version(tmp_path, monkeypatch) -> None:
+    path = tmp_path / "migration-rollback.sqlite3"
+    repository = SQLiteMessageRepository(path)
+
+    async def create_v6_baseline() -> None:
+        package = files("telegram_courses")
+        db = await aiosqlite.connect(path)
+        try:
+            for migration_name, version in (
+                ("001_initial.sql", 1),
+                ("006_s7_incremental_sync.sql", 6),
+            ):
+                sql = package.joinpath(f"migrations/{migration_name}").read_text(
+                    encoding="utf-8"
+                )
+                for statement in sql.split(";"):
+                    if statement.strip():
+                        await db.execute(statement)
+                await db.execute(
+                    "INSERT INTO schema_migrations(version, applied_at) VALUES(?, ?)",
+                    (version, "fixture"),
+                )
+            await db.commit()
+        finally:
+            await db.close()
+
+    class FailingMigrationResource:
+        def __init__(self, original) -> None:
+            self.original = original
+
+        def read_text(self, *args, **kwargs) -> str:
+            sql = self.original.read_text(*args, **kwargs)
+            return sql + "\nINSERT INTO __intentional_migration_fault__ VALUES (1);\n"
+
+    class MigrationPackage:
+        def __init__(self, original) -> None:
+            self.original = original
+
+        def joinpath(self, name: str):
+            resource = self.original.joinpath(name)
+            if name == "migrations/007_s7_corrective_identity_observation.sql":
+                return FailingMigrationResource(resource)
+            return resource
+
+    async def exercise() -> None:
+        await create_v6_baseline()
+        package = files("telegram_courses")
+        monkeypatch.setattr(
+            sqlite_repository_module,
+            "files",
+            lambda _package: MigrationPackage(package),
+        )
+
+        with pytest.raises(aiosqlite.OperationalError):
+            await repository.migrate()
+
+        db = await repository._connect()
+        try:
+            versions = await (await db.execute(
+                "SELECT version FROM schema_migrations ORDER BY version"
+            )).fetchall()
+            assert [row[0] for row in versions] == [1, 6]
+            downloads_columns = {
+                row[1] for row in await (await db.execute("PRAGMA table_info(downloads)")).fetchall()
+            }
+            media_columns = {
+                row[1] for row in await (await db.execute("PRAGMA table_info(media_items)")).fetchall()
+            }
+            scan_columns = {
+                row[1] for row in await (await db.execute("PRAGMA table_info(scan_runs)")).fetchall()
+            }
+            assert "remote_identity_provenance" not in downloads_columns
+            assert "remote_observation_state" not in media_columns
+            assert "media_unverified" not in scan_columns
+            assert (await (await db.execute("PRAGMA foreign_keys")).fetchone())[0] == 1
+            assert (await (await db.execute("PRAGMA journal_mode")).fetchone())[0].lower() == "wal"
+            assert (await (await db.execute("PRAGMA busy_timeout")).fetchone())[0] == repository.busy_timeout_ms
         finally:
             await db.close()
 

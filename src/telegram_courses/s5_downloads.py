@@ -8,6 +8,7 @@ import json
 import shutil
 import sqlite3
 import time
+import uuid
 from collections.abc import Awaitable
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +46,11 @@ class PlanItem:
     candidate: DownloadCandidate | None
     status: str
     reason: str | None = None
+    part_bytes: int = 0
+    wire_offset: int = 0
+    overlap_bytes: int = 0
+    estimated_payload_bytes: int | None = None
+    estimated_additional_disk_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -62,11 +68,18 @@ class DownloadPlan:
 
     @property
     def pending(self) -> tuple[PlanItem, ...]:
-        return tuple(item for item in self.eligible if item.status == "PENDING")
+        return tuple(
+            item for item in self.eligible
+            if item.status in {"PENDING", "CONDITIONAL_RESUME_CANDIDATE"}
+        )
 
     @property
     def already_valid(self) -> tuple[PlanItem, ...]:
         return tuple(item for item in self.eligible if item.status == "ALREADY_VALID")
+
+    @property
+    def completed_v2(self) -> tuple[PlanItem, ...]:
+        return tuple(item for item in self.eligible if item.status == "COMPLETED_V2")
 
     @property
     def blocked(self) -> tuple[PlanItem, ...]:
@@ -78,11 +91,25 @@ class DownloadPlan:
 
     @property
     def pending_bytes(self) -> int:
-        return sum(item.candidate.expected_bytes for item in self.pending if item.candidate)
+        return sum(
+            item.estimated_payload_bytes
+            if item.estimated_payload_bytes is not None
+            else item.candidate.expected_bytes
+            for item in self.pending if item.candidate
+        )
+
+    @property
+    def additional_disk_bytes(self) -> int:
+        return sum(
+            item.estimated_additional_disk_bytes
+            if item.estimated_additional_disk_bytes is not None
+            else item.candidate.expected_bytes
+            for item in self.pending if item.candidate
+        )
 
     @property
     def safety_margin(self) -> int:
-        return max(GIB, int(self.pending_bytes * 0.10))
+        return max(GIB, int(self.additional_disk_bytes * 0.10))
 
 
 def _connect_readonly(database: str | Path) -> sqlite3.Connection:
@@ -210,6 +237,26 @@ class DownloadPlanner:
                 "SELECT d.* FROM downloads d JOIN media_items m ON m.id=d.media_item_id WHERE m.channel_id=?",
                 (selection.channel_id,),
             ).fetchall()}
+            download_columns = {
+                column["name"] for column in db.execute("PRAGMA table_info(downloads)")
+            }
+            media_columns = {
+                column["name"] for column in db.execute("PRAGMA table_info(media_items)")
+            }
+            has_corrective_schema = {
+                "remote_identity_media_id", "remote_identity_kind", "remote_identity_size",
+                "remote_identity_provenance",
+            }.issubset(download_columns) and "remote_observation_state" in media_columns
+            evidence_table = db.execute(
+                "SELECT 1 FROM sqlite_master WHERE type='table' AND name='s6_v2_evidence'"
+            ).fetchone()
+            v2_evidence = {}
+            if evidence_table is not None:
+                v2_evidence = {row["media_item_id"]: row for row in db.execute(
+                    "SELECT e.* FROM s6_v2_evidence e JOIN media_items m "
+                    "ON m.id=e.media_item_id WHERE m.channel_id=?",
+                    (selection.channel_id,),
+                ).fetchall()}
             entries: list[tuple[tuple[object, ...], PlanItem]] = []
             seen: dict[tuple[int, int, int], tuple[int, int | None]] = {}
             for row in media:
@@ -252,10 +299,33 @@ class DownloadPlanner:
                 )
                 record = records.get(candidate.media_item_id)
                 status = "PENDING"
-                if record is not None and record["state"] in {"DOWNLOADING", "VALIDATED", "FINALIZATION_PENDING"}:
-                    status = "BLOCKED" if _process_is_alive(record["owner_pid"]) else "PENDING"
+                part_bytes = wire_offset = overlap_bytes = 0
+                estimated_payload = candidate.expected_bytes
+                estimated_disk = candidate.expected_bytes
+                identity_changed = record is not None and has_corrective_schema and record["remote_identity_provenance"] == "CAPTURED_AT_START" and (
+                    record["remote_identity_media_id"] != row["telegram_media_id"]
+                    or record["remote_identity_kind"] != row["kind"]
+                    or record["remote_identity_size"] != row["file_size_bytes"]
+                )
+                if not has_corrective_schema:
+                    status, reason = "BLOCKED", "SCHEMA_MIGRATION_REQUIRED"
+                elif row["remote_observation_state"] != "OBSERVED":
+                    status, reason = "BLOCKED", "MEDIA_NOT_OBSERVED"
+                elif record is not None and record["remote_identity_provenance"] != "CAPTURED_AT_START":
+                    status, reason = "BLOCKED", "IDENTITY_SNAPSHOT_UNVERIFIED"
+                elif identity_changed:
+                    status, reason = "BLOCKED", "MEDIA_IDENTITY_CHANGED"
+                elif record is not None and record["state"] in {"DOWNLOADING", "VALIDATED", "FINALIZATION_PENDING"}:
+                    owner_state = _process_is_alive(record["owner_pid"])
+                    status = "BLOCKED" if record["owner_pid"] is None or owner_state is not False else "PENDING"
                     if status == "BLOCKED":
-                        reason = "TRANSFER_IN_PROGRESS"
+                        reason = "OWNERSHIP_AMBIGUOUS" if owner_state is None else "TRANSFER_IN_PROGRESS"
+                elif record is not None and record["state"] == "FAILED_RETRYABLE" and record["owner_pid"] is not None:
+                    owner_state = _process_is_alive(record["owner_pid"])
+                    if owner_state is not False:
+                        status, reason = "BLOCKED", (
+                            "OWNERSHIP_AMBIGUOUS" if owner_state is None else "TRANSFER_IN_PROGRESS"
+                        )
                 elif record is not None and record["state"] == "DOWNLOADED":
                     final, _ = destination_paths(self.download_root, candidate)
                     try:
@@ -269,6 +339,61 @@ class DownloadPlanner:
                             status = "ALREADY_VALID"
                         elif final.exists():
                             status, reason = "BLOCKED", "DOWNLOADED_FILE_MISMATCH"
+                elif record is not None and record["state"] == "COMPLETED_V2":
+                    evidence = v2_evidence.get(candidate.media_item_id)
+                    final, _ = destination_paths(self.download_root, candidate)
+                    if (
+                        evidence is None
+                        or evidence["channel_id"] != candidate.channel_id
+                        or evidence["telegram_message_id"] != candidate.telegram_message_id
+                        or evidence["media_ordinal"] != candidate.media_ordinal
+                        or evidence["telegram_media_id"] != candidate.telegram_media_id
+                        or evidence["expected_bytes"] != candidate.expected_bytes
+                        or evidence["final_path"] != str(final)
+                        or evidence["schema_version"] != 1
+                        or evidence["contract_version"] != 2
+                        or evidence["evidence_version"] != 1
+                        or evidence["evidence_class"] not in {"OPERATIONAL_ONLY", "REFERENCE_MATCH"}
+                        or evidence["remote_hash_class"] not in {
+                            None, "REMOTE_HASH_FULL", "REMOTE_HASH_PARTIAL",
+                            "REMOTE_HASH_ABSENT", "REMOTE_HASH_UNVERIFIABLE_EOF",
+                        }
+                        or not _matches(final, candidate.expected_bytes, evidence["final_sha256"])
+                    ):
+                        status, reason = "BLOCKED", "UNKNOWN_LEGACY"
+                    else:
+                        status, reason = "COMPLETED_V2", evidence["evidence_class"]
+                if status == "PENDING":
+                    final, partial = destination_paths(self.download_root, candidate)
+                    if status == "PENDING":
+                        try:
+                            _reject_reparse_path(self.download_root, partial)
+                        except DownloadError:
+                            status, reason = "BLOCKED", "UNSAFE_PATH"
+                        else:
+                            if partial.exists() and record is None:
+                                status, reason = "BLOCKED", "UNOWNED_PARTIAL_EXISTS"
+                            elif partial.exists():
+                                if (
+                                    record["partial_path"] != str(partial)
+                                    or record["final_path"] != str(final)
+                                    or partial.is_symlink() or not partial.is_file()
+                                ):
+                                    status, reason = "BLOCKED", "UNOWNED_PARTIAL_EXISTS"
+                                elif record["state"] not in {
+                                    "FAILED_RETRYABLE", "DOWNLOADING", "VALIDATED", "FINALIZATION_PENDING"
+                                }:
+                                    status, reason = "BLOCKED", "PARTIAL_STATE_INVALID"
+                                else:
+                                    part_bytes = partial.stat().st_size
+                                    if part_bytes > candidate.expected_bytes:
+                                        status, reason = "BLOCKED", "PARTIAL_SIZE_EXCEEDED"
+                                    else:
+                                        wire_offset = (part_bytes // (256 * 1024)) * (256 * 1024)
+                                        overlap_bytes = part_bytes - wire_offset
+                                        estimated_payload = candidate.expected_bytes - wire_offset
+                                        estimated_disk = candidate.expected_bytes - part_bytes
+                                        status, reason = "CONDITIONAL_RESUME_CANDIDATE", None
                 lineage_ids = []
                 current = node_id
                 while current in by_id:
@@ -277,7 +402,10 @@ class DownloadPlanner:
                 path_order = tuple(
                     by_id[nid]["ordinal"] or 0 for nid in reversed(lineage_ids)
                 )
-                entries.append(((0, path_order, identity[1], identity[2]), PlanItem(identity, candidate, status, reason)))
+                entries.append(((0, path_order, identity[1], identity[2]), PlanItem(
+                    identity, candidate, status, reason, part_bytes, wire_offset,
+                    overlap_bytes, estimated_payload, estimated_disk,
+                )))
             entries.sort(key=lambda pair: pair[0])
             items = tuple(item for _, item in entries)
             lesson_count = len(lesson_nodes)
@@ -319,6 +447,8 @@ class DownloadQueue:
         progress_callback: Callable[[dict[str, int]], None] | None = None,
         max_media_items: int | None = None,
         max_transfer_bytes: int | None = None,
+        integrity_mode: str = "REMOTE_HASH_REQUIRED",
+        reference_manifest_path: str | Path | None = None,
     ) -> None:
         if type(workers) is not int or not 1 <= workers <= MAX_WORKERS:
             raise ValueError("workers must be 1 or 2")
@@ -328,6 +458,10 @@ class DownloadQueue:
             raise ValueError("max_media_items must be positive")
         if max_transfer_bytes is not None and (type(max_transfer_bytes) is not int or max_transfer_bytes <= 0):
             raise ValueError("max_transfer_bytes must be positive")
+        if integrity_mode not in {"REMOTE_HASH_REQUIRED", "OPERATIONAL_ONLY", "TRUSTED_REFERENCE"}:
+            raise ValueError("invalid integrity mode")
+        if integrity_mode == "TRUSTED_REFERENCE" and reference_manifest_path is None:
+            raise ValueError("TRUSTED_REFERENCE requires a manifest")
         self.repository, self.application = repository, application
         self.workers, self.attempts_per_media = workers, attempts_per_media
         self.free_space = free_space or (lambda path: shutil.disk_usage(path).free)
@@ -336,6 +470,8 @@ class DownloadQueue:
         self.progress_callback = progress_callback
         self.max_media_items = max_media_items
         self.max_transfer_bytes = max_transfer_bytes
+        self.integrity_mode = integrity_mode
+        self.reference_manifest_path = reference_manifest_path
         self._rate_lock = asyncio.Lock()
         self._cooldown_until = 0.0
 
@@ -350,12 +486,30 @@ class DownloadQueue:
                 raise DownloadError("UNKNOWN_SIZE")
         started_at = self.clock()
         pending = list(plan.pending)
+        queue_invocation_id = uuid.uuid4().hex
         outcomes: list[tuple[tuple[int, int, int], str, str | None]] = [
             (item.identity, "ALREADY_VALID", None) for item in plan.already_valid
         ]
+        completed_v2_states: dict[tuple[int, int, int], str] = {}
+        for item in plan.completed_v2:
+            if (
+                self.integrity_mode == "OPERATIONAL_ONLY"
+                and item.reason == "OPERATIONAL_ONLY"
+            ):
+                status, reason = "ALREADY_COMPLETED_V2", item.reason
+            elif (
+                self.integrity_mode == "TRUSTED_REFERENCE"
+                and item.reason == "REFERENCE_MATCH"
+            ):
+                status, reason = "BLOCKED", "V2_COMPLETION_REQUIRES_REFERENCE_REVALIDATION"
+            else:
+                status, reason = "BLOCKED", "V2_COMPLETION_MODE_MISMATCH"
+            outcomes.append((item.identity, status, reason))
+            completed_v2_states[item.identity] = status
         outcomes.extend((item.identity, "BLOCKED", item.reason) for item in plan.blocked)
         outcomes.extend((item.identity, "EXCLUDED", item.reason) for item in plan.excluded)
         states = {item.identity: item.status for item in plan.items}
+        states.update(completed_v2_states)
         last_progress_by_item: dict[tuple[int, int, int], int] = {}
         progress_seen: set[tuple[int, int, int]] = set()
         chunk_seen: set[tuple[int, int, int]] = set()
@@ -373,9 +527,9 @@ class DownloadQueue:
                 return
             counts = {
                 "total": len(plan.items),
-                "pending": sum(state in {"PENDING", "WAITING"} for state in states.values()),
+                "pending": sum(state in {"PENDING", "WAITING", "CONDITIONAL_RESUME_CANDIDATE"} for state in states.values()),
                 "running": sum(state == "RUNNING" for state in states.values()),
-                "completed": sum(state == "COMPLETED" for state in states.values()),
+                "completed": sum(state in {"COMPLETED", "COMPLETED_V2", "RECOVERED_V2"} for state in states.values()),
                 "already_valid": sum(state == "ALREADY_VALID" for state in states.values()),
                 "failed": sum(state == "FAILED" for state in states.values()),
                 "blocked": sum(state == "BLOCKED" for state in states.values()),
@@ -397,7 +551,7 @@ class DownloadQueue:
         probe = root
         while not probe.exists() and probe != probe.parent:
             probe = probe.parent
-        pending_bytes_left = plan.pending_bytes
+        pending_bytes_left = plan.additional_disk_bytes
         margin = plan.safety_margin
         required = pending_bytes_left + margin
         if self.free_space(probe) < required:
@@ -406,6 +560,25 @@ class DownloadQueue:
         original_progress = self.application.progress_callback
         original_chunk_callback = getattr(self.application, "chunk_callback", None)
         original_chunk_reserver = getattr(self.application, "chunk_reserver", None)
+        original_operation_reserver = getattr(self.application, "operation_reserver", None)
+        original_pre_append_check = getattr(self.application, "pre_append_check", None)
+        completed_for_space: set[tuple[int, int, int]] = set()
+        if hasattr(self.application, "pre_append_check"):
+            async def recheck_space(additional_bytes: int) -> bool:
+                task = asyncio.current_task()
+                identity = task_items.get(task) if task is not None else None
+                other_bytes = sum(
+                    (item.estimated_additional_disk_bytes
+                     if item.estimated_additional_disk_bytes is not None
+                     else item.candidate.expected_bytes)
+                    for item in pending
+                    if item.candidate is not None and item.identity != identity
+                    and item.identity not in completed_for_space
+                )
+                probe_path = root if root.exists() else probe
+                return self.free_space(probe_path) >= other_bytes + additional_bytes + margin
+
+            self.application.pre_append_check = recheck_space
         if self.max_transfer_bytes is not None:
             budget_limit = self.max_transfer_bytes
 
@@ -475,6 +648,88 @@ class DownloadQueue:
                 return _Reservation(task, amount)
 
             self.application.chunk_reserver = reserve_chunk
+
+            class _OperationPool:
+                def __init__(self, task: asyncio.Task[None], amount: int) -> None:
+                    self.task = task
+                    self.remaining = amount
+                    self.closed = False
+
+                async def reserve_chunk(self, amount: int):
+                    nonlocal budget_reserved, budget_received, budget_uncertain
+                    nonlocal budget_consumed, total_transferred_bytes
+                    if self.closed or type(amount) is not int or amount <= 0 or amount > self.remaining:
+                        return None
+                    self.remaining -= amount
+                    pool = self
+
+                    class _ChildReservation:
+                        settled = False
+
+                        def _settle(self, consumed: int, uncertain: bool = False) -> None:
+                            nonlocal budget_reserved, budget_received, budget_uncertain
+                            nonlocal budget_consumed, total_transferred_bytes
+                            if self.settled:
+                                return
+                            self.settled = True
+                            held = task_reserved_bytes.get(pool.task, 0)
+                            if held < amount or budget_reserved < amount:
+                                raise DownloadError("TRANSFER_BUDGET_STATE_INVALID")
+                            task_reserved_bytes[pool.task] = held - amount
+                            budget_reserved -= amount
+                            if uncertain:
+                                budget_uncertain += amount
+                            else:
+                                budget_received += consumed
+                                total_transferred_bytes = budget_received
+                            budget_consumed = budget_received + budget_uncertain
+                            if budget_consumed + budget_reserved > budget_limit:
+                                raise DownloadError("TRANSFER_BUDGET_STATE_INVALID")
+                            emit_progress()
+
+                        def received(self, byte_count: int) -> None:
+                            if type(byte_count) is not int or not 0 <= byte_count <= amount:
+                                self._settle(0, uncertain=True)
+                                raise DownloadError("TRANSFER_BUDGET_STATE_INVALID")
+                            self._settle(byte_count)
+
+                        def release(self) -> None:
+                            self._settle(0)
+
+                        def charge_uncertain(self) -> None:
+                            self._settle(0, uncertain=True)
+
+                    return _ChildReservation()
+
+                async def close(self) -> None:
+                    nonlocal budget_reserved
+                    if self.closed:
+                        return
+                    self.closed = True
+                    held = task_reserved_bytes.get(self.task, 0)
+                    if held < self.remaining or budget_reserved < self.remaining:
+                        raise DownloadError("TRANSFER_BUDGET_STATE_INVALID")
+                    task_reserved_bytes[self.task] = held - self.remaining
+                    budget_reserved -= self.remaining
+                    self.remaining = 0
+
+            async def reserve_operation(amount: int):
+                nonlocal budget_reserved, stop_reason
+                task = asyncio.current_task()
+                if task is None or type(amount) is not int or amount < 0:
+                    raise DownloadError("TRANSFER_BUDGET_STATE_INVALID")
+                if amount == 0:
+                    return _OperationPool(task, 0)
+                async with budget_lock:
+                    if budget_consumed + budget_reserved + amount > budget_limit:
+                        stop_reason = "BUDGET_BLOCK"
+                        stop.set()
+                        return None
+                    budget_reserved += amount
+                    task_reserved_bytes[task] = task_reserved_bytes.get(task, 0) + amount
+                return _OperationPool(task, amount)
+
+            self.application.operation_reserver = reserve_operation
         if self.progress_callback is not None:
             def report_item_progress(current: int, _total: int) -> None:
                 nonlocal total_transferred_bytes
@@ -523,7 +778,12 @@ class DownloadQueue:
                 states[item.identity] = "RUNNING"
                 emit_progress()
                 async with self._rate_lock:
-                    pending_bytes_left = max(0, pending_bytes_left - item.candidate.expected_bytes)
+                    item_disk_bytes = (
+                        item.estimated_additional_disk_bytes
+                        if item.estimated_additional_disk_bytes is not None
+                        else item.candidate.expected_bytes
+                    )
+                    pending_bytes_left = max(0, pending_bytes_left - item_disk_bytes)
                 last_error: DownloadError | None = None
                 waits = 0
                 for attempt in range(self.attempts_per_media):
@@ -538,7 +798,16 @@ class DownloadQueue:
                         )
                         waits += int(waited + 0.999)
                         if cooldown_exceeded:
-                            last_error = DownloadError("RATE_LIMITED")
+                            last_error = DownloadError(
+                                "REMOTE_HASH_UNAVAILABLE"
+                                if last_error is not None and last_error.failure_phase == "REMOTE_HASH"
+                                else "RATE_LIMITED",
+                                failure_phase=(
+                                    "REMOTE_HASH"
+                                    if last_error is not None and last_error.failure_phase == "REMOTE_HASH"
+                                    else None
+                                ),
+                            )
                             break
                         if stop.is_set():
                             outcomes.append((item.identity, "BLOCKED", stop_reason))
@@ -552,7 +821,14 @@ class DownloadQueue:
                         last_progress_by_item.pop(item.identity, None)
                         progress_seen.discard(item.identity)
                         try:
-                            result = await self.application.download(*item.identity)
+                            if self.integrity_mode == "REMOTE_HASH_REQUIRED":
+                                result = await self.application.download(*item.identity)
+                            else:
+                                result = await self.application.download(
+                                    *item.identity, integrity_mode=self.integrity_mode,
+                                    plan_id=plan.plan_id, invocation_id=queue_invocation_id,
+                                    reference_manifest_path=self.reference_manifest_path,
+                                )
                         finally:
                             if self.max_transfer_bytes is not None:
                                 task = asyncio.current_task()
@@ -570,8 +846,22 @@ class DownloadQueue:
                             and result.result == "DOWNLOADED"
                         ):
                             total_transferred_bytes += result.transferred_bytes
-                        states[item.identity] = "COMPLETED" if result.result != "ALREADY_DOWNLOADED" else "ALREADY_VALID"
-                        outcomes.append((item.identity, "COMPLETED" if result.result != "ALREADY_DOWNLOADED" else "ALREADY_VALID", None))
+                        if result.result in {"ALREADY_DOWNLOADED", "ALREADY_COMPLETED_V2"}:
+                            item_status = "ALREADY_VALID" if result.result == "ALREADY_DOWNLOADED" else "ALREADY_COMPLETED_V2"
+                        elif result.result in {"COMPLETED_V2", "RECOVERED_V2"}:
+                            item_status = result.result
+                        else:
+                            item_status = "COMPLETED"
+                        states[item.identity] = item_status
+                        completed_for_space.add(item.identity)
+                        detail = None
+                        result_mode = getattr(result, "integrity_mode", "REMOTE_HASH_REQUIRED")
+                        if result_mode != "REMOTE_HASH_REQUIRED":
+                            detail = ";".join(filter(None, (
+                                result_mode, result.evidence_class,
+                                result.remote_hash_class, result.guarantee,
+                            )))
+                        outcomes.append((item.identity, item_status, detail))
                         emit_progress()
                         last_error = None
                         break
@@ -589,9 +879,16 @@ class DownloadQueue:
                             async with self._rate_lock:
                                 self._cooldown_until = max(self._cooldown_until, self.clock() + delay)
                             if waits + delay > FLOODWAIT_MAX_SECONDS or attempt + 1 >= self.attempts_per_media:
+                                if error.failure_phase == "REMOTE_HASH":
+                                    last_error = DownloadError(
+                                        "REMOTE_HASH_UNAVAILABLE", failure_phase="REMOTE_HASH"
+                                    )
                                 break
                             continue
-                        if error.category not in {"NETWORK", "GATEWAY_FAILURE", "TRANSFER_FAILED"} or attempt + 1 >= self.attempts_per_media:
+                        if error.category not in {
+                            "NETWORK", "GATEWAY_FAILURE", "TRANSFER_FAILED",
+                            "REMOTE_HASH_UNAVAILABLE", "REMOTE_HASHES_UNAVAILABLE",
+                        } or attempt + 1 >= self.attempts_per_media:
                             break
                     except Exception:
                         last_error = DownloadError("TRANSFER_FAILED")
@@ -601,11 +898,29 @@ class DownloadQueue:
                 if last_error is not None:
                     if last_error.category == "INSUFFICIENT_DISK_SPACE":
                         stop.set()
-                    blocked = last_error.category in {
-                        "INSUFFICIENT_DISK_SPACE", "TRANSFER_BUDGET_EXHAUSTED",
+                    blocked_categories = {
+                        "INSUFFICIENT_DISK_SPACE", "TRANSFER_BUDGET_EXHAUSTED", "BUDGET_BLOCK",
+                        "REMOTE_HASH_UNAVAILABLE", "REMOTE_HASHES_UNAVAILABLE",
+                        "REMOTE_HASH_INVALID_RESPONSE", "REMOTE_HASH_DIVERGENT",
+                        "BLOCKED_CONTRADICTORY_REMOTE_EVIDENCE", "REFERENCE_ABSENT",
+                        "REFERENCE_INVALID", "REFERENCE_PROVENANCE_UNVERIFIED",
+                        "REFERENCE_MISMATCH", "REMOTE_IDENTITY_CONFLICT",
+                        "IDENTITY_REVALIDATION_UNAVAILABLE", "PREFIX_CONFLICT",
+                        "REMOTE_PREFIX_INCOMPLETE", "CHECKPOINT_INCONSISTENT",
+                        "HASH_COVERAGE_INVALID",
                     }
+                    blocked = (
+                        last_error.category in blocked_categories
+                        or last_error.failure_phase == "REMOTE_HASH"
+                    )
+                    final_category = (
+                        "REMOTE_HASH_UNAVAILABLE"
+                        if last_error.failure_phase == "REMOTE_HASH"
+                        and last_error.category in {"RATE_LIMITED", "NETWORK", "GATEWAY_FAILURE", "TRANSFER_FAILED"}
+                        else last_error.category
+                    )
                     states[item.identity] = "BLOCKED" if blocked else "FAILED"
-                    outcomes.append((item.identity, "BLOCKED" if blocked else "FAILED", last_error.category))
+                    outcomes.append((item.identity, "BLOCKED" if blocked else "FAILED", final_category))
                     emit_progress()
         tasks = [asyncio.create_task(worker()) for _ in range(min(self.workers, len(pending)))]
         try:
@@ -636,6 +951,9 @@ class DownloadQueue:
             if hasattr(self.application, "chunk_callback"):
                 self.application.chunk_callback = original_chunk_callback
             self.application.chunk_reserver = original_chunk_reserver
+            self.application.operation_reserver = original_operation_reserver
+            if hasattr(self.application, "pre_append_check"):
+                self.application.pre_append_check = original_pre_append_check
             task_items.clear()
             task_reserved_bytes.clear()
         return QueueResult(

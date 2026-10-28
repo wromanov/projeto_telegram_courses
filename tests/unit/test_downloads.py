@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import asyncio
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -7,7 +9,10 @@ import pytest
 from telegram_courses.download_repository import DownloadCandidate, _process_is_alive
 from telegram_courses.downloads import (
     DownloadError,
+    RemoteFileHash,
     _finalize_no_overwrite,
+    _reserve_unbounded_chunk,
+    _validate_remote_ranges,
     destination_paths,
     sanitize_component,
 )
@@ -75,6 +80,39 @@ def test_process_lease_probe_is_read_only() -> None:
 
     assert _process_is_alive(os.getpid())
     assert not _process_is_alive(-1)
+
+
+def test_remote_hash_ranges_require_complete_contiguous_sha256_coverage(tmp_path: Path) -> None:
+    payload = b"0123456789abcdef"
+    path = tmp_path / "prefix.part"
+    path.write_bytes(payload)
+    ranges = (
+        RemoteFileHash(0, 8, hashlib.sha256(payload[:8]).digest()),
+        RemoteFileHash(8, 8, hashlib.sha256(payload[8:]).hexdigest()),
+    )
+    assert _validate_remote_ranges(path, len(payload), ranges)
+    assert not _validate_remote_ranges(path, len(payload), (ranges[0], RemoteFileHash(9, 7, hashlib.sha256(payload[9:]).digest())))
+    assert not _validate_remote_ranges(path, len(payload), (ranges[0], RemoteFileHash(8, 7, hashlib.sha256(payload[8:15]).digest())))
+    assert not _validate_remote_ranges(path, len(payload), (RemoteFileHash(0, 17, hashlib.sha256(payload).digest()),))
+    path.write_bytes(b"0123456789abcxef")
+    assert not _validate_remote_ranges(path, len(payload), ranges)
+
+
+def test_remote_hash_range_rejects_invalid_fields_and_empty_coverage(tmp_path: Path) -> None:
+    path = tmp_path / "empty.part"
+    path.write_bytes(b"")
+    assert _validate_remote_ranges(path, 0, ())
+    assert not _validate_remote_ranges(path, 1, ())
+    assert not _validate_remote_ranges(path, 0, (RemoteFileHash(0, 1, b"x" * 32),))
+    assert not _validate_remote_ranges(path, 1, (RemoteFileHash(-1, 1, b"x" * 32),))
+
+
+def test_unbounded_mode_still_creates_a_per_request_reservation() -> None:
+    reservation = asyncio.run(_reserve_unbounded_chunk(12))
+    assert reservation is not None
+    reservation.received(9)
+    with pytest.raises(DownloadError, match="transfer budget state invalid"):
+        reservation.received(1)
 
 
 def test_cli_download_requires_explicit_complete_identity() -> None:

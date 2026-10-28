@@ -6,8 +6,14 @@ from datetime import UTC, datetime
 from types import SimpleNamespace
 
 import pytest
-from telethon import errors
-from telethon.tl.types import PeerChannel
+from telethon import errors, utils
+from telethon.tl.types import (
+    InputPeerChannel,
+    MessageEmpty,
+    PeerChannel,
+    PeerChat,
+    PeerUser,
+)
 
 from telegram_courses.auth import (
     AdapterError,
@@ -20,10 +26,14 @@ from telegram_courses.auth import (
     NetworkError,
     RateLimited,
 )
-from telegram_courses.config import TelegramCredentials
+from telegram_courses.config import ConfigurationError, TelegramCredentials
+from telegram_courses.downloads import DownloadGatewayError
 from telegram_courses.message_scanner import GatewayMessage, ScanGatewayError
 from telegram_courses.telethon_gateway import TelethonGateway
 from telegram_courses.telethon_session import StorageError
+
+SYNTHETIC_RAW_CHANNEL_ID = 424242
+SYNTHETIC_CHANNEL_ID = utils.get_peer_id(PeerChannel(SYNTHETIC_RAW_CHANNEL_ID))
 
 
 class FakeSession:
@@ -107,6 +117,80 @@ def gateway(vault: FakeVault) -> tuple[TelethonGateway, list[FakeClient]]:
         session_factory=FakeSession,
         vault=vault,
     ), clients
+
+
+@pytest.mark.parametrize(
+    "channel_id",
+    [
+        True,
+        "424242",
+        0,
+        424242,
+        utils.get_peer_id(PeerChat(424242)),
+        utils.get_peer_id(PeerUser(424243)),
+        -1000000000000,
+        -(1 << 63) - 1,
+        1 << 63,
+    ],
+)
+def test_invalid_bounded_metadata_channel_configuration_fails_closed(
+    channel_id, monkeypatch
+):
+    client_factory_calls = []
+    session_factory_calls = []
+    vault_factory_calls = []
+
+    import telegram_courses.telethon_gateway as gateway_module
+
+    def client_factory(*_args, **_kwargs):
+        client_factory_calls.append(True)
+
+    def session_factory(*_args, **_kwargs):
+        session_factory_calls.append(True)
+
+    def vault_factory():
+        vault_factory_calls.append(True)
+        return FakeVault()
+
+    monkeypatch.setattr(
+        gateway_module, "_ProtectedSessionVault", vault_factory
+    )
+
+    with pytest.raises(ConfigurationError) as caught:
+        TelethonGateway(
+            TelegramCredentials(42, "synthetic-api-hash"),
+            client_factory=client_factory,
+            session_factory=session_factory,
+            bounded_metadata_channel_id=channel_id,
+        )
+
+    assert str(caught.value) == ""
+    assert client_factory_calls == []
+    assert session_factory_calls == []
+    assert vault_factory_calls == []
+
+
+def test_valid_bounded_metadata_channel_configuration_is_explicit_and_synthetic():
+    adapter = TelethonGateway(
+        TelegramCredentials(42, "synthetic-api-hash"),
+        client_factory=lambda *_args, **_kwargs: None,
+        session_factory=FakeSession,
+        vault=FakeVault(),
+        bounded_metadata_channel_id=SYNTHETIC_CHANNEL_ID,
+    )
+
+    assert adapter._bounded_metadata_channel_id == SYNTHETIC_CHANNEL_ID
+
+
+def test_absent_bounded_metadata_configuration_allows_general_gateway_use():
+    adapter = TelethonGateway(
+        TelegramCredentials(42, "synthetic-api-hash"),
+        client_factory=lambda *_args, **_kwargs: None,
+        session_factory=FakeSession,
+        vault=FakeVault(),
+    )
+
+    assert adapter._bounded_metadata_channel_id is None
 
 
 def test_restore_missing_and_invalid_session_then_replace_only_on_success() -> None:
@@ -228,6 +312,8 @@ def test_incomplete_read_during_connect_is_sanitized_network_diagnostic(
     assert "FAILURE_STAGE=CONNECT" in caplog.text
     assert "SANITIZED_EXCEPTION_CLASS=IncompleteReadError" in caplog.text
     assert "PROJECT_ERROR_CATEGORY=NETWORK" in caplog.text
+    assert "SANITIZED_TRACEBACK=" in caplog.text
+    assert "test_telethon_gateway.py:" in caplog.text
     assert "synthetic-api-hash" not in caplog.text
     assert len(clients[0].calls) == 1
     asyncio.run(adapter.close())
@@ -551,6 +637,263 @@ def test_scan_flood_wait_keeps_retry_duration_in_project_error() -> None:
     assert "FloodWait" not in str(caught.value)
 
 
+def _metadata_adapter(client):
+    adapter = object.__new__(TelethonGateway)
+    adapter._client = client
+    adapter._bounded_metadata_channel_id = SYNTHETIC_CHANNEL_ID
+    adapter._state = AuthState.AUTHENTICATED
+    adapter._strict_budget_lock = asyncio.Lock()
+    adapter._strict_budget_streams = 0
+    adapter._strict_budget_previous_retries = None
+    adapter._metadata_rpc_lock = asyncio.Lock()
+    adapter._selected_metadata_peer = InputPeerChannel(SYNTHETIC_RAW_CHANNEL_ID, 456)
+    adapter._metadata_dialog_rpcs = 0
+    adapter._metadata_dialogs_inspected = 0
+    adapter._metadata_message_rpcs = 0
+    adapter._metadata_messages_inspected = 0
+    if not hasattr(client, "_connection_retries"):
+        client._connection_retries = 0
+    if not hasattr(client, "_auto_reconnect"):
+        client._auto_reconnect = False
+    if not hasattr(client, "_flood_sleep_threshold"):
+        client._flood_sleep_threshold = 60
+    return adapter
+
+
+def _metadata_message(message_id, *, peer_id=None, body="must not escape"):
+    return SimpleNamespace(
+        id=message_id,
+        peer_id=peer_id or PeerChannel(SYNTHETIC_RAW_CHANNEL_ID),
+        date=datetime(2026, 10, 9, tzinfo=UTC),
+        edit_date=None,
+        message=body,
+        grouped_id=None,
+        media=SimpleNamespace(
+            document=SimpleNamespace(
+                id=message_id + 1000,
+                mime_type="application/pdf",
+                size=2048,
+                attributes=[SimpleNamespace(file_name="metadata.pdf")],
+            ),
+            photo=None,
+        ),
+    )
+
+
+def test_metadata_gateway_uses_selected_peer_and_emits_no_text_or_payload():
+    class Session:
+        def __init__(self):
+            self.lookups = []
+
+        def get_input_entity(self, peer):
+            self.lookups.append(peer)
+            return InputPeerChannel(SYNTHETIC_RAW_CHANNEL_ID, 456)
+
+    class Client:
+        def __init__(self):
+            self.session = Session()
+            self._request_retries = 1
+            self._flood_sleep_threshold = 60
+            self.calls = []
+
+        async def __call__(self, request):
+            self.calls.append(request)
+            return SimpleNamespace(messages=[_metadata_message(44)])
+
+    async def exercise():
+        client = Client()
+        adapter = _metadata_adapter(client)
+        items = [item async for item in adapter.iter_channel_metadata(
+            SYNTHETIC_CHANNEL_ID, max_messages=10
+        )]
+        assert len(items) == 1
+        assert items[0].text is None
+        assert items[0].media[0].kind == "DOCUMENT"
+        assert items[0].media[0].file_size_bytes == 2048
+        assert len(client.calls) == 1
+        assert client.session.lookups == []
+        assert client._request_retries == 1
+        assert not hasattr(client, "get_file")
+        assert not hasattr(client, "get_file_hashes")
+
+    asyncio.run(exercise())
+
+
+def test_metadata_gateway_rejects_divergent_peer_before_emitting_page():
+    class Session:
+        def get_input_entity(self, _peer):
+            return InputPeerChannel(SYNTHETIC_RAW_CHANNEL_ID, 456)
+
+    class Client:
+        session = Session()
+        _request_retries = 0
+        _flood_sleep_threshold = 60
+
+        async def __call__(self, _request):
+            return SimpleNamespace(messages=[
+                _metadata_message(44),
+                _metadata_message(43, peer_id=PeerChannel(999)),
+            ])
+
+    async def exercise():
+        adapter = _metadata_adapter(Client())
+        emitted = []
+        with pytest.raises(ScanGatewayError) as caught:
+            async for item in adapter.iter_channel_metadata(
+                SYNTHETIC_CHANNEL_ID, max_messages=10
+            ):
+                emitted.append(item)
+        assert caught.value.category == "CHANNEL_UNRESOLVED"
+        assert emitted == []
+
+    asyncio.run(exercise())
+
+
+def test_metadata_gateway_missing_selected_peer_fails_without_resolution_or_history():
+    class Session:
+        def get_input_entity(self, _peer):
+            raise ValueError("cache miss")
+
+    class Client:
+        session = Session()
+        _request_retries = 0
+        _flood_sleep_threshold = 60
+
+        def __init__(self):
+            self.history_calls = 0
+            self.public_resolver_calls = 0
+
+        async def __call__(self, _request):
+            self.history_calls += 1
+            raise AssertionError("history must not run after cache miss")
+
+        async def get_input_entity(self, _peer):
+            self.public_resolver_calls += 1
+            raise AssertionError("implicit public resolver is forbidden")
+
+    async def exercise():
+        client = Client()
+        adapter = _metadata_adapter(client)
+        adapter._selected_metadata_peer = None
+        with pytest.raises(ScanGatewayError) as caught:
+            async for _ in adapter.iter_channel_metadata(
+                SYNTHETIC_CHANNEL_ID, max_messages=10
+            ):
+                pass
+        assert caught.value.category == "CHANNEL_UNRESOLVED"
+        assert client.history_calls == 0
+        assert client.public_resolver_calls == 0
+
+    asyncio.run(exercise())
+
+
+def test_metadata_gateway_counts_raw_message_empty_before_filtering():
+    class Session:
+        def get_input_entity(self, _peer):
+            return InputPeerChannel(SYNTHETIC_RAW_CHANNEL_ID, 456)
+
+    class Client:
+        session = Session()
+        _request_retries = 0
+        _flood_sleep_threshold = 60
+
+        def __init__(self):
+            self.calls = []
+
+        async def __call__(self, request):
+            self.calls.append(request)
+            return SimpleNamespace(messages=[
+                MessageEmpty(44, peer_id=PeerChannel(SYNTHETIC_RAW_CHANNEL_ID))
+            ])
+
+    async def exercise():
+        client = Client()
+        adapter = _metadata_adapter(client)
+        items = [item async for item in adapter.iter_channel_metadata(
+            SYNTHETIC_CHANNEL_ID, max_messages=1
+        )]
+        assert items == []
+        assert len(client.calls) == 1
+        assert client.calls[0].limit == 1
+
+    asyncio.run(exercise())
+
+
+def test_metadata_gateway_caps_pages_and_total_raw_messages_at_200():
+    class Session:
+        def get_input_entity(self, _peer):
+            return InputPeerChannel(SYNTHETIC_RAW_CHANNEL_ID, 456)
+
+    class Client:
+        session = Session()
+        _request_retries = 0
+        _flood_sleep_threshold = 60
+
+        def __init__(self):
+            self.calls = []
+            self.in_flight = 0
+            self.max_in_flight = 0
+
+        async def __call__(self, request):
+            self.in_flight += 1
+            self.max_in_flight = max(self.max_in_flight, self.in_flight)
+            self.calls.append(request)
+            try:
+                await asyncio.sleep(0)
+                first_id = 200 - (len(self.calls) - 1) * 100
+                ids = range(first_id, first_id - 100, -1)
+                return SimpleNamespace(messages=[_metadata_message(i) for i in ids])
+            finally:
+                self.in_flight -= 1
+
+    async def exercise():
+        client = Client()
+        adapter = _metadata_adapter(client)
+        items = [item async for item in adapter.iter_channel_metadata(
+            SYNTHETIC_CHANNEL_ID, max_messages=200
+        )]
+        assert len(items) == 200
+        assert [call.limit for call in client.calls] == [100, 100]
+        assert sum(call.limit for call in client.calls) == 200
+        assert client.max_in_flight == 1
+        assert all(item.text is None for item in items)
+
+    asyncio.run(exercise())
+
+
+def test_metadata_gateway_stops_on_flood_wait_without_retry():
+    class Session:
+        def get_input_entity(self, _peer):
+            return InputPeerChannel(SYNTHETIC_RAW_CHANNEL_ID, 456)
+
+    class Client:
+        session = Session()
+        _request_retries = 2
+        _flood_sleep_threshold = 60
+
+        def __init__(self):
+            self.calls = 0
+
+        async def __call__(self, _request):
+            self.calls += 1
+            raise errors.FloodWaitError(request=None, capture=19)
+
+    async def exercise():
+        client = Client()
+        adapter = _metadata_adapter(client)
+        with pytest.raises(ScanGatewayError) as caught:
+            async for _ in adapter.iter_channel_metadata(
+                SYNTHETIC_CHANNEL_ID, max_messages=200
+            ):
+                pass
+        assert caught.value.category == "RATE_LIMITED"
+        assert client.calls == 1
+        assert client._request_retries == 2
+        assert client._flood_sleep_threshold == 60
+
+    asyncio.run(exercise())
+
+
 def test_capped_media_reserves_each_telethon_request_before_it_is_sent() -> None:
     events = []
 
@@ -564,7 +907,7 @@ def test_capped_media_reserves_each_telethon_request_before_it_is_sent() -> None
         def charge_uncertain(self):
             events.append(("uncertain",))
 
-    class Stream:
+    class _DirectDownloadIter:
         def __init__(self):
             self.first = True
 
@@ -597,7 +940,7 @@ def test_capped_media_reserves_each_telethon_request_before_it_is_sent() -> None
         def iter_download(self, _document, **kwargs):
             assert kwargs["request_size"] == kwargs["chunk_size"] == 4
             assert kwargs["file_size"] == 4
-            return Stream()
+            return _DirectDownloadIter()
 
     adapter = object.__new__(TelethonGateway)
     adapter._client = MediaClient()
@@ -622,3 +965,161 @@ def test_capped_media_reserves_each_telethon_request_before_it_is_sent() -> None
         assert adapter._strict_budget_streams == 0
 
     asyncio.run(exercise())
+
+
+def test_telethon_get_file_hashes_uses_145_request_and_rechecks_identity() -> None:
+    from telethon.tl.functions.upload import GetFileHashesRequest
+    from telethon.tl.types import Document, InputDocumentFileLocation
+
+    captured = []
+    document = Document(
+        id=99,
+        access_hash=8,
+        file_reference=b"ref",
+        date=datetime.now(UTC),
+        mime_type="application/octet-stream",
+        size=4,
+        dc_id=2,
+        attributes=[],
+    )
+
+    class HashClient:
+        _request_retries = 1
+        response = (SimpleNamespace(offset=0, limit=4, hash=b"h" * 32),)
+
+        async def get_input_entity(self, _channel_id):
+            return "peer"
+
+        async def get_messages(self, _entity, *, ids):
+            return SimpleNamespace(
+                id=ids, peer_id=PeerChannel(123),
+                media=SimpleNamespace(document=document),
+            )
+
+        async def __call__(self, request):
+            assert isinstance(request, GetFileHashesRequest)
+            # Serialization is offline and catches a tuple passed where the
+            # generated request requires a single TL InputFileLocation.
+            assert isinstance(request.location, InputDocumentFileLocation)
+            bytes(request)
+            captured.append(request)
+            return self.response
+
+    adapter = object.__new__(TelethonGateway)
+    adapter._client = HashClient()
+    adapter._state = AuthState.AUTHENTICATED
+    adapter._strict_budget_lock = asyncio.Lock()
+    adapter._strict_budget_streams = 0
+    adapter._strict_budget_previous_retries = None
+    adapter._record_failure = lambda *_args: None
+
+    async def exercise():
+        hashes = await adapter.get_file_hashes(
+            -1000000000123, 44, 0, telegram_media_id="99", expected_bytes=4,
+        )
+        assert hashes[0].offset == 0 and hashes[0].limit == 4
+        assert hashes[0].sha256 == b"h" * 32
+        with pytest.raises(DownloadGatewayError):
+            await adapter.get_file_hashes(
+                -1000000000123, 44, 0, telegram_media_id="wrong", expected_bytes=4,
+            )
+        adapter._client.response = (SimpleNamespace(offset=0),)
+        with pytest.raises(DownloadGatewayError) as error:
+            await adapter.get_file_hashes(
+                -1000000000123, 44, 0, telegram_media_id="99", expected_bytes=4,
+            )
+        assert error.value.category == "INVALID_HASH_RESPONSE"
+
+    coroutine = exercise()
+    try:
+        coroutine.send(None)
+    except StopIteration:
+        pass
+    else:
+        coroutine.close()
+        raise AssertionError("offline hash fake unexpectedly suspended")
+    assert len(captured) == 2
+    assert captured[0].offset == 0
+
+
+def test_record_failure_traceback_location_is_sanitized(caplog: pytest.LogCaptureFixture) -> None:
+    def trigger_failure() -> None:
+        raise TypeError("synthetic-token=must-not-appear")
+
+    try:
+        trigger_failure()
+    except TypeError as error:
+        with caplog.at_level(logging.WARNING, logger="telegram_courses.telethon_gateway"):
+            TelethonGateway._record_failure("MEDIA_HASH", error, AdapterError())
+
+    assert "SANITIZED_EXCEPTION_CLASS=TypeError" in caplog.text
+    assert "SANITIZED_TRACEBACK=test_telethon_gateway.py:" in caplog.text
+    assert "trigger_failure" in caplog.text
+    assert "synthetic-token=must-not-appear" not in caplog.text
+    assert "C:\\Users\\" not in caplog.text
+
+
+def test_telethon_resume_offset_is_aligned_and_preserves_stream_boundary() -> None:
+    offset = 1024 * 1024
+    expected = offset + 4
+    captured = {"request_order": []}
+
+    class _DirectDownloadIter:
+        def __aiter__(self):
+            return self
+
+        async def _request(self):
+            captured["request_order"].append("get_file")
+            return b"tail"
+
+        async def __anext__(self):
+            if captured.get("yielded"):
+                raise StopAsyncIteration
+            captured["yielded"] = True
+            return await self._request()
+
+    class MediaClient:
+        _request_retries = 5
+
+        async def get_input_entity(self, _channel_id):
+            return "peer"
+
+        async def get_messages(self, _entity, *, ids):
+            return SimpleNamespace(
+                id=ids, peer_id=PeerChannel(123),
+                media=SimpleNamespace(document=SimpleNamespace(id=99, size=expected)),
+            )
+
+        def iter_download(self, _document, **kwargs):
+            captured.update(kwargs)
+            return _DirectDownloadIter()
+
+    adapter = object.__new__(TelethonGateway)
+    adapter._client = MediaClient()
+    adapter._state = AuthState.AUTHENTICATED
+    adapter._strict_budget_lock = asyncio.Lock()
+    adapter._strict_budget_streams = 0
+    adapter._strict_budget_previous_retries = None
+    adapter._record_failure = lambda *_args: None
+
+    async def reserve(_amount):
+        captured["request_order"].append("reserved")
+        return SimpleNamespace(
+            received=lambda _size: None,
+            release=lambda: None,
+            charge_uncertain=lambda: None,
+        )
+
+    async def exercise():
+        chunks = [chunk async for chunk in adapter._iterate_media(
+            -1000000000123, 44, 0, telegram_media_id="99",
+            expected_bytes=expected, chunk_bytes=256 * 1024, offset=offset,
+            reserve_chunk=reserve,
+        )]
+        assert chunks == [b"tail"]
+
+    asyncio.run(exercise())
+    assert captured["offset"] == offset
+    assert captured["request_size"] == captured["chunk_size"] == 256 * 1024
+    assert captured["file_size"] == expected
+    assert captured["request_order"] == ["reserved", "get_file"]

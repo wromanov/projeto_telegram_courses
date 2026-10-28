@@ -63,6 +63,8 @@ class ScanRequest:
     max_messages: int
     timeout_seconds: float
     resume_run_id: str | None = None
+    mode: str = "FULL"
+    reconcile_window: int = 0
 
     def __post_init__(self) -> None:
         if type(self.max_messages) is not int or self.max_messages <= 0:
@@ -73,6 +75,12 @@ class ScanRequest:
             or self.timeout_seconds <= 0
         ):
             raise ValueError("timeout_seconds must be positive")
+        if self.mode not in {"FULL", "INCREMENTAL"}:
+            raise ValueError("invalid scan mode")
+        if type(self.reconcile_window) is not int or self.reconcile_window < 0:
+            raise ValueError("reconcile_window must be a non-negative integer")
+        if self.mode == "FULL" and self.reconcile_window != 0:
+            raise ValueError("full scans do not accept a reconcile window")
 
 
 class ScanDeadline:
@@ -129,6 +137,11 @@ class ScanOutcome:
     messages_updated: int
     media_seen: int
     last_message_id: int | None
+    messages_unchanged: int = 0
+    messages_unverified: int | None = 0
+    media_unverified: int = 0
+    high_water_confirmed: int | None = None
+    has_confirmed_high_water: bool = False
 
 
 class MessageGateway(Protocol):
@@ -141,6 +154,7 @@ class MessageGateway(Protocol):
         through_message_id: int | None,
         before_message_id: int | None,
         limit: int,
+        min_message_id: int | None = None,
     ) -> AsyncIterator[GatewayMessage]: ...
 
 
@@ -150,6 +164,8 @@ class ScanRepository(Protocol):
     ) -> int | None: ...
 
     async def set_watermark(self, run_id: str, watermark: int | None) -> None: ...
+
+    async def set_sync_snapshot_head(self, run_id: str, head_message_id: int) -> None: ...
 
     async def resume_run(
         self, run_id: str, telegram_chat_id: int
@@ -162,6 +178,29 @@ class ScanRepository(Protocol):
     async def finish_run(
         self, run_id: str, status: ScanStatus, reason: str | None
     ) -> None: ...
+
+    async def get_confirmed_high_water(
+        self, telegram_chat_id: int
+    ) -> tuple[bool, int | None]: ...
+
+    async def find_resumable_sync_run(self, telegram_chat_id: int) -> str | None: ...
+
+    async def start_sync_run(
+        self,
+        telegram_chat_id: int,
+        run_id: str,
+        *,
+        max_messages: int,
+        reconcile_window: int,
+    ) -> dict[str, int | str | None | bool]: ...
+
+    async def resume_sync_run(
+        self, run_id: str, telegram_chat_id: int
+    ) -> dict[str, int | str | None | bool]: ...
+
+    async def get_sync_run_summary(
+        self, run_id: str
+    ) -> dict[str, int | str | None | bool]: ...
 
 
 class MessageScanner:
@@ -179,6 +218,10 @@ class MessageScanner:
         if type(telegram_chat_id) is not int or telegram_chat_id == 0:
             raise ValueError("invalid telegram_chat_id")
         deadline = deadline or ScanDeadline(request.timeout_seconds)
+        if request.mode == "INCREMENTAL":
+            return await self._incremental_scan(
+                telegram_chat_id, request, deadline=deadline
+            )
         run_id = request.resume_run_id or uuid.uuid4().hex
         if request.resume_run_id:
             watermark, cursor = await deadline.wait(
@@ -326,6 +369,197 @@ class MessageScanner:
         )
         return ScanOutcome(
             run_id, status, reason, seen, inserted, updated, media_seen, cursor
+        )
+
+    async def _incremental_scan(
+        self,
+        telegram_chat_id: int,
+        request: ScanRequest,
+        *,
+        deadline: ScanDeadline,
+    ) -> ScanOutcome:
+        """Run a bounded incremental sync with a separate committed baseline."""
+        resume_id = request.resume_run_id
+        if resume_id is None:
+            resume_id = await deadline.wait(
+                self._repository.find_resumable_sync_run(telegram_chat_id)
+            )
+        if resume_id is not None:
+            run_id = resume_id
+            state = await deadline.wait(
+                self._repository.resume_sync_run(run_id, telegram_chat_id)
+            )
+            if (
+                state["max_messages"] != request.max_messages
+                or state["reconcile_window"] != request.reconcile_window
+            ):
+                await deadline.wait(
+                    self._repository.finish_run(
+                        run_id, ScanStatus.PARTIAL, "RESUME_SCOPE_MISMATCH"
+                    ),
+                    finalization=True,
+                )
+                raise ValueError("resume scope differs from the stored sync run")
+        else:
+            run_id = uuid.uuid4().hex
+            state = await deadline.wait(
+                self._repository.start_sync_run(
+                    telegram_chat_id,
+                    run_id,
+                    max_messages=request.max_messages,
+                    reconcile_window=request.reconcile_window,
+                )
+            )
+        watermark = state["snapshot_head"]
+        cursor = state["cursor"]
+        floor = state["reconcile_floor"]
+        seen = inserted = updated = media_seen = 0
+        durable_cursor = cursor
+        reason: str | None = None
+        status = ScanStatus.FAILED
+        iterator: AsyncIterator[GatewayMessage] | None = None
+        primary_error: BaseException | None = None
+        batch: list[GatewayMessage] = []
+
+        async def commit(*, cleanup: bool = False) -> None:
+            nonlocal inserted, updated, media_seen, durable_cursor
+            if not batch:
+                return
+            try:
+                new_count, update_count = await deadline.wait(
+                    self._repository.persist_batch(run_id, tuple(batch)),
+                    cleanup=cleanup,
+                )
+            except TimeoutError:
+                batch.clear()
+                raise
+            inserted += new_count
+            updated += update_count
+            media_seen += sum(len(item.media) for item in batch)
+            durable_cursor = min(item.telegram_message_id for item in batch)
+            batch.clear()
+
+        try:
+            auth_state = await deadline.wait(self._gateway.restore())
+            if auth_state is not AuthState.AUTHENTICATED:
+                category = (
+                    "SESSION_INVALID"
+                    if auth_state is AuthState.SESSION_INVALID
+                    else "AUTH_REQUIRED"
+                )
+                raise ScanGatewayError(category)
+            iterator = self._gateway.iter_channel_messages(
+                telegram_chat_id,
+                # A new run captures the current Telegram head. The preceding
+                # completed high-water is stored separately and must never cap
+                # discovery of newer IDs. A resumed run reuses only its own
+                # persisted head snapshot.
+                through_message_id=watermark if resume_id is not None else None,
+                before_message_id=cursor,
+                min_message_id=floor,
+                limit=request.max_messages,
+            ).__aiter__()
+            previous_id = watermark + 1 if watermark is not None else None
+            exhausted = True
+            while True:
+                try:
+                    message = await deadline.wait(iterator.__anext__())
+                except StopAsyncIteration:
+                    break
+                if (
+                    message.telegram_chat_id != telegram_chat_id
+                    or message.telegram_message_id <= 0
+                ):
+                    raise ValueError("invalid gateway message identity")
+                if watermark is None:
+                    watermark = message.telegram_message_id
+                    await deadline.wait(
+                        self._repository.set_sync_snapshot_head(run_id, watermark)
+                    )
+                if message.telegram_message_id > watermark:
+                    raise ValueError("invalid gateway message sequence")
+                if floor is not None and message.telegram_message_id < floor:
+                    break
+                if previous_id is not None and message.telegram_message_id >= previous_id:
+                    raise ValueError("invalid gateway message sequence")
+                previous_id = message.telegram_message_id
+                batch.append(normalize_message(message))
+                seen += 1
+                if len(batch) >= 100:
+                    await commit()
+                if seen >= request.max_messages:
+                    reason = "MESSAGE_LIMIT"
+                    exhausted = False
+                    break
+            await commit()
+            status = (
+                ScanStatus.COMPLETE
+                if exhausted and reason is None
+                else ScanStatus.PARTIAL
+            )
+        except TimeoutError:
+            reason = "TIMEOUT"
+            if batch:
+                await commit(cleanup=True)
+            status = (
+                ScanStatus.PARTIAL
+                if durable_cursor is not None
+                else ScanStatus.FAILED
+            )
+        except asyncio.CancelledError as error:
+            primary_error = error
+            if batch:
+                await commit(cleanup=True)
+            await deadline.wait(
+                self._repository.finish_run(run_id, ScanStatus.PARTIAL, "CANCELLED"),
+                finalization=True,
+            )
+            raise
+        except ScanGatewayError as error:
+            primary_error = error
+            status = ScanStatus.PARTIAL if durable_cursor is not None else ScanStatus.FAILED
+            await deadline.wait(
+                self._repository.finish_run(run_id, status, error.category),
+                finalization=True,
+            )
+            raise
+        except Exception as error:
+            primary_error = error
+            await deadline.wait(
+                self._repository.finish_run(run_id, ScanStatus.FAILED, "SCAN_FAILURE"),
+                finalization=True,
+            )
+            raise
+        finally:
+            if iterator is not None:
+                close = getattr(iterator, "aclose", None)
+                if close is not None:
+                    try:
+                        await deadline.wait(close(), cleanup=True)
+                    except BaseException:
+                        if primary_error is None:
+                            status = ScanStatus.FAILED
+                            reason = "CLEANUP_FAILURE"
+        if status is ScanStatus.PARTIAL and durable_cursor is None:
+            status = ScanStatus.FAILED
+        await deadline.wait(
+            self._repository.finish_run(run_id, status, reason), finalization=True
+        )
+        summary = await deadline.wait(self._repository.get_sync_run_summary(run_id))
+        return ScanOutcome(
+            run_id=run_id,
+            status=ScanStatus(str(summary["status"])),
+            stop_reason=summary["stop_reason"],
+            messages_seen=int(summary["messages_seen"]),
+            messages_inserted=int(summary["messages_new"]),
+            messages_updated=int(summary["messages_updated"]),
+            media_seen=int(summary["media_seen"]),
+            last_message_id=durable_cursor,
+            messages_unchanged=int(summary["messages_unchanged"]),
+            messages_unverified=summary["messages_unverified"],
+            media_unverified=int(summary["media_unverified"]),
+            high_water_confirmed=summary["high_water_confirmed"],
+            has_confirmed_high_water=bool(summary["has_confirmed_high_water"]),
         )
 
 

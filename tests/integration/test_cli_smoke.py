@@ -44,11 +44,26 @@ def _snapshot(root: Path) -> dict[str, tuple[object, ...]]:
             info = entry.stat(follow_symlinks=False)
             attributes = int(getattr(info, "st_file_attributes", 0))
             is_reparse = bool(attributes & 0x400) or stat.S_ISLNK(info.st_mode)
-            if is_reparse:
-                raise AssertionError("reparse point found in filesystem oracle root")
             relative = path.relative_to(root).as_posix()
             created = datetime.fromtimestamp(info.st_ctime, timezone.utc).isoformat()
             modified = datetime.fromtimestamp(info.st_mtime, timezone.utc).isoformat()
+            if is_reparse:
+                try:
+                    target = os.readlink(path)
+                except OSError as error:
+                    raise AssertionError(
+                        f"uninspectable reparse point in filesystem oracle: {relative}"
+                    ) from error
+                result[relative] = (
+                    "reparse",
+                    attributes,
+                    getattr(info, "st_reparse_tag", None),
+                    info.st_mode,
+                    created,
+                    modified,
+                    target,
+                )
+                continue
             if stat.S_ISDIR(info.st_mode):
                 result[relative] = ("directory", attributes, created, modified)
                 pending.append(path)

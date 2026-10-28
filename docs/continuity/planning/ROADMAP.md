@@ -5,9 +5,7 @@
 **Execution model = INCREMENTAL_VERTICAL_SLICES**
 **Maximum active formal activities = 1**
 
-Estado corrente: PHASE 4 / S5 CLOSED / formal acceptance APPROVED / closure PASS.
-A prova abrange cinco mídias observadas em catálogo parcial; S6 está PLANNED /
-NOT_STARTED. Ver [PROJECT_STATE](../PROJECT_STATE.md).
+Estado corrente: PHASE 5 / S6 e S7 formalmente CLOSED_WITH_EXCEPTIONS. S6 Gates A=PARTIAL e B=BLOCKED_BY_REMOTE_EVIDENCE continuam sem comprovação integral V1. A S7 foi aceita pela OPTION_B, com critérios A2/A4/A6 ainda parciais e quatro exceções registradas; não há conformidade integral nem homologação de exclusão remota positiva. S8 — Operational Hardening — é a próxima sprint planejada da PHASE 6, ainda DEFERRED, NOT_STARTED e sem autorização de implementação. Ver PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública), [relatório de fechamento S7](../../reports/S7_FORMAL_CLOSURE_2026-10-26/REPORT.md), [parecer final S7](../../reports/S7_FINAL_ACCEPTANCE_DECISION_2026-10-26/REPORT.md) e aprovações (authority canônica mantida localmente e omitida da baseline pública).
 
 | Phase | Name | Sprint(s) | Outcome |
 |---|---|---|---|
@@ -37,4 +35,4 @@ DOCUMENT_ROLE = ROADMAP
 ROADMAP_VERSION = 1.1 / 2026-10-05
 ROADMAP_STATUS = DEFINED_USER_BASELINE_RECONCILED
 
-Estado de execução, seleção, prontidão e autorização: [PROJECT_STATE.md](../PROJECT_STATE.md). Este roadmap não inicia nenhuma unidade.
+Estado de execução, seleção, prontidão e autorização: PROJECT_STATE.md (authority canônica mantida localmente e omitida da baseline pública). Este roadmap não inicia nenhuma unidade.

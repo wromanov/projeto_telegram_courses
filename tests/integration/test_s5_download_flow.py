@@ -210,9 +210,11 @@ def test_s5_course_plan_scope_exclusions_and_queue_rerun(
         assert sum(status == "COMPLETED" for _, status, _ in first.outcomes) == len(expected_messages)
         before = download_snapshot(database, root, expected_messages)
         assert first.transferred_bytes == sum(len(CONTENT[message]) for message in expected_messages)
-        # The uncapped S4 stream does not use the byte-reservation telemetry.
-        # Capped gateway request accounting is covered by dedicated tests.
-        assert gateway.requested_bytes == []
+        # Per-request reservation telemetry is required for capped and uncapped
+        # streams; only the aggregate limit differs between those modes.
+        assert sorted(gateway.requested_bytes) == sorted(
+            len(CONTENT[message]) for message in expected_messages
+        )
         assert first.attempts == len(expected_messages) and first.failed == 0
         assert reports[-1]["completed"] == len(expected_messages)
         assert reports[-1]["pending"] == reports[-1]["running"] == 0
@@ -278,6 +280,41 @@ def test_s5_selectable_nodes_reject_inactive_ancestor(tmp_path) -> None:
         for _, label in lesson_choices
         for lesson in ("Aula 1", "Aula 2", "Aula 3")
     )
+
+
+def test_s5_preview_exposes_conditional_resume_without_mutating_state(tmp_path) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    root = tmp_path / "downloads"
+    async def prepare():
+        await seed_s5_database(database)
+        repository = DownloadRepository(database)
+        candidate = await repository.select_candidate(CHANNEL, 101, 0)
+        final, partial = destination_paths(root, candidate)
+        partial.parent.mkdir(parents=True)
+        partial.write_bytes(CONTENT[101][:3])
+        await repository.start(candidate, final, partial)
+        await repository.transition(
+            candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=2,
+            failure_category="NETWORK",
+        )
+        return candidate, final, partial
+
+    candidate, _final, partial = asyncio.run(prepare())
+    planner = DownloadPlanner(database, root)
+    plan = asyncio.run(planner.build(DownloadSelection(CHANNEL)))
+    item = next(item for item in plan.items if item.identity[1] == 101)
+    before = (partial.read_bytes(), partial.parent.exists(), database.read_bytes())
+    replay = asyncio.run(planner.build(DownloadSelection(CHANNEL)))
+    after = (partial.read_bytes(), partial.parent.exists(), database.read_bytes())
+
+    assert item.status == "CONDITIONAL_RESUME_CANDIDATE"
+    assert item.candidate == candidate
+    assert (item.part_bytes, item.wire_offset, item.overlap_bytes) == (3, 0, 3)
+    assert item.estimated_payload_bytes == len(CONTENT[101])
+    assert item.estimated_additional_disk_bytes == len(CONTENT[101]) - 3
+    assert item in plan.pending
+    assert replay.plan_id == plan.plan_id
+    assert before == after
 
 
 def test_s5_preview_is_offline_and_disk_gate_blocks_before_transfer(tmp_path, capsys) -> None:

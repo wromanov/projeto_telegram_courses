@@ -7,6 +7,7 @@ import logging
 import socket
 import ssl
 import time
+import traceback
 from importlib import import_module
 from typing import Any, Callable
 
@@ -47,6 +48,24 @@ _ProtectedSessionVault = _session_storage._ProtectedSessionVault
 
 _DIAGNOSTIC_LOGGER = logging.getLogger(__name__)
 _DISCOVERY_LOGGER = logging.getLogger(__name__)
+_S6_MAX_DIALOGS = 200
+_S6_MAX_DIALOG_RPCS = 3
+S6_PEER_RECOVERY_REASONS = frozenset({
+    "SESSION_UNAVAILABLE",
+    "DIALOG_BUDGET_EXHAUSTED",
+    "METADATA_RPC_FAILURE",
+    "INVALID_RESPONSE_TYPE",
+    "INVALID_DIALOG_COLLECTION",
+    "RAW_DIALOG_OVERDELIVERY",
+    "INVALID_TARGET_TYPE",
+    "TARGET_NOT_FOUND_IN_PAGE",
+    "INVALID_CHAT_COLLECTION",
+    "TARGET_FORBIDDEN",
+    "TARGET_ENTITY_MISSING",
+    "TARGET_ENTITY_INVALID",
+    "TARGET_ENTITY_CONFLICT",
+    "PEER_RESOLVED",
+})
 _FAILURE_STAGES = frozenset({
     "CLIENT_CREATION",
     "CONNECT",
@@ -58,7 +77,56 @@ _FAILURE_STAGES = frozenset({
     "SESSION_PERSISTENCE",
     "DISCONNECT",
     "MEDIA_DOWNLOAD",
+    "MEDIA_HASH",
 })
+
+
+def _direct_download_limit(expected_bytes: int, chunk_bytes: int) -> int:
+    """Choose a Telethon direct-iterator limit compatible with aligned offsets."""
+    if expected_bytes <= 0:
+        return 1
+    chunk_count = (expected_bytes + chunk_bytes - 1) // chunk_bytes
+    limit = 1
+    while limit < chunk_count:
+        limit *= 2
+    if (
+        limit <= 0
+        or limit < chunk_count
+        or limit & (limit - 1)
+        or chunk_bytes % limit != 0
+    ):
+        from telegram_courses.downloads import DownloadGatewayError
+
+        raise DownloadGatewayError("DIRECT_ITERATOR_INCOMPATIBLE")
+    return limit
+
+
+def _log_invalid_chunk(code: str, chunk: Any, *, chunk_bytes: int) -> None:
+    allowed_codes = {"CHUNK_TYPE", "CHUNK_EMPTY", "CHUNK_TOO_LARGE", "CHUNK_SHAPE"}
+    safe_code = code if code in allowed_codes else "CHUNK_SHAPE"
+    length: int | str = "UNAVAILABLE"
+    ndim = itemsize = "NA"
+    contiguous = "NA"
+    if type(chunk) is bytes:
+        length = len(chunk)
+    elif isinstance(chunk, memoryview):
+        try:
+            candidate_length = chunk.nbytes
+            candidate_ndim = chunk.ndim
+            candidate_itemsize = chunk.itemsize
+            candidate_contiguous = chunk.c_contiguous
+            length = candidate_length if type(candidate_length) is int else "UNAVAILABLE"
+            ndim = candidate_ndim if type(candidate_ndim) is int else "NA"
+            itemsize = candidate_itemsize if type(candidate_itemsize) is int else "NA"
+            contiguous = candidate_contiguous if type(candidate_contiguous) is bool else "NA"
+        except Exception:
+            pass
+    _DIAGNOSTIC_LOGGER.warning(
+        "media diagnostic FAILURE_CATEGORY=INVALID_CHUNK CHUNK_CODE=%s "
+        "CHUNK_LENGTH=%s CHUNK_LIMIT=%d MEMORYVIEW_NDIM=%s "
+        "MEMORYVIEW_ITEMSIZE=%s MEMORYVIEW_C_CONTIGUOUS=%s",
+        safe_code, length, chunk_bytes, ndim, itemsize, contiguous,
+    )
 
 
 def _sanitized_exception_class(error: Exception) -> str:
@@ -66,6 +134,31 @@ def _sanitized_exception_class(error: Exception) -> str:
     if len(name) > 64 or not name.isascii() or not name.isidentifier():
         return "UnknownException"
     return name
+
+
+def _sanitized_exception_traceback(error: Exception, *, max_frames: int = 8) -> str:
+    """Return stack locations only; never include source lines or exception text."""
+    extracted = traceback.extract_tb(error.__traceback__)
+    if not extracted:
+        return "UNAVAILABLE"
+    locations: list[str] = []
+    for frame in extracted[-max_frames:]:
+        filename = frame.filename.replace("\\", "/").rsplit("/", 1)[-1]
+        if (
+            not filename.isascii()
+            or not filename
+            or any(not (char.isalnum() or char in "._-") for char in filename)
+        ):
+            filename = "UNKNOWN_FILE"
+        function = frame.name
+        if (
+            not function.isascii()
+            or not function
+            or any(not (char.isalnum() or char in "_<>-") for char in function)
+        ):
+            function = "UNKNOWN_FUNCTION"
+        locations.append(f"{filename}:{frame.lineno}:{function}")
+    return " > ".join(locations)
 
 
 def _project_error_category(error: Exception) -> str:
@@ -103,9 +196,15 @@ class TelethonGateway:
         vault: Any | None = None,
         receive_updates: bool | None = None,
         catch_up: bool | None = None,
+        bounded_metadata_channel_id: int | None = None,
         request_retries: int = 1,
         connection_retries: int = 1,
     ) -> None:
+        self._bounded_metadata_channel_id = (
+            self._validate_bounded_metadata_channel_id(
+                bounded_metadata_channel_id
+            )
+        )
         if (receive_updates is None) != (catch_up is None):
             raise ValueError("discovery update profile must be complete")
         if receive_updates is not None and (
@@ -150,6 +249,54 @@ class TelethonGateway:
         self._phone_code_hash: str | None = None
         self._state: AuthState | None = None
         self._closed = False
+        self._selected_metadata_peer: Any | None = None
+        self._metadata_peer_recovery_reason: str | None = None
+        self._metadata_dialog_rpcs = 0
+        self._metadata_dialogs_inspected = 0
+        self._metadata_message_rpcs = 0
+        self._metadata_messages_inspected = 0
+        self._metadata_rpc_lock = asyncio.Lock()
+
+    @staticmethod
+    def _validate_bounded_metadata_channel_id(
+        channel_id: int | None,
+    ) -> int | None:
+        if channel_id is None:
+            return None
+        if (
+            type(channel_id) is not int
+            or channel_id < -(1 << 63)
+            or channel_id > (1 << 63) - 1
+        ):
+            raise ConfigurationError from None
+        try:
+            from telethon import utils
+            from telethon.tl.types import PeerChannel
+
+            raw_id, peer_type = utils.resolve_id(channel_id)
+            if (
+                peer_type is not PeerChannel
+                or type(raw_id) is not int
+                or raw_id <= 0
+                or utils.get_peer_id(PeerChannel(raw_id)) != channel_id
+            ):
+                raise ValueError
+        except Exception:
+            raise ConfigurationError from None
+        return channel_id
+
+    def _require_bounded_metadata_channel_id(
+        self, requested_channel_id: int
+    ) -> int:
+        configured_channel_id = self._bounded_metadata_channel_id
+        if configured_channel_id is None:
+            raise ConfigurationError from None
+        if (
+            type(requested_channel_id) is not int
+            or requested_channel_id != configured_channel_id
+        ):
+            raise ValueError("invalid bounded channel request")
+        return configured_channel_id
 
     def _new_client(self, session: Any) -> Any:
         settings: dict[str, Any] = {
@@ -314,8 +461,13 @@ class TelethonGateway:
             InputPeerEmpty,
             PeerChannel,
         )
-        from telethon.tl.types.messages import Dialogs as DialogsResult
-        from telethon.tl.types.messages import DialogsNotModified, DialogsSlice
+        from telethon.tl.types.messages import (
+            Dialogs as DialogsResult,
+        )
+        from telethon.tl.types.messages import (
+            DialogsNotModified,
+            DialogsSlice,
+        )
 
         if not isinstance(request, DiscoveryRequest):
             raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
@@ -609,7 +761,13 @@ class TelethonGateway:
             raise ScanGatewayError("ADAPTER_FAILURE") from None
         raise ScanGatewayError("ADAPTER_FAILURE") from None
 
-    async def _project_message(self, telegram_chat_id: int, message: Any) -> GatewayMessage:
+    async def _project_message(
+        self,
+        telegram_chat_id: int,
+        message: Any,
+        *,
+        include_text: bool = True,
+    ) -> GatewayMessage:
         from datetime import UTC
 
         date = message.date
@@ -640,7 +798,7 @@ class TelethonGateway:
             telegram_message_id=int(message.id),
             date_utc=date.astimezone(UTC).isoformat(),
             edit_date_utc=edit_date.astimezone(UTC).isoformat() if edit_date else None,
-            text=getattr(message, "message", None) or None,
+            text=(getattr(message, "message", None) or None) if include_text else None,
             grouped_id=getattr(message, "grouped_id", None),
             media=tuple(media),
         )
@@ -652,6 +810,7 @@ class TelethonGateway:
         through_message_id: int | None,
         before_message_id: int | None,
         limit: int,
+        min_message_id: int | None = None,
     ):
         if self._state is not AuthState.AUTHENTICATED or self._client is None:
             raise AdapterError from None
@@ -664,6 +823,10 @@ class TelethonGateway:
             }
             if through_message_id is not None:
                 options["max_id"] = through_message_id + 1
+            if min_message_id is not None:
+                if type(min_message_id) is not int or min_message_id <= 0:
+                    raise ValueError("invalid minimum message id")
+                options["min_id"] = min_message_id - 1
             iterator = self._client.iter_messages(entity, **options)
             async for message in iterator:
                 yield await self._project_message(telegram_chat_id, message)
@@ -683,6 +846,7 @@ class TelethonGateway:
         expected_bytes: int,
         chunk_bytes: int,
         reserve_chunk=None,
+        offset: int = 0,
     ):
         from telethon import utils
 
@@ -706,21 +870,69 @@ class TelethonGateway:
             actual_size = getattr(document, "size", None)
             if actual_id != telegram_media_id or type(actual_size) is not int or actual_size != expected_bytes:
                 raise DownloadGatewayError("MEDIA_MISMATCH")
+            if (
+                type(offset) is not int or offset < 0 or offset > expected_bytes
+                or offset % (256 * 1024) != 0
+            ):
+                raise DownloadGatewayError("INVALID_OFFSET")
+            if not callable(reserve_chunk):
+                raise DownloadGatewayError("BUDGET_ENFORCEMENT_UNAVAILABLE")
+            limit = _direct_download_limit(expected_bytes, chunk_bytes)
+            if offset % limit != 0:
+                raise DownloadGatewayError("DIRECT_ITERATOR_INCOMPATIBLE")
+            remaining = expected_bytes - offset
+            if remaining == 0:
+                return
             stream = self._client.iter_download(
                 document, request_size=chunk_bytes, chunk_size=chunk_bytes,
-                file_size=expected_bytes,
+                file_size=expected_bytes, offset=offset, limit=limit,
             )
+            iterator_class = type(stream).__name__
+            safe_iterator_class = (
+                iterator_class
+                if iterator_class in {"_DirectDownloadIter", "_GenericDownloadIter"}
+                else "UNKNOWN"
+            )
+            _DIAGNOSTIC_LOGGER.warning(
+                "media diagnostic ITERATOR_CLASS=%s DOWNLOAD_LIMIT=%d "
+                "CHUNK_COUNT=%d",
+                safe_iterator_class,
+                limit,
+                (expected_bytes + chunk_bytes - 1) // chunk_bytes,
+            )
+            if safe_iterator_class != "_DirectDownloadIter":
+                raise DownloadGatewayError("DIRECT_ITERATOR_INCOMPATIBLE")
             if reserve_chunk is None:
-                async for chunk in stream:
-                    if not isinstance(chunk, bytes) or not chunk or len(chunk) > chunk_bytes:
-                        raise DownloadGatewayError("INVALID_CHUNK")
-                    yield chunk
+                try:
+                    async for chunk in stream:
+                        if type(chunk) is not bytes:
+                            _log_invalid_chunk("CHUNK_TYPE", chunk, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if not chunk:
+                            _log_invalid_chunk("CHUNK_EMPTY", chunk, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if len(chunk) > chunk_bytes:
+                            _log_invalid_chunk("CHUNK_TOO_LARGE", chunk, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if len(chunk) > remaining:
+                            _log_invalid_chunk("CHUNK_SHAPE", chunk, chunk_bytes=remaining)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        yield chunk
+                        remaining -= len(chunk)
+                        if remaining == 0:
+                            break
+                    if remaining:
+                        raise DownloadGatewayError("SIZE_MISMATCH")
+                finally:
+                    close = getattr(stream, "close", None)
+                    if callable(close):
+                        await close()
             else:
                 await self._begin_strict_budget_stream()
                 try:
                     # Telethon 1.45 uses this hook for every GetFile request, including
-                    # its internal timeout/migration retries. The equal request/chunk
-                    # sizes select its direct iterator, which does not prefetch.
+                    # its internal timeout/migration retries. An explicit compatible
+                    # limit selects its direct iterator, which does not prefetch.
                     request = getattr(stream, "_request", None)
                     if not callable(request):
                         raise DownloadGatewayError("BUDGET_ENFORCEMENT_UNAVAILABLE")
@@ -740,8 +952,17 @@ class TelethonGateway:
                         except BaseException:
                             reservation.charge_uncertain()
                             raise
-                        if not isinstance(data, (bytes, memoryview)):
+                        if type(data) is not bytes:
                             reservation.charge_uncertain()
+                            _log_invalid_chunk("CHUNK_TYPE", data, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if not data:
+                            reservation.charge_uncertain()
+                            _log_invalid_chunk("CHUNK_EMPTY", data, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if len(data) > chunk_bytes:
+                            reservation.charge_uncertain()
+                            _log_invalid_chunk("CHUNK_TOO_LARGE", data, chunk_bytes=chunk_bytes)
                             raise DownloadGatewayError("INVALID_CHUNK")
                         try:
                             reservation.received(len(data))
@@ -754,11 +975,31 @@ class TelethonGateway:
 
                     stream._request = reserved_request
                     async for chunk in stream:
-                        if not isinstance(chunk, bytes) or not chunk or len(chunk) > chunk_bytes:
+                        if type(chunk) is not bytes:
+                            _log_invalid_chunk("CHUNK_TYPE", chunk, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if not chunk:
+                            _log_invalid_chunk("CHUNK_EMPTY", chunk, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if len(chunk) > chunk_bytes:
+                            _log_invalid_chunk("CHUNK_TOO_LARGE", chunk, chunk_bytes=chunk_bytes)
+                            raise DownloadGatewayError("INVALID_CHUNK")
+                        if len(chunk) > remaining:
+                            _log_invalid_chunk("CHUNK_SHAPE", chunk, chunk_bytes=remaining)
                             raise DownloadGatewayError("INVALID_CHUNK")
                         yield chunk
+                        remaining -= len(chunk)
+                        if remaining == 0:
+                            break
+                    if remaining:
+                        raise DownloadGatewayError("SIZE_MISMATCH")
                 finally:
-                    await self._end_strict_budget_stream()
+                    try:
+                        close = getattr(stream, "close", None)
+                        if callable(close):
+                            await close()
+                    finally:
+                        await self._end_strict_budget_stream()
         except DownloadGatewayError:
             raise
         except Exception as error:
@@ -810,11 +1051,14 @@ class TelethonGateway:
         expected_bytes: int,
         chunk_bytes: int = 256 * 1024,
         reserve_chunk=None,
+        offset: int = 0,
     ):
         if (
             type(channel_id) is not int or type(message_id) is not int
             or type(media_ordinal) is not int or type(expected_bytes) is not int
             or type(chunk_bytes) is not int or chunk_bytes <= 0 or chunk_bytes > 256 * 1024
+            or type(offset) is not int or offset < 0 or offset > expected_bytes
+            or (offset and (offset % (256 * 1024) != 0 or chunk_bytes != 256 * 1024))
             or not telegram_media_id or expected_bytes < 0
         ):
             raise ValueError("invalid media stream request")
@@ -824,7 +1068,137 @@ class TelethonGateway:
             expected_bytes=expected_bytes,
             chunk_bytes=chunk_bytes,
             reserve_chunk=reserve_chunk,
+            offset=offset,
         )
+
+    async def get_file_hashes(
+        self,
+        channel_id: int,
+        message_id: int,
+        media_ordinal: int,
+        *,
+        telegram_media_id: str,
+        expected_bytes: int,
+        offset: int = 0,
+    ):
+        from telethon import utils
+        from telethon.tl.functions.upload import GetFileHashesRequest
+
+        from telegram_courses.downloads import DownloadGatewayError, RemoteFileHash
+
+        if (
+            type(channel_id) is not int or type(message_id) is not int
+            or type(media_ordinal) is not int or media_ordinal != 0 or not telegram_media_id
+            or type(expected_bytes) is not int or expected_bytes < 0
+            or type(offset) is not int or offset < 0 or offset > expected_bytes
+        ):
+            raise DownloadGatewayError("INVALID_HASH_REQUEST")
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            raise DownloadGatewayError("SESSION_INVALID")
+        try:
+            entity = await self._input_entity_for_selected_channel(channel_id)
+            message = await self._client.get_messages(entity, ids=message_id)
+            if message is None or type(getattr(message, "id", None)) is not int or message.id != message_id:
+                raise DownloadGatewayError("MESSAGE_NOT_FOUND")
+            peer = getattr(message, "peer_id", None)
+            if peer is None or utils.get_peer_id(peer) != channel_id:
+                raise DownloadGatewayError("CHANNEL_MISMATCH")
+            raw_media = getattr(message, "media", None)
+            document = getattr(raw_media, "document", None) if raw_media is not None else None
+            if (
+                document is None or str(getattr(document, "id", "")) != telegram_media_id
+                or type(getattr(document, "size", None)) is not int
+                or document.size != expected_bytes
+            ):
+                raise DownloadGatewayError("MEDIA_MISMATCH")
+            _dc_id, location = utils.get_input_location(document)
+            await self._begin_strict_budget_stream()
+            try:
+                response = await self._client(GetFileHashesRequest(location, offset))
+            finally:
+                await self._end_strict_budget_stream()
+            if not isinstance(response, (tuple, list)):
+                raise DownloadGatewayError("INVALID_HASH_RESPONSE")
+            result: list[RemoteFileHash] = []
+            for item in response:
+                try:
+                    item_offset, item_limit, item_hash = item.offset, item.limit, item.hash
+                except (AttributeError, TypeError):
+                    raise DownloadGatewayError("INVALID_HASH_RESPONSE") from None
+                if (
+                    type(item_offset) is not int
+                    or type(item_limit) is not int
+                    or not isinstance(item_hash, bytes)
+                ):
+                    raise DownloadGatewayError("INVALID_HASH_RESPONSE")
+                result.append(RemoteFileHash(item_offset, item_limit, item_hash))
+            return tuple(result)
+        except DownloadGatewayError:
+            raise
+        except Exception as error:
+            self._record_failure("MEDIA_HASH", error, AdapterError())
+            try:
+                from telethon import errors
+                if isinstance(error, errors.FloodWaitError):
+                    raise DownloadGatewayError(
+                        "RATE_LIMITED", retry_after_seconds=int(error.seconds)
+                    ) from None
+                if isinstance(error, (OSError, TimeoutError, ConnectionError, asyncio.IncompleteReadError)):
+                    raise DownloadGatewayError("NETWORK") from None
+            except DownloadGatewayError:
+                raise
+            except Exception:
+                pass
+            raise DownloadGatewayError("REMOTE_HASHES_UNAVAILABLE") from None
+
+    async def validate_media_identity(
+        self,
+        channel_id: int,
+        message_id: int,
+        media_ordinal: int,
+        *,
+        telegram_media_id: str,
+        expected_bytes: int,
+    ) -> bool:
+        """Re-fetch and compare the selected remote document identity and size."""
+        from telethon import utils
+
+        from telegram_courses.downloads import DownloadGatewayError
+
+        if (
+            type(channel_id) is not int or type(message_id) is not int
+            or type(media_ordinal) is not int or media_ordinal != 0
+            or not telegram_media_id or type(expected_bytes) is not int or expected_bytes < 0
+        ):
+            raise DownloadGatewayError("INVALID_MEDIA_IDENTITY_REQUEST")
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            raise DownloadGatewayError("SESSION_INVALID")
+        try:
+            entity = await self._input_entity_for_selected_channel(channel_id)
+            message = await self._client.get_messages(entity, ids=message_id)
+            if message is None or type(getattr(message, "id", None)) is not int or message.id != message_id:
+                raise DownloadGatewayError("MESSAGE_NOT_FOUND")
+            peer = getattr(message, "peer_id", None)
+            if peer is None or utils.get_peer_id(peer) != channel_id:
+                raise DownloadGatewayError("CHANNEL_MISMATCH")
+            raw_media = getattr(message, "media", None)
+            document = getattr(raw_media, "document", None) if raw_media is not None else None
+            if (
+                document is None or str(getattr(document, "id", "")) != telegram_media_id
+                or type(getattr(document, "size", None)) is not int
+                or document.size != expected_bytes
+            ):
+                raise DownloadGatewayError("MEDIA_MISMATCH")
+            return True
+        except DownloadGatewayError:
+            raise
+        except Exception as error:
+            self._record_failure("MEDIA_IDENTITY", error, AdapterError())
+            try:
+                self._translate(error)
+            except DownloadGatewayError:
+                raise
+            raise DownloadGatewayError("GATEWAY_FAILURE") from None
 
     def iter_channel_messages(
         self,
@@ -833,6 +1207,7 @@ class TelethonGateway:
         through_message_id: int | None,
         before_message_id: int | None,
         limit: int,
+        min_message_id: int | None = None,
     ):
         if type(limit) is not int or limit <= 0:
             raise ValueError("invalid message limit")
@@ -841,6 +1216,353 @@ class TelethonGateway:
             through_message_id=through_message_id,
             before_message_id=before_message_id,
             limit=limit,
+            min_message_id=min_message_id,
+        )
+
+    async def _metadata_rpc(self, request: Any, *, stage: str) -> Any:
+        if self._client is None:
+            raise ScanGatewayError("SESSION_INVALID")
+        async with self._metadata_rpc_lock:
+            previous = {
+                "connection_retries": getattr(
+                    self._client, "_connection_retries", None
+                ),
+                "auto_reconnect": getattr(
+                    self._client, "_auto_reconnect", None
+                ),
+                "flood_sleep_threshold": getattr(
+                    self._client, "_flood_sleep_threshold", None
+                ),
+            }
+            if (
+                type(previous["connection_retries"]) is not int
+                or type(previous["auto_reconnect"]) is not bool
+                or type(previous["flood_sleep_threshold"]) not in (int, float)
+            ):
+                raise ScanGatewayError("ADAPTER_FAILURE")
+            try:
+                await self._begin_strict_budget_stream()
+            except Exception:
+                raise ScanGatewayError("ADAPTER_FAILURE") from None
+            try:
+                self._client._connection_retries = 0
+                self._client._auto_reconnect = False
+                self._client._flood_sleep_threshold = 0
+                try:
+                    request_name = type(request).__name__
+                    if request_name == "GetDialogsRequest":
+                        self._metadata_dialog_rpcs += 1
+                    elif request_name == "GetHistoryRequest":
+                        self._metadata_message_rpcs += 1
+                    return await asyncio.wait_for(
+                        self._client(request), timeout=30.0
+                    )
+                except asyncio.CancelledError:
+                    raise
+                except TimeoutError:
+                    raise ScanGatewayError("NETWORK") from None
+                except ScanGatewayError:
+                    raise
+                except Exception as error:
+                    self._record_failure(stage, error, AdapterError())
+                    self._raise_scan_failure(error)
+            finally:
+                self._client._connection_retries = previous["connection_retries"]
+                self._client._auto_reconnect = previous["auto_reconnect"]
+                self._client._flood_sleep_threshold = previous[
+                    "flood_sleep_threshold"
+                ]
+                await self._end_strict_budget_stream()
+
+    async def recover_selected_channel_peer(
+        self, telegram_chat_id: int, *, max_dialogs: int = 100
+    ) -> bool:
+        """Resolve only the confirmed channel from one bounded dialog page."""
+        configured_channel_id = self._require_bounded_metadata_channel_id(
+            telegram_chat_id
+        )
+        from datetime import UTC, datetime
+
+        from telethon import utils
+        from telethon.tl.functions.messages import GetDialogsRequest
+        from telethon.tl.types import (
+            Channel,
+            ChannelForbidden,
+            InputPeerChannel,
+            InputPeerEmpty,
+            PeerChannel,
+        )
+
+        if (
+            type(telegram_chat_id) is not int
+            or type(max_dialogs) is not int
+            or not 1 <= max_dialogs <= 100
+        ):
+            raise ValueError("invalid bounded channel recovery request")
+        self._metadata_peer_recovery_reason = None
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            self._metadata_peer_recovery_reason = "SESSION_UNAVAILABLE"
+            raise ScanGatewayError("SESSION_INVALID")
+        if self._selected_metadata_peer is not None:
+            self._metadata_peer_recovery_reason = "PEER_RESOLVED"
+            return True
+        remaining_dialog_budget = _S6_MAX_DIALOGS - self._metadata_dialogs_inspected
+        if (
+            self._metadata_dialog_rpcs >= 1
+            or remaining_dialog_budget <= 0
+            or self._metadata_dialog_rpcs >= _S6_MAX_DIALOG_RPCS
+        ):
+            self._metadata_peer_recovery_reason = "DIALOG_BUDGET_EXHAUSTED"
+            raise ScanGatewayError("ADAPTER_FAILURE")
+        requested_limit = min(max_dialogs, remaining_dialog_budget, 100)
+
+        request = GetDialogsRequest(
+            offset_date=datetime(1970, 1, 1, tzinfo=UTC),
+            offset_id=0,
+            offset_peer=InputPeerEmpty(),
+            limit=requested_limit,
+            hash=0,
+            exclude_pinned=True,
+            folder_id=None,
+        )
+        try:
+            response = await self._metadata_rpc(request, stage="MESSAGE_HISTORY")
+        except ScanGatewayError:
+            self._metadata_peer_recovery_reason = "METADATA_RPC_FAILURE"
+            raise
+        if type(response).__name__ not in {"Dialogs", "DialogsSlice"}:
+            self._metadata_peer_recovery_reason = "INVALID_RESPONSE_TYPE"
+            raise ScanGatewayError("ADAPTER_FAILURE")
+
+        dialogs = getattr(response, "dialogs", None)
+        if not isinstance(dialogs, (list, tuple)):
+            self._metadata_peer_recovery_reason = "INVALID_DIALOG_COLLECTION"
+            raise ScanGatewayError("ADAPTER_FAILURE")
+        raw_dialog_count = len(dialogs)
+        self._metadata_dialogs_inspected += raw_dialog_count
+        if (
+            raw_dialog_count > requested_limit
+            or self._metadata_dialogs_inspected > _S6_MAX_DIALOGS
+        ):
+            self._metadata_peer_recovery_reason = "RAW_DIALOG_OVERDELIVERY"
+            _DISCOVERY_LOGGER.warning(
+                "metadata peer recovery REASON=RAW_DIALOG_OVERDELIVERY "
+                "REQUESTED_LIMIT=%d RECEIVED=%d",
+                requested_limit,
+                raw_dialog_count,
+            )
+            del response
+            raise ScanGatewayError("ADAPTER_FAILURE")
+
+        target_raw_id, target_type = utils.resolve_id(configured_channel_id)
+        if target_type is not PeerChannel:
+            self._metadata_peer_recovery_reason = "INVALID_TARGET_TYPE"
+            raise ScanGatewayError("ADAPTER_FAILURE")
+        target_present = False
+        for dialog in dialogs:
+            peer = getattr(dialog, "peer", None)
+            if (
+                isinstance(peer, PeerChannel)
+                and type(peer.channel_id) is int
+                and peer.channel_id == target_raw_id
+            ):
+                target_present = True
+                break
+        if not target_present:
+            self._metadata_peer_recovery_reason = "TARGET_NOT_FOUND_IN_PAGE"
+            del response
+            return False
+
+        entities = getattr(response, "chats", None)
+        del response
+        if not isinstance(entities, (list, tuple)):
+            self._metadata_peer_recovery_reason = "INVALID_CHAT_COLLECTION"
+            raise ScanGatewayError("ADAPTER_FAILURE")
+        forbidden = False
+        target_occurrences = 0
+        invalid_target_entity = False
+        conflicting_target_entities = False
+        selected_signature: tuple[int, int] | None = None
+        selected_peer: Any | None = None
+        for entity in entities:
+            if isinstance(entity, ChannelForbidden):
+                entity_id = getattr(entity, "id", None)
+                if type(entity_id) is int and entity_id == target_raw_id:
+                    forbidden = True
+            elif isinstance(entity, Channel):
+                entity_id = getattr(entity, "id", None)
+                if type(entity_id) is int and entity_id == target_raw_id:
+                    target_occurrences += 1
+                    access_hash = getattr(entity, "access_hash", None)
+                    entity_min = getattr(entity, "min", None)
+                    try:
+                        if (
+                            type(entity_id) is not int
+                            or entity_id != target_raw_id
+                            or type(access_hash) is not int
+                            or access_hash == 0
+                            or (entity_min is not None and entity_min is not False)
+                        ):
+                            raise ValueError("invalid target channel")
+                        input_peer = utils.get_input_peer(entity, check_hash=True)
+                        if (
+                            not isinstance(input_peer, InputPeerChannel)
+                            or type(getattr(input_peer, "channel_id", None)) is not int
+                            or input_peer.channel_id != target_raw_id
+                            or type(getattr(input_peer, "access_hash", None)) is not int
+                            or input_peer.access_hash == 0
+                            or input_peer.access_hash != access_hash
+                        ):
+                            raise ValueError("invalid target input peer")
+                    except Exception:
+                        invalid_target_entity = True
+                        continue
+                    signature = (input_peer.channel_id, input_peer.access_hash)
+                    if selected_signature is None:
+                        selected_signature = signature
+                        selected_peer = input_peer
+                    elif signature != selected_signature:
+                        conflicting_target_entities = True
+        if forbidden:
+            self._metadata_peer_recovery_reason = "TARGET_FORBIDDEN"
+            raise ScanGatewayError("ACCESS_DENIED")
+        if conflicting_target_entities:
+            self._metadata_peer_recovery_reason = "TARGET_ENTITY_CONFLICT"
+            raise ScanGatewayError("ADAPTER_FAILURE")
+        if invalid_target_entity:
+            self._metadata_peer_recovery_reason = "TARGET_ENTITY_INVALID"
+            raise ScanGatewayError("CHANNEL_UNRESOLVED")
+        if target_occurrences == 0:
+            self._metadata_peer_recovery_reason = "TARGET_ENTITY_MISSING"
+            raise ScanGatewayError("CHANNEL_UNRESOLVED")
+        self._selected_metadata_peer = selected_peer
+        self._metadata_peer_recovery_reason = "PEER_RESOLVED"
+        return True
+
+    async def _iterate_channel_metadata(
+        self, telegram_chat_id: int, *, max_messages: int
+    ):
+        configured_channel_id = self._require_bounded_metadata_channel_id(
+            telegram_chat_id
+        )
+        from datetime import UTC, datetime
+
+        from telethon import utils
+        from telethon.tl.functions.messages import GetHistoryRequest
+        from telethon.tl.types import InputPeerChannel, PeerChannel
+
+        if self._state is not AuthState.AUTHENTICATED or self._client is None:
+            raise ScanGatewayError("SESSION_INVALID")
+        if type(telegram_chat_id) is not int:
+            raise ValueError("invalid channel id")
+        try:
+            if type(max_messages) is not int or not 1 <= max_messages <= 200:
+                raise ValueError("invalid metadata message limit")
+            channel_id, peer_type = utils.resolve_id(telegram_chat_id)
+            entity = self._selected_metadata_peer
+            if (
+                peer_type is not PeerChannel
+                or channel_id
+                != utils.resolve_id(configured_channel_id)[0]
+            ):
+                raise ValueError("invalid channel id")
+            if entity is None:
+                raise ScanGatewayError("CHANNEL_UNRESOLVED")
+            if (
+                not isinstance(entity, InputPeerChannel)
+                or type(getattr(entity, "channel_id", None)) is not int
+                or entity.channel_id != channel_id
+                or type(getattr(entity, "access_hash", None)) is not int
+                or entity.access_hash == 0
+            ):
+                raise ScanGatewayError("CHANNEL_UNRESOLVED")
+            inspected = 0
+            offset_id = 0
+            per_call_budget = min(
+                max_messages,
+                max(0, 200 - self._metadata_messages_inspected),
+            )
+            while inspected < per_call_budget:
+                page_limit = min(100, per_call_budget - inspected)
+                request = GetHistoryRequest(
+                    peer=entity,
+                    offset_id=offset_id,
+                    offset_date=datetime(1970, 1, 1, tzinfo=UTC),
+                    add_offset=0,
+                    limit=page_limit,
+                    max_id=0,
+                    min_id=0,
+                    hash=0,
+                )
+                response = await self._metadata_rpc(
+                    request, stage="MESSAGE_HISTORY"
+                )
+                raw_messages = getattr(response, "messages", None)
+                if not isinstance(raw_messages, (list, tuple)):
+                    raise ScanGatewayError("ADAPTER_FAILURE")
+                raw_count = len(raw_messages)
+                inspected += raw_count
+                self._metadata_messages_inspected += raw_count
+                if (
+                    raw_count > page_limit
+                    or self._metadata_messages_inspected > 200
+                ):
+                    raise ScanGatewayError("ADAPTER_FAILURE")
+                if raw_count == 0:
+                    break
+
+                # Validate the whole raw page before emitting any DTO from it.
+                for raw in raw_messages:
+                    peer = getattr(raw, "peer_id", None)
+                    try:
+                        actual_id = utils.get_peer_id(peer)
+                    except Exception:
+                        raise ScanGatewayError("CHANNEL_UNRESOLVED") from None
+                    if actual_id != telegram_chat_id:
+                        raise ScanGatewayError("CHANNEL_UNRESOLVED")
+
+                ids = [getattr(raw, "id", None) for raw in raw_messages]
+                if any(
+                    type(message_id) is not int or message_id <= 0
+                    for message_id in ids
+                ):
+                    raise ScanGatewayError("ADAPTER_FAILURE")
+                if any(left <= right for left, right in zip(ids, ids[1:])):
+                    raise ScanGatewayError("ADAPTER_FAILURE")
+                next_offset = min(ids)
+                if next_offset <= 0 or (offset_id and next_offset >= offset_id):
+                    raise ScanGatewayError("ADAPTER_FAILURE")
+
+                from telethon.tl.types import MessageEmpty
+
+                projected_messages = []
+                for raw in raw_messages:
+                    if isinstance(raw, MessageEmpty):
+                        continue
+                    projected_messages.append(
+                        await self._project_message(
+                            telegram_chat_id, raw, include_text=False
+                        )
+                    )
+                del raw_messages, response, raw
+                for projected_message in projected_messages:
+                    yield projected_message
+                if raw_count < page_limit or inspected >= per_call_budget:
+                    break
+                offset_id = next_offset
+        except ScanGatewayError:
+            raise
+        except Exception as error:
+            self._record_failure("MESSAGE_HISTORY", error, AdapterError())
+            self._raise_scan_failure(error)
+
+    def iter_channel_metadata(
+        self, telegram_chat_id: int, *, max_messages: int
+    ):
+        if type(max_messages) is not int or not 1 <= max_messages <= 200:
+            raise ValueError("invalid metadata message limit")
+        return self._iterate_channel_metadata(
+            telegram_chat_id, max_messages=max_messages
         )
 
     @staticmethod
@@ -850,10 +1572,12 @@ class TelethonGateway:
         safe_stage = stage if stage in _FAILURE_STAGES else "UNKNOWN"
         _DIAGNOSTIC_LOGGER.warning(
             "authentication diagnostic FAILURE_STAGE=%s "
-            "SANITIZED_EXCEPTION_CLASS=%s PROJECT_ERROR_CATEGORY=%s",
+            "SANITIZED_EXCEPTION_CLASS=%s PROJECT_ERROR_CATEGORY=%s "
+            "SANITIZED_TRACEBACK=%s",
             safe_stage,
             _sanitized_exception_class(original),
             _project_error_category(project_error),
+            _sanitized_exception_traceback(original),
         )
 
     def _translate_with_diagnostics(self, error: Exception, stage: str) -> None:
@@ -1091,4 +1815,10 @@ class TelethonGateway:
         if self._closed:
             return
         self._closed = True
-        await self._disconnect()
+        self._selected_metadata_peer = None
+        self._metadata_peer_recovery_reason = None
+        try:
+            await self._disconnect()
+        finally:
+            self._selected_metadata_peer = None
+            self._metadata_peer_recovery_reason = None
