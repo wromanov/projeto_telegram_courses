@@ -1,4 +1,547 @@
-## Handoff vigente — S8 aceite formal — 2026-10-28
+## Handoff vigente — TELEGRAM-3-585-FINAL-CLOSURE-01 — 2026-11-03
+
+Gate 1 passou tecnicamente com findings: regressão completa 829 PASS + 11 subtests PASS, bateria focada 569 PASS e sequência scan→G1 2/2; Ruff do escopo e compileall passaram. O Analyst isolou timeout de `socketpair()`/event loop no Codex supervisionado com sucesso no PowerShell nativo e vazamento do handler `capsys` na fixture scan, corrigido com finalização em `finally`. Revisão independente `ACCEPT_WITH_FINDINGS`; três findings Ruff globais em `manual_proofs` permanecem fora do escopo.
+
+Cinco consultas Git read-only históricas foram executadas apesar da proibição; não houve mutação. A adjudicação humana aceitou a exceção com ressalvas, sem conformidade retroativa. Gate 2 está autorizado pelo usuário, com execução pendente de G0/G4 humanos. O preflight somente leitura passou: banco íntegro, identidade capturada válida, attempts=3, prefixo local no tamanho esperado e hash igual ao marcador da terceira, 586/587 intactos, sem processo concorrente e espaço suficiente. A tentativa anterior falhou com `REMOTE_HASH_RANGE_INVALID`; o modo estrito e `REMOTE_HASH_FULL` permanecem obrigatórios. Foram criados um guard e um launcher específicos para a quarta tentativa, com marcador distinto CreateNew, sem mudanças em produção/S9/V2. O runtime atual é PS 7.6.5 com stdin redirecionado e não pode receber as confirmações; o operador deve usar [launcher](../../../tools/RUN_TELEGRAM_3_RECOVER_585_FOURTH_ONCE.ps1) em Windows PowerShell 5.1 nativo no ROMA_CASA, confirmar G0 pessoalmente e avaliar o plano fresco em G4. Nenhuma RPC/download ocorreu na preparação. Consulte [PROJECT_STATE](../PROJECT_STATE.md) e [relatório consolidado](../../reports/TELEGRAM_3_585_FINAL_CLOSURE_01/REPORT.md).
+
+## Handoff anterior — TELEGRAM-3-585-HASH-RANGE-FIX-01 — 2026-11-03
+
+Correção offline restrita ao piloto one-shot 585, revisada independentemente (`PASS_WITH_FINDINGS` para o código). A suíte focada final passou 50 testes; Ruff dos arquivos alterados e compileall passaram. A suíte completa anterior teve 823 PASS, 3 FAIL e 11 subtests PASS e não foi repetida após os ajustes finais. As falhas reproduzidas ficaram na configuração do scan antes do downloader e na evidência sintética G1 antes dos hashes. Aceite estrito do card é `NO-GO`: houve cinco consultas Git read-only no bootstrap antes da leitura integral do card e o critério literal proibia comandos Git. Nenhuma mutação Git, RPC, download ou acesso a dados operacionais ocorreu. Causa histórica real não comprovada. Quarta tentativa segue `NO`. Ver [relatório](../../reports/TELEGRAM_3_HASH_RANGE_FIX_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — TELEGRAM-3-CLOSURE-01 — 2026-11-02
+
+S9 PARTIAL: uma transferência real passou G4/G5 e verificação local; recibos G6–G9 e evidência integral M não foram demonstrados. Prontidão do produto PARTIAL: lote e retomada somente validados offline. Preparador, fila privada e guia Windows adicionados; 115 testes offline e Ruff passaram. Não executar acesso ou lote real ampliado sem autorização específica. Preservar runs encerrados. Ver [relatório](../../reports/TELEGRAM_3_CLOSURE_01/REPORT.md).
+
+## Handoff anterior — S9 pós-download ACL — 2026-11-02
+
+O primeiro F real terminou com 12.087.200 bytes e G5 PASS; o arquivo existe e seu hash local coincide com SQLite. A verificação final bloqueou por DACL herdada na pasta intermediária. O CLI S9 foi corrigido para criar e fixar pastas privadas do plano após G4; testes offline passaram. A pasta, o arquivo e o run encerrado não foram modificados nem retomados. Evidência independente de hash remoto e aceite final não foram estabelecidos. Ver [relatório](../../reports/S9_NATIVE_WINDOWS_HML_02/POST_DOWNLOAD_PATH_ACL_FIX.md).
+
+## Handoff anterior — S9 G1 identidade de subprocesso — 2026-11-02
+
+Correção da identidade lançador/interpretador Windows implementada e validada offline: 146 testes PASS e 8 adicionais PASS. A causa nativa é fortemente corroborada, pois o recibo não preserva o código interno do ledger. Nenhuma run real foi iniciada nesta análise. Próximo passo: nova run nativa com G0 antes de RPC e G4 antes do payload; preservar runs anteriores. Ver [relatório e comando](../../reports/S9_NATIVE_WINDOWS_HML_02/G1_CHILD_PROCESS_IDENTITY.md).
+
+## Handoff anterior — S9 G1 diagnóstico 125 — 2026-11-02
+
+Instrumentação sanitizada do subprocesso G1 validada offline; a causa da execução anterior continua indeterminada. Próximo passo autorizado após os testes: nova run no PowerShell 5.1 nativo, com confirmação G0 antes de RPC e G4 antes de download. Se falhar, compartilhar somente as linhas JSON `s9.g1.diagnostic`; não reutilizar o run anterior. Ver [relatório e comando](../../reports/S9_NATIVE_WINDOWS_HML_02/G1_EXIT125_DIAGNOSTICS.md).
+
+## Handoff anterior — S9 G1 recibo — 2026-11-02
+
+G0 humano está persistido, com hashes correspondentes aos eventos de auditoria. G1 terminou com código interno 125; o recibo não identifica o ramo causador, e a rede não foi instrumentada. RPC real não foi evidenciada nem excluída. Preservar o run, sem repetição para reproduzir; não modificar código preventivamente. Ver [análise](../../reports/S9_NATIVE_WINDOWS_HML_02/G1_RECEIPT_ANALYSIS.md).
+
+## Handoff anterior — S9 G1 ledger handoff — 2026-11-02
+
+Correção de posse de escrita do ledger implementada e validada offline. O erro nativo é compatível com a reprodução, mas não expôs a exceção específica. Não reutilizar o run anterior. Para nova run no PowerShell 5.1 nativo:
+
+```powershell
+Set-Location -LiteralPath 'C:\Users\walac\desenvolvimento\projeto_telegram_courses'
+& '.\tools\RUN_S9_NATIVE_WINDOWS_HML_02.ps1'
+```
+
+G0 interativo deve ser revisado e confirmado antes da primeira RPC; G4 antes do payload. G0 e G1 nativos corrigidos ainda não foram executados. Ver [relatório](../../reports/S9_NATIVE_WINDOWS_HML_02/G1_LEDGER_HANDOFF_FIX.md).
+
+## Handoff anterior — TELEGRAM_S9_BOOTSTRAP_SCHEMA_REMEDIATION_01 — 2026-11-02
+
+O bloqueio de schema pré-G0 foi corrigido offline. Cada execução migra apenas
+sua cópia privada do SQLite pelo caminho oficial; o manifesto permanece
+hash-bound, declara mínimos planejados e deixa a conferência dos dados reais
+para G3. Os formatos legados exatos permanecem aceitos. A bateria focada
+terminou com 130 testes aprovados; Ruff, compileall, parse AST do PowerShell e
+`git diff --check` passaram. Contrato S9 congelado e inalterado.
+
+Não houve validação do launcher no Windows nativo nesta atividade. Revalidar
+ACL e SQLite no host, então apresentar a proposta e obter aceite G0 no TTY
+antes de qualquer RPC. G4 interativo segue obrigatório antes do download. Não
+iniciar a janela de uma hora durante a preparação. Sem S10, canal inteiro ou
+publicação Git.
+
+O resumo sanitizado foi enviado pela integração nativa ao chat canônico; a
+ferramenta confirmou o destino, mas a leitura não mostrou a nova mensagem.
+Entrega ainda não confirmada. Não usar canal alternativo após rejeição; nenhuma
+rejeição foi retornada nesta chamada.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_BOOTSTRAP_SCHEMA_REMEDIATION_01
+IMPLEMENTATION = READY_FOR_NATIVE_PREFLIGHT
+OFFLINE_TESTS = 130_PASSED / 0_FAILED
+NATIVE_PREFLIGHT = NOT_RUN
+G0 = CONDITIONAL_ON_NATIVE_PREFLIGHT / PASS_NOT_RUN
+G4 = REQUIRED / PASS_NOT_RUN
+TELEGRAM_RPC = 0 / REAL_DOWNLOAD_BYTES = 0 / ONE_HOUR_DEADLINE = NOT_STARTED
+CANONICAL_REPORT_DELIVERY = ACKNOWLEDGED / READBACK_NOT_CONFIRMED
+CONTRACT_S9 = APPROVED_FROZEN / UNCHANGED
+REPORT = ../../reports/S9_BOOTSTRAP_SCHEMA_REMEDIATION_01/REPORT.md
+NEXT_EXACT_ACTION = In native PowerShell 5.1 run: Set-Location -LiteralPath 'C:\Users\walac\desenvolvimento\projeto_telegram_courses'; & '.\tools\RUN_S9_NATIVE_WINDOWS_HML_02.ps1'
+SAFE_RESUME_POINT = Review and confirm G0 interactively before first RPC; G4 before payload. Report native guard results back to canonical chat.
+PROJECT_STATE_RECONCILIATION = PASS
+```
+
+## Handoff anterior — TELEGRAM_S9_NATIVE_WINDOWS_HML_02 preflight inicial — 2026-11-02
+
+O teste externo TCP 443 expirou no runtime Codex. A atividade parou antes de
+G0 e não iniciou nenhuma Telegram RPC. O operador informa 90 GB livres no host
+nativo; disco não bloqueia o escopo. Venv funcional, nenhuma concorrência
+Python/Telegram observada e contrato S9 congelado sem alteração.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_NATIVE_WINDOWS_HML_02
+RESULT = PREFLIGHT_NO_GO_IN_CURRENT_CODEX_RUNTIME
+AUTHORIZATION = BOUNDED_REAL_S9_HOMOLOGATION / CONDITIONAL_ON_G0_AND_G4
+CONTRACT_S9 = APPROVED_FROZEN / SHA256=BD89EEB0B9C76565FD2780926D50D40EC97255302B2A7DA46CE5676828F85EA2
+DPAPI = SESSION_AND_CREDENTIALS_ABSENT_IN_OBSERVED_PROFILE
+PRIVATE_ROOT = NOT_CREATED / PRIVATE_ROOT_REQUIRED
+G0_G4 = NOT_REQUESTED / NO_TELEGRAM_RPC
+DELIVERY_STATUS = AUTO_REVIEW_REJECTED / ONE_MINIMIZED_ATTEMPT / NO_RETRY
+AUTO_REVIEW_REASON = destination ownership/trust not recognized; request judged not specific to this send
+CANONICAL_CHAT_READBACK = TITLE_CONFIRMED / MESSAGE_NOT_OBSERVED
+REAL_DOWNLOAD_BYTES = 0 / SPEED = NOT_MEASURED
+REPORT = ../../reports/S9_NATIVE_WINDOWS_HML_02/REPORT.md
+GIT = work/s0-bootstrap / HEAD=d36e96055a26556221bc487717f18ed322c76f02 / 399_STATUS_ENTRIES_AFTER_REPORT / 0_STAGED
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED / S10 = NOT_AUTHORIZED
+NEXT_EXACT_ACTION = Operator runs the report's PowerShell 5.1 preflight in native Windows and returns sanitized status fields only.
+SAFE_RESUME_POINT = No more network attempts in restricted runtime. Native preflight, private root/ACLs, consistent SQLite Online backup and private manifest must precede G0; G4 must precede the real queue.
+PROJECT_STATE_RECONCILIATION = PASS
+```
+
+See [PROJECT_STATE](../PROJECT_STATE.md) and [report](../../reports/S9_NATIVE_WINDOWS_HML_02/REPORT.md).
+
+## Handoff vigente — TELEGRAM_S9_RASMOO_PERFORMANCE_HML_01 — 2026-11-01
+
+A autorização limitada para homologação real foi concedida pelo usuário, sob
+G0 e G4. A atividade parou antes de G0: o runtime atual restringe rede, os
+artefatos DPAPI não existem, os caminhos padrão do aplicativo ficam dentro do
+repositório e o Downloads inspecionado concede Modify a `CodexSandboxUsers`.
+Não houve RPC, login, scan, escrita operacional ou download; nenhum segredo foi
+lido. O contrato S9 permanece congelado e sem alteração.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_RASMOO_PERFORMANCE_HML_01
+RESULT = PREFLIGHT_NO_GO / G0_NOT_REQUESTED / G1_G9_NOT_EXECUTED
+ROUTING_MODE_ACTUAL = DIRECT / ROOT_ONLY / ROOT
+CONTRACT_S9 = APPROVED_FROZEN / SHA256=BD89EEB0B9C76565FD2780926D50D40EC97255302B2A7DA46CE5676828F85EA2
+P0 = OFFLINE_SYNTHETIC_COMPLETE / S9_REGRESSION=283_PASS / NO_REAL_TELEGRAM_EVIDENCE
+REAL_M_BYTES = 0 / TRANSFER_TIME=NOT_MEASURED / SPEED=NOT_MEASURED
+RISK03 = ACCEPTED_FOR_PERSONAL_USE / TOCTOU_LIMIT_DOCUMENTED
+DISK = 2.97_GiB_FREE / MAX_F_PLUS_M_AND_RESERVE_APPROX_2.75_GiB / PRIVATE_ROOT_NOT_ESTABLISHED
+SESSION = DPAPI_ARTIFACTS_ABSENT / NO_CREDENTIALS_READ
+TELEGRAM_RPC = 0 / REAL_DOWNLOADS = 0 / OPERATIONAL_DB_WRITES = 0
+REPORT = ../../reports/S9_RASMOO_PERFORMANCE_HML_01/REPORT.md
+P0_REPORT_READBACK = OBSERVED / RESPONSE_OBSERVED=ASSISTANT / NO_RESEND
+DELIVERY_STATUS = WAITING_FOR_USER_APPROVAL / ONE_REJECTED_ATTEMPT / NO_RETRY_BEFORE_RESPONSE
+AUTO_REVIEW_REASON = payload completo foi classificado como contendo detalhes internos, caminhos locais, ACLs e estado operacional para destino cuja propriedade não foi comprovada.
+WIP_PRESERVED = YES / GIT_STAGE_COMMIT_PUSH=NOT_EXECUTED / S10=NOT_AUTHORIZED
+NEXT_EXACT_ACTION = Aguardar aprovação direta do operador para uma nova tentativa de envio ao chat canônico; se aprovada, enviar uma vez; se negada, não enviar. Depois retomar em ambiente Windows nativo autorizado com rede, sessão local protegida, DB isolado e root privado; somente então apresentar G0 em TTY antes de RPC.
+SAFE_RESUME_POINT = Não executar S9 real dentro do runtime atual; preservar canal RASMOO, limites S9-L01..L16, WIP e contrato congelado.
+PROJECT_STATE_RECONCILIATION = PASS
+```
+
+Ver [PROJECT_STATE](../PROJECT_STATE.md) e [relatório completo](../../reports/S9_RASMOO_PERFORMANCE_HML_01/REPORT.md).
+
+## Handoff vigente — TELEGRAM_S9_LEDGER_PERFORMANCE_FIX_01 — 2026-11-01
+
+A atividade P0 foi concluída no escopo offline. O hot path do ledger não reprocessa o histórico a cada bloco; mantém estado incremental após `COMMIT` durável e executa replay integral em conexão fresh nos checkpoints. Ownership do writer pai-filho permanece exclusivo. Os controles de WAL, `synchronous=FULL`, contabilidade exata, path guard, quarentena e fail-closed foram preservados.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_LEDGER_PERFORMANCE_FIX_01
+RESULT = COMPLETED_OFFLINE_SYNTHETIC
+LEDGER_1GIB = 373.02s total / 371.42s hot path / 2.76 MiB/s
+CLI_E2E = 2_PASSED / 374.08s / G0_G9_SYNTHETIC_PASS / M_1GIB_WITHIN_L10
+S9_REGRESSION = 283_PASSED / 0_FAILED / 0_SKIPPED / 645.63s
+RUFF_CHECK = PASS / COMPILEALL = PASS
+SECURITY_REVIEW = PASS_WITH_LIMITS / TOCTOU same-account path-replacement limitation documented
+CONTRACT_S9 = APPROVED_FROZEN / UNCHANGED
+REPORT = ../../reports/S9_LEDGER_PERFORMANCE_FIX_01/REPORT.md
+EVIDENCE = ../../reports/S9_LEDGER_PERFORMANCE_FIX_01/evidence/
+CANONICAL_CHAT = Projeto Telegram 3.0 / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9 / send tool accepted after user authorization / readback unconfirmed
+TELEGRAM_RPC = 0 / REAL_DOWNLOADS = 0 / OPERATIONAL_DB_WRITES = 0
+S10 = NOT_AUTHORIZED / GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED / STAGED_PATHS=0
+WORKTREE = DIRTY / 397 entries / preserved
+DELIVERY_STATUS = SEND_TOOL_ACCEPTED / CANONICAL_CHAT_READBACK_UNCONFIRMED
+NEXT_EXACT_ACTION = Confirm visibility in the canonical chat before any retry; no real Telegram, S10 or Git publication without separate authority.
+SAFE_RESUME_POINT = Offline P0 is complete; preserve all current WIP and the frozen contract.
+PROJECT_STATE_RECONCILIATION = PASS
+```
+
+## Handoff histórico — TELEGRAM_S9_LEDGER_PERFORMANCE_FIX_01 — pré-implementação — 2026-11-01
+
+Atividade P0 avançou até a aprovação técnica da minuta, sem qualquer alteração
+de produção/testes para esta correção. O gargalo está comprovado: seis replay
+integrais por bloco de 256 KiB, custo agregado O(N²). O E2E sintético anterior
+de M/1 GiB falhou em 1809,87 s. O arquiteto mediu 384 validações em 16 MiB e
+768 em 32 MiB; não executou novo benchmark de 1 GiB.
+
+O contrato de correção [S9_LEDGER_PERFORMANCE_REMEDIATION_01.md](../../contracts/S9_LEDGER_PERFORMANCE_REMEDIATION_01.md)
+passou QA do ROOT. O usuário ratificou `ACEITO` diretamente nesta conversa em
+2026-11-01, autorizando a implementação P0 offline sob as condições do contrato.
+A cópia para o chat canônico foi enviada e o readback observou a mensagem e o
+reconhecimento do assistente; isso não substitui a decisão direta do usuário.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_LEDGER_PERFORMANCE_FIX_01
+PARENT_ACTIVITY = TELEGRAM_FINAL_DELIVERY_01
+CONTRACT_APPROVAL = APPROVED_ROOT_QA_AND_USER_RATIFICATION
+ROOT_CONTRACT_QA = PASS / ARCHITECTURE = APPROVED_AFTER_USER_RATIFICATION
+HUMAN_DECISION = ACEITO / CURRENT_ROOT_CHAT / 2026-11-01
+CANONICAL_CHAT_COPY = SENT_AND_OBSERVED / ASSISTANT_ACKNOWLEDGED
+IMPLEMENTATION_AUTHORIZATION = YES_OFFLINE_P0_ONLY
+NEXT_EXACT_ACTION = Liberar backend_engineer para implementar o contrato P0 e iniciar validação incremental progressiva.
+CONTRACT_S9 = APPROVED_FROZEN / SHA256_BEFORE=BD89EEB0B9C76565FD2780926D50D40EC97255302B2A7DA46CE5676828F85EA2 / SHA256_AFTER=BD89EEB0B9C76565FD2780926D50D40EC97255302B2A7DA46CE5676828F85EA2
+TELEGRAM_RPC = 0 / REAL_DOWNLOADS = 0 / OPERATIONAL_DB_WRITES = 0
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED / STAGED_PATHS=0
+WIP_PRESERVED = YES / no P0 source or test edits; one contract draft added
+DELIVERY_STATUS = USER_DECISION_RECEIVED_DIRECTLY / CANONICAL_COPY_SENT_AND_OBSERVED / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9
+SAFE_RESUME_POINT = Implement only offline P0 scope; no Telegram real operations, S9 contract change or Git publication.
+```
+
+## Handoff vigente — TELEGRAM_S9_END_TO_END_COMPLETION_01 — 2026-10-31
+
+G6 foi implementado como produtor/reconciliador e passou a prova sintética com
+quatro receipts G5, ledger, SQLite, arquivos físicos, hash e reabertura. G7
+continua exigindo G6 `PASS/REAL_CONTRACTUAL` e rejeita G6 sintético. Nenhuma
+operação real foi executada.
+
+A regressão S9 passou 222 testes; a offline integral passou 594 testes + 11
+subtests. Ruff, compileall e diff-check passaram. Revisão independente final:
+`PASS_WITH_LIMITS`, zero findings bloqueantes.
+
+A disposição permanece `S9_END_TO_END_CODE_PARTIAL`: não houve um orquestrador
+sintético que encadeie G0–G9; os produtores/reconciliadores operacionais G8/G9
+estão ausentes; G7 real não foi avaliado. Perguntas de escopo e de semântica M
+foram enviadas ao chat canônico. O readback mostrou apenas recomendações do
+assistente, sem decisão humana; não presumir autorização.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_END_TO_END_COMPLETION_01
+ROUTING_MODE_ACTUAL = MULTIAGENT / ROOT + backend_engineer + security_reviewer
+CONTRACT = S9_V1.0 / APPROVED_FROZEN / UNCHANGED
+CONTRACT_SHA256 = BD89EEB0B9C76565FD2780926D50D40EC97255302B2A7DA46CE5676828F85EA2
+RISK03_STATUS = FORMALLY_ACCEPTED_FOR_PERSONAL_USE
+G6_PRODUCER = IMPLEMENTED / SYNTHETIC_PROOF_PASS / REAL_NOT_EXECUTED
+G6_G7_INTEGRATION = OFFLINE_PASS / G7_REQUIRES_REAL_G6
+G0_G9_E2E_SYNTHETIC = NOT_RUN / HUMAN_SCOPE_DECISION_PENDING
+G8_G9_OPERATIONAL = NOT_IMPLEMENTED / GAP_RECORDED
+FOCUSED_G6_POSITIVE = 1_PASS
+S9_REGRESSION = 222_PASS
+FULL_OFFLINE_REGRESSION = 594_PASS + 11_SUBTESTS
+SECURITY_REVIEW = PASS_WITH_LIMITS / ZERO_BLOCKING_FINDINGS
+TELEGRAM_RPC = 0 / OPERATIONAL_DB_WRITES = 0
+S9_REAL = NOT_EXECUTED / S10 = NOT_AUTHORIZED
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED
+WIP_PRESERVED = YES / 347_PREEXISTING + 1_REQUESTED_REPORT / 0_STAGED
+REPORT = ../../reports/S9_END_TO_END_COMPLETION_01/REPORT.md
+DELIVERY_STATUS = SENT_AND_OBSERVED / SANITIZED_REPORT
+MESSAGE_OBSERVED = YES / RESPONSE_OBSERVED = YES_ASSISTANT / HUMAN_DECISION = NO / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9
+NEXT_EXACT_ACTION = Aguardar decisão humana no chat canônico; não iniciar G8/G9/E2E ou operação real sem autoridade aplicável.
+SAFE_RESUME_POINT = Preservar WIP e contrato congelado. G6 sintético está validado; nenhum G0/RPC real, G7 real, S9 real, S10 ou Git publication foi executado.
+PROJECT_STATE_RECONCILIATION = PASS
+```
+
+## Handoff anterior — S9 Preoperational Preflight 02 — PREFLIGHT_NO_GO — 2026-10-31
+
+O preflight offline confirmou bloqueios antes de qualquer G0 real ou RPC. G0 não tem aprovação TTY independente, ligada a manifesto/plano e exigida antes de G1. G2 ainda não compara os códigos de saída na reabertura. O wrapper S9 não reconcilia um PASS real G7. RISK-03 Opção A não recebeu aceite residual formal. Nenhum manifesto S9, canal ou destino de armazenamento foi ratificado para este run; o volume não foi presumido nem medido.
+
+ACTIVITY_ID = TELEGRAM_S9_PREOPERATIONAL_PREFLIGHT_02
+ROUTING_MODE_ACTUAL = DIRECT / ROOT_ONLY / ZERO_SUBAGENTS
+PREFLIGHT_RESULT = PREFLIGHT_NO_GO
+CONTRACT = S9_V1.0 / APPROVED_FROZEN / SHA256=BD89EEB0B9C76565FD2780926D50D40EC97255302B2A7DA46CE5676828F85EA2
+G0_TECHNICAL_READINESS = BLOCKED
+RISK03_IMPLEMENTATION = OPTION_A / RESIDUAL_ACCEPTANCE_NOT_GRANTED / HUMAN_DECISION_REQUIRED
+G1_G3_CODE_READINESS = PARTIAL / G2_RECEIPT_REOPEN=PARTIAL
+G7_CODE_READINESS = PARTIAL / G7_REAL_EVIDENCE=NOT_ASSESSED
+WINDOWS_ENVIRONMENT = PARTIAL / profile Codex AppContainer is not the operator environment
+MANIFEST_STATUS = NOT_ESTABLISHED
+OUTPUT_DESTINATION = NOT_ESTABLISHED
+DISK_GATE = BLOCKED / available bytes not measured; target not selected
+T24_AUDIT_READINESS = PASS_OFFLINE / REAL_NOT_ASSESSED
+REAL_RPC_AUTHORIZATION = NOT_GRANTED
+BLOCKERS = G0_PRE_RPC_CONFIRMATION; G2_EXIT_CODE_REOPEN_CHECK; G7_REAL_PASS_PATH; RISK03_HUMAN_DECISION; MANIFEST_DESTINATION_AND_OPERATOR_ENVIRONMENT
+NEXT_EXACT_ACTION = Obtain direct human decision on RISK-03 and separate authorization for bounded offline fixes to G0/G2/G7; do not start a real run.
+REPORT = ../../reports/S9_PREOPERATIONAL_PREFLIGHT_02/REPORT.md
+THREAD = Projeto Telegram 3.0 / ChatGPT / 6add6aa9-12e0-83e8-b02f-870f0a0edaf9
+DELIVERY_STATUS = SENT_UNCONFIRMED / transport success / readback absent
+MESSAGE_OBSERVED = NO / read_thread and list_threads do not show a new message or preview update
+RESPONSE_OBSERVED = NO
+WORK_VALIDATED = LOCAL_REPORT_AND_CONTINUITY_PASS / DELIVERY_UNCONFIRMED
+DIRECT_USER_REAUTHORIZATION = YES / 2026-10-31 / same destination and tool
+WIP_PRESERVED = YES / 343_PREEXISTING_STATUS_ENTRIES + 1_REQUESTED_REPORT / STAGED_PATHS=0
+TELEGRAM_RPC = 0
+OPERATIONAL_DB_WRITES = 0
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED
+S10 = NOT_AUTHORIZED
+
+## Handoff anterior — S9 RASMOO Real Acceptance 01 — preflight NO_GO — 2026-10-30
+
+O preflight da homologação real RASMOO parou antes de G0. A revisão independente
+confirmou as três correções offline pedidas, sem novo finding bloqueante nesses
+caminhos. O runner, porém, não produz PASS real para G1-G3; T24 continua
+bloqueado. Nenhuma chamada Telegram, sessão, banco operacional ou download foi
+usado.
+
+ACTIVITY_ID = TELEGRAM_S9_RASMOO_REAL_ACCEPTANCE_01
+ROUTING_MODE_ACTUAL = MULTIAGENT / ROOT + security_reviewer
+PREFLIGHT_RESULT = PREFLIGHT_NO_GO
+SECURITY_REVIEW = INDEPENDENT_COMPLETE / CORRECTIONS_PRESENT / NO_GO_OPERATIONAL
+CONTRACT = S9_V1.0 / APPROVED_FROZEN / UNCHANGED
+OFFLINE_ACCEPTANCE = ACCEPTED_WITH_LIMITATIONS / conforme card
+RISK03_STATUS = OPTION_A_IMPLEMENTATION_SCOPE_ONLY / RESIDUAL_ACCEPTANCE_NOT_GRANTED
+G0_HUMAN_CONFIRMATION = NOT_REQUESTED
+REAL_TELEGRAM_OPERATIONS = 0 / REAL_G1_G9 = NOT_ASSESSED
+F_ITEMS = 0 / M_ITEMS = 0 / BYTES_DOWNLOADED = 0
+SCAN_INVOCATIONS = 0 / SCAN_OBSERVATIONS = 0
+WIP_PRESERVED = YES / 337_PREEXISTING_STATUS_ENTRIES_RETAINED / ONE_REQUESTED_REPORT_ADDED / STAGED_PATHS=0
+S10 = NOT_AUTHORIZED
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED
+REPORT = ../../reports/S9_RASMOO_REAL_ACCEPTANCE_01/REPORT.md
+DELIVERY_STATUS = SENT_UNCONFIRMED / ferramenta retornou sucesso; read_thread não mostrou mensagem nova
+MESSAGE_OBSERVED = NO / RESPONSE_OBSERVED = NO
+THREAD_TARGET = Projeto Telegram 3.0 / tipo ChatGPT / hostId não retornado
+NEXT_EXACT_ACTION = Confirmar com o usuário se o relatório aparece no chat antes de considerar retry.
+SAFE_RESUME_POINT = Preserve WIP and frozen contract. Obtain separate authorization for offline work to produce durable real G1-G3 gate evidence and resolve or formally adjudicate T24. Do not retry real S9 until that work is validated and a fresh preflight passes.
+
+## Handoff anterior — S9 Final Remediation 01 — 2026-10-30
+
+O ciclo corretivo offline concluiu a orquestração sintética G1–G9. O timeout
+focado foi localizado na inicialização do self-pipe do event loop Proactor do
+Windows; atribuir a causa ao loopback restrito permanece inferência. G9,
+G2/G7-L01 e G5-L10/L14/L15 foram corrigidos. A regressão focada final passou
+170 testes, e a regressão offline completa passou 537 testes + 11 subtests.
+O resultado técnico é S9_OFFLINE_ORCHESTRATION_READY; aceite formal e
+evidência real continuam pendentes. O chat canônico recebeu e observou o
+relatório completo. Sua resposta pede decisão humana sobre
+ACCEPTED_WITH_LIMITATIONS; essa recomendação não é a decisão do usuário.
+
+ACTIVITY_ID = TELEGRAM_S9_FINAL_REMEDIATION_01
+AUTHORIZATION = USER_APPROVED_ONE_OFFLINE_CORRECTIVE_CYCLE
+ROUTING_MODE = DIRECT / ROOT_ONLY / NO_SUBAGENTS
+CONTRACT = S9_V1.0 / APPROVED / FROZEN / UNCHANGED
+REPO_ROOT = C:/Users/walac/desenvolvimento/projeto_telegram_courses
+BRANCH = work/s0-bootstrap
+HEAD = d36e96055a26556221bc487717f18ed322c76f02
+UPSTREAM = origin/work/s0-bootstrap
+WORKTREE = DIRTY / 337_STATUS_ENTRIES / STAGED_PATHS=0 / PRESERVE_ALL
+TIMEOUT_DIAGNOSIS = PROACTOR_SELF_PIPE_SOCKETPAIR_BLOCK_CONFIRMED / RESTRICTED_LOOPBACK_CAUSE_INFERRED
+TIMEOUT_TREE_CONTAINMENT = CONFIRMED_FOR_BOUNDED_DIAGNOSTIC_RUNS
+FOCUSED_S9_FINAL = 170_PASS / 185.56S
+FULL_OFFLINE_FINAL = 537_PASS / 11_SUBTESTS / 0_FAILURES / 278.23S
+AFFECTED_S5_S8 = 218_PASS / SEPARATE_RUN_EARLIER_IN_CYCLE
+TARGETED_FINAL_CASES = 13_PASS
+SECURITY_REVIEW = PASS / SCOPED / ROOT_SELF_REVIEW / INDEPENDENT=NO
+RISK_03 = OPTION_A / SAME_ACCOUNT_WRITER_OR_ROLLBACK_RESIDUAL / ACCEPTANCE_NOT_IMPLIED
+RESULT = S9_OFFLINE_ORCHESTRATION_READY / HUMAN_ACCEPTANCE_PENDING
+REPORT = ../../reports/S9_FINAL_REMEDIATION_01/REPORT.md
+DELIVERY_STATUS = SENT / MESSAGE_OBSERVED=YES / RESPONSE_OBSERVED=YES
+THREAD = Projeto Telegram 3.0 / 6add6aa9-12e0-83e8-b02f-870f0a0edaf9
+MESSAGE_ID = c5390922-5b03-40f2-9f92-eebf4bdde1f8
+RESPONSE_ID = c25e8945-cffb-4519-b31a-4cd4f7a6ed82
+CHAT_RESPONSE = RECOMMENDS_ACCEPTED_WITH_LIMITATIONS / AWAITS_USER_DECISION
+REAL_TELEGRAM_RPC = PROHIBITED / NOT_EXECUTED
+OPERATIONAL_DB_WRITES = PROHIBITED / NOT_EXECUTED
+CONTRACT_CHANGES = PROHIBITED / NOT_EXECUTED
+GIT_STAGE_COMMIT_PUSH = PROHIBITED / NOT_EXECUTED
+S9_REAL = NOT_AUTHORIZED / S10 = NOT_AUTHORIZED
+PROJECT_STATE_RECONCILIATION = PASS
+SAFE_RESUME_POINT = Await the user's direct formal decision on ACCEPTED_WITH_LIMITATIONS. No real S9, S10, or publication follows automatically.
+## Handoff histórico — integração operacional final S9 — 2026-10-30
+
+Resultado `S9_INTEGRATION_PARTIAL`. A regressão nativa pós-refatoração passou
+121 testes S9 focados, 218 testes afetados S5–S8 e 488 testes offline + 11
+subtests na suíte completa, todas as fases com exit code 0. Evidência em
+`docs/reports/S9_FINAL_INTEGRATION_01/native-results-20261030T053928Z/summary.json`;
+o teste AST e 52 testes do ledger também passaram isoladamente. G1 não tem
+produtor de PASS; G2/G3 estão `NOT_ASSESSED`; G4/G5 são parciais; G6–G9 não
+estão completos. Revisão independente do snapshot offline:
+`PASS_WITH_LIMITS`, sem achados materiais de código. A integração operacional
+permanece `PARTIAL` pelas lacunas G1–G9.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_FINAL_INTEGRATION_01
+REPORT = ../../reports/S9_FINAL_INTEGRATION_01/REPORT.md
+BRANCH = work/s0-bootstrap
+HEAD = d36e96055a26556221bc487717f18ed322c76f02 / unchanged
+CONTRACT = S9_V1.0 / APPROVED / FROZEN / UNCHANGED
+RISK_03_SCOPE = OPTION_A / SINGLE_PERSONAL_OPERATOR
+RISK_03_RESIDUAL_ACCEPTANCE = NOT_IMPLIED / PENDING_IF_REQUIRED
+NATIVE_PRE_REFACTOR = FOCUSED_S9_121_PASS / AFFECTED_S5_S8_218_PASS / FULL_487_PASS_11_SUBTESTS_1_BOUNDARY_FAILURE
+POST_REFACTOR_TARGETED = AST_BOUNDARY_1_PASS / LEDGER_52_PASS
+POST_REFACTOR_NATIVE_REGRESSION = FOCUSED_S9_121_PASS / AFFECTED_S5_S8_218_PASS / FULL_OFFLINE_488_PASS_PLUS_11_SUBTESTS / ALL_EXIT_0
+G0_REAL = NOT_AUTHORIZED / S9_REAL = NOT_AUTHORIZED / S10 = NOT_AUTHORIZED
+REAL_TELEGRAM_RPC = 0 / OPERATIONAL_DB_WRITES = 0
+WORKTREE = DIRTY / pre-existing WIP preserved / STAGED_PATHS=0
+STAGE_COMMIT_PUSH = NOT_EXECUTED
+SECURITY_REVIEW = PASS_WITH_LIMITS / FINAL_OFFLINE_SCOPE / NO_MATERIAL_FINDINGS
+DELIVERY_STATUS = SENT / report observed by read_thread / RESPONSE_OBSERVED=YES / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9
+CHATGPT_SCOPE_RESPONSE = Additional G1-G9 implementation requires direct user authorization; advice is not authorization.
+SAFE_RESUME_POINT = Await direct human authorization before supplemental offline implementation to close G1-G9. Do not modify code or perform real operations until authorized.
+```
+
+Nenhuma evidência parcial deve ser apresentada como PASS de G1–G9 ou como
+homologação. O relatório registra o limite do executor e o risco residual.
+
+---
+
+## Handoff vigente — S9-G0 Closure Hardening 04 — 2026-10-29
+
+Resultado S9_G0_PARTIAL. RISK-01/02 têm mitigações offline implementadas e
+revisadas estaticamente, porém os testes não foram executados. Gate B está
+BLOCKED: o preflight foi tentado no `pwsh` disponível. P01 e P02 expiraram em
+10 segundos; os processos raiz terminaram após cleanup, mas
+`Get-CimInstance Win32_Process` falhou com `CimException` e a árvore não pôde
+ser observada. A causa raiz do host permanece não provada. Gate C está BLOCKED/PARTIAL: o scan escopado
+teve cobertura parcial e zero findings reportáveis; ainda falta revisão
+independente e ratificação do RISK-03. Não recomendar aceite offline integral.
+
+~~~text
+ACTIVITY_ID = TELEGRAM_S9_G0_CLOSURE_HARDENING_04
+REPORT = ../../reports/S9_G0_CLOSURE_HARDENING_04/REPORT.md
+BRANCH = work/s0-bootstrap
+HEAD = d36e96055a26556221bc487717f18ed322c76f02 / unchanged
+GATE_A = PARTIAL / MITIGATIONS_PRESENT / TESTS_NOT_RUN
+GATE_B = BLOCKED / P01_P02_TIMEOUT_10S / ROOTS_ENDED / TREE_UNPROVEN_CIMEXCEPTION_IN_CODEX_PWSH_AND_WINDOWS_POWERSHELL / FULL_REGRESSION_NOT_RUN
+GATE_C = BLOCKED_PARTIAL / SCOPED_SCAN_PARTIAL / INDEPENDENT_REVIEW_PENDING
+RISK_03 = OPTION_C_RECOMMENDED / NOT_RATIFIED
+CONTRACT = S9_V1.0 / APPROVED / FROZEN
+DELIVERY_STATUS = SENT / Projeto Telegram 3.0 / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9 / TOOL_IS_ERROR_FALSE / CHAT_RESPONSE=RECEIVED / TECHNICAL_ONLY
+PROJECT_STATE_RECONCILIATION = PASS
+REAL_TELEGRAM_RPC = 0 / OPERATIONAL_DB_WRITES = 0
+G0_REAL_EXECUTION = NOT_AUTHORIZED / S9_REAL = NOT_STARTED / S10 = NOT_AUTHORIZED
+WORKTREE = DIRTY / WIP preserved / STAGED_PATHS=0
+STAGE_COMMIT_PUSH = NOT_EXECUTED
+SAFE_RESUME_POINT = Run preflight in a Windows session external to the current Codex runtime where Get-CimInstance Win32_Process succeeds. Only if both probes and tree checks pass, run contract-ordered offline regression, obtain independent review, then request human decision on RISK-03.
+~~~
+
+O relatório registra os limites da revisão e a evidência de runtime sem inferir
+causa raiz. Nenhuma operação Telegram, escrita operacional ou publicação Git
+ocorreu. G0 real, S9 real e S10 seguem sem autorização.
+
+---
+## Handoff vigente — S9-G0 Final Correction 02 — 2026-10-29
+
+Resultado `S9_G0_PARTIAL`. Gate A passou: cinco falhas originais corrigidas,
+T24-A..J passou, quarentena foi confirmada após reabertura e os testes focais
+S9/S8 passaram. O contrato S9 v1.0 continua aprovado e congelado.
+
+Gate B está `BLOCKED`: o probe de asyncio/socketpair bloqueia no fallback
+TCP/loopback antes da regressão integral; não há processo remanescente. Gate C
+está `BLOCKED`: o conector nativo não entregou contexto de scan utilizável e a
+reentrada retornou `database is locked`. Não declarar findings críticos = 0
+nem recomendar aceite offline integral.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_G0_FINAL_CORRECTION_02
+REPORT = ../../reports/S9_G0_FINAL_CORRECTION_02/REPORT.md
+BRANCH = work/s0-bootstrap
+HEAD = d36e96055a26556221bc487717f18ed322c76f02 / unchanged
+GATE_A = PASS / 79 S9 + 9 S8 tests / T24=A..J PASS
+GATE_B = BLOCKED / FULL_OFFLINE_REGRESSION=NOT_RUN
+GATE_C = BLOCKED / SECURITY_FINDINGS=NOT_ASSESSED
+CORRECTIVE_CYCLES = 1 / MAXIMUM=2
+DELIVERY_STATUS = SENT / DESTINATION=Projeto Telegram 3.0 / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9 / SEND_ATTEMPT_COUNT=1 / MESSAGE_SENT=YES / TOOL_IS_ERROR_FALSE
+PROJECT_STATE_RECONCILIATION = PASS
+REAL_TELEGRAM_RPC = 0 / OPERATIONAL_DB_WRITES = 0
+G0_REAL_EXECUTION = NOT_AUTHORIZED / S9_REAL = NOT_STARTED / S10 = NOT_AUTHORIZED
+WORKTREE = DIRTY / pre-existing WIP preserved / STAGED_PATHS=0
+STAGE_COMMIT_PUSH = NOT_EXECUTED
+SAFE_RESUME_POINT = Recover the same native security scan context and resolve the Windows socketpair executor block. Run full offline regression and complete scoped security review before another offline acceptance decision.
+```
+
+No contrato foi reaberto. Nenhuma operação Telegram, escrita operacional ou
+publicação Git ocorreu nesta atividade. O aceite offline formal permanece
+pendente de Gate B e Gate C; G0 real segue sem autorização.
+
+---
+
+## Handoff vigente — S9-G0 offline implementado — 2026-10-29
+
+O supervisor Windows e o operational ledger isolado foram implementados junto
+com a integração externa restrita a `smoke` e o handshake de confirmação.
+Contrato S9 v1.0 continua `APPROVED / FROZEN`. O resultado é parcial para
+aceitação: 68 testes focados passaram; a regressão completa bloqueia no
+`ProactorEventLoop`/self-pipe do Python 3.14.7 antes de alcançar os testes S9.
+T24 (falha de logging não propagada ao gate) segue `BLOCKED`; a revisão de
+segurança formal segue parcial com scan incompleto de 3.415 itens e snapshot
+anterior à correção final da baseline.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_G0_SUPERVISOR_LEDGER_2026-10-28
+REPORT = ../../reports/S9_G0_SUPERVISOR_LEDGER_OFFLINE_2026-10-28/REPORT.md
+OFFLINE_COMPONENTS = IMPLEMENTED
+FOCUSED_TESTS = PASS / 68
+FULL_REGRESSION = BLOCKED / PROACTOR_SELF_PIPE
+SECURITY_REVIEW = PARTIAL / SCAN_RUNNING / NO_VALIDATED_FINDINGS / SNAPSHOT_STALE
+T24 = BLOCKED
+G0_REAL_EXECUTION = NOT_AUTHORIZED
+S9_REAL = NOT_STARTED / NOT_AUTHORIZED
+S10 = NOT_STARTED / NOT_AUTHORIZED
+REAL_TELEGRAM_RPC = 0
+OPERATIONAL_DB_WRITES = 0
+DELIVERY_STATUS = SENT / DESTINATION=Projeto Telegram 3.0 / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9 / SEND_ATTEMPT_COUNT=1 / TOOL_IS_ERROR_FALSE
+CURRENT_HEAD = d36e96055a26556221bc487717f18ed322c76f02 / unchanged
+BRANCH = work/s0-bootstrap
+WORKTREE = DIRTY / all WIP preserved / STAGED_PATHS=0
+STAGE_COMMIT_PUSH = NOT_EXECUTED
+ACTIVITY_COMPLETION = PARTIAL / 96%
+NEXT_ACTION = resolve Proactor, T24 and security review gaps; seek user acceptance; do not run real G0 without new authorization
+```
+
+Nenhum contrato congelado foi alterado. A atividade não realizou Telegram,
+login, scan/download real, migração/banco operacional ou mutação Git. NFR-02
+com mídia real permanece `NOT_TESTED`. O relatório e a continuidade foram
+reconciliados sem remover histórico. O relatório sanitizado foi enviado ao
+chat `Projeto Telegram 3.0`; a ferramenta confirmou o threadId esperado sem
+erro.
+
+---
+
+## Handoff vigente — S9 contrato ratificado — 2026-10-28
+
+O usuário ratificou RAT-01..RAT-05 e S9-L01..L16. Contrato
+S9 v1.0 = APPROVED/FROZEN. S9_IMPLEMENTATION = NOT_STARTED.
+S9_REAL_EXECUTION = NOT_AUTHORIZED. Supervisor/ledger com prova
+offline são pré-requisito G0 e exigem autorização própria.
+Sem mídia M DOCUMENT 1–2 GiB, NFR-02 real = NOT_TESTED;
+o resultado agregado não poderá ser PASS.
+V1_ACTIVE = YES; V2_GLOBAL = OFF. Nenhum Telegram/RPC,
+teste real, stage, commit ou push nesta decisão.
+HEAD = d36e96055a26556221bc487717f18ed322c76f02.
+NEXT_ACTION = Preparar supervisor/ledger offline sob autorização separada.
+
+---
+
+## Handoff vigente — S9 contrato pronto para ratificação — 2026-10-28
+
+O contrato de aceite real do canal RASMOO e o relatório técnico foram
+materializados e revisados. O dataset S9 exige Track observado, dois Courses
+e pelo menos dois Modules; ausência dentro dos caps autorizados resulta em
+`BLOCKED_DATASET`, sem ampliação automática. Todas as cinco ratificações
+continuam pendentes. A atividade foi documental: nenhuma operação Telegram,
+RPC, login, scan/download, migration, teste ou mutação Git foi executada.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_CONTRACT_CLOSURE_2026-10-28
+CONTRACT_STATUS = READY_FOR_USER_RATIFICATION
+CONTRACT_APPROVAL = PENDING_USER / RAT-01..RAT-05
+S9_IMPLEMENTATION = NOT_STARTED / EXECUTION_AUTHORIZATION=NOT_GRANTED
+S10_AUTHORIZATION = NOT_GRANTED
+CONTRACT = ../../contracts/S9_RASMOO_REAL_CHANNEL_ACCEPTANCE_CONTRACT_2026-10-28.md
+REPORT = ../../reports/S9_CONTRACT_CLOSURE_2026-10-28/REPORT.md
+CURRENT_HEAD = d36e96055a26556221bc487717f18ed322c76f02
+BRANCH = work/s0-bootstrap / UPSTREAM=origin/work/s0-bootstrap
+WORKTREE = DIRTY / pre-existing WIP preserved / STAGED_PATHS=0
+REAL_TELEGRAM_CALLS = 0 / TEST_EXECUTIONS = 0
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED
+PROJECT_STATE_RECONCILIATION = PASS
+DELIVERY_STATUS = SENT / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9 / SEND_ATTEMPT_COUNT=1 / isError=false
+NEXT_EXACT_ACTION = Await RAT-01..RAT-05 from the user
+SAFE_RESUME_POINT = User ratification only; execution requires a separate explicit authorization after contract decisions and prerequisites.
+```
+
+O ROOT encontrou e corrigiu antes do fechamento uma divergência entre o
+dataset requerido pela fundação e a primeira redação opcional do Track.
+Consulte [PROJECT_STATE](../PROJECT_STATE.md), [relatório](../../reports/S9_CONTRACT_CLOSURE_2026-10-28/REPORT.md)
+e [contrato](../../contracts/S9_RASMOO_REAL_CHANNEL_ACCEPTANCE_CONTRACT_2026-10-28.md).
+
+---
+
+## Handoff histórico — S8 aceite formal — 2026-10-28
 
 O usuário aprovou expressamente S8 após remediação focalizada e validação
 offline completa: 366 passed / 11 subtests passed / 0 failed; Ruff,
@@ -3132,4 +3675,170 @@ NEXT_EXACT_ACTION = Separately authorize a native full Harness run that durably 
 NO_NEW_TESTS_PROOFS_DOWNLOADS_OR_TELEGRAM_CALLS = YES
 GIT_ADD_COMMIT_PUSH = NO
 SAFE_RESUME_POINT = Keep S6 open, V1 active and V2 globally off. Do not retry the trusted-reference proof in this activity. Preserve all evidence and WIP. Await separate authority for Gate A native execution and a decision on the frozen V1 prefix-validation gap.
+
+## Handoff posterior — S9-G0 remediação 01
+
+Resultado PARTIAL; cinco testes falham, auditoria crítica e revisão de segurança incompletas e regressão bloqueada. Retomar conforme [relatório](../../reports/S9_G0_ACCEPTANCE_REMEDIATION_01/REPORT.md) e PROJECT_STATE; não iniciar operação real.
+
+Entrega da remediação 01: BLOCKED_BY_AUTO_REVIEW; relatório local preservado, sem contorno.
+
+Entrega posterior da remediação 01: SENT ao chat Projeto Telegram 3.0, após autorização expressa; ferramenta retornou isError=false. A rejeição inicial permanece registrada historicamente.
+
+## Handoff vigente — S9-G0 Runtime & Security Recovery 03 — 2026-10-29
+
+O estado atual e a evidência detalhada estão em
+[PROJECT_STATE](../PROJECT_STATE.md) e no
+[relatório da recuperação](../../reports/S9_G0_RUNTIME_SECURITY_RECOVERY_03/REPORT.md).
+Preservar o contrato congelado e todo o WIP. O preflight falhou por bloqueio de
+loopback do executor em Python 3.15.0 e 3.14.7; não executar os testes até que
+P03/P04/P05 passem num executor autorizado e funcional. A revisão de segurança
+deixou três riscos condicionais abertos; nenhum foi reproduzido ou corrigido.
+
+```text
+ACTIVITY = TELEGRAM_S9_G0_RUNTIME_SECURITY_RECOVERY_03
+GATE_A = PASS / HISTÓRICO
+GATE_B = BLOCKED / SOCKETPAIR, TCP LOOPBACK E ASYNCIO NO EXECUTOR ATUAL
+GATE_C = BLOCKED / RISK-01..03 ABERTOS; SCAN NATIVO SEM CONTEXTO RECUPERÁVEL
+FOCUSED_AND_FULL_TESTS = NOT RUN
+CORRECTIVE_CYCLES = 0
+FORMAL_ACCEPTANCE = PENDING
+S9_G0_REAL = NÃO AUTORIZADO / NÃO EXECUTADO
+REAL_TELEGRAM_CALLS = 0 / OPERATIONAL_DATABASE_WRITES = 0
+GIT_STAGE_COMMIT_PUSH = NÃO
+PROJECT_STATE_RECONCILIATION = PASS
+DELIVERY_STATUS = SENT / Projeto Telegram 3.0 / ferramenta retornou isError=false
+SAFE_RESUME_POINT = Obter executor funcional e contexto do scan; resolver/decidir os riscos de segurança; depois executar testes offline do contrato. Sem G0 real, RPC ou Git publication.
 ```
+
+## Handoff vigente — S9 Real Gate Remediation 01 — 2026-10-31
+
+G1–G3 e T24 foram corrigidos e validados somente offline. O resultado
+`S9_REAL_GATE_REMEDIATION_READY` não autoriza G0, RPC, scan, download, banco
+operacional, Git publication ou S10. A regressão S9 final passou (190); a
+regressão offline integral final passou (560 + 11 subtests). A revisão
+independente foi `PASS_WITH_LIMITS`.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_REAL_GATE_REMEDIATION_01
+CONTRACT = S9_V1.0 / APPROVED_FROZEN / UNCHANGED
+G2_PARTIAL_MESSAGE_LIMIT = SUPPORTED_ONLY_WHEN_EXIT4_AND_EXACT_LIMIT_ARE_RECONCILED
+G1_G2_G3 = SYNTHETIC_CHAIN_PASS / REAL_NOT_EXECUTED
+T24 = PASS_OFFLINE / FAIL_CLOSED
+SECURITY_REVIEW = PASS_WITH_LIMITS
+G7_REAL = NOT_ASSESSED
+G0 = MUST_BE_VERIFIED_EXTERNALLY_BEFORE_FIRST_RPC
+RISK03 = OPTION_A_SCOPE_ONLY / RESIDUAL_ACCEPTANCE_NOT_GRANTED
+TELEGRAM_RPC = 0 / OPERATIONAL_DB_WRITES = 0
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED / S10 = NOT_AUTHORIZED
+DELIVERY_STATUS = SENT / READBACK_CONFIRMED / Projeto Telegram 3.0 / THREAD_ID 6add6aa9-12e0-83e8-b02f-870f0a0edaf9
+MESSAGE_OBSERVED = YES / RESPONSE_OBSERVED = YES / RECEIVED_AND_ANALYZED
+PROJECT_STATE_RECONCILIATION = PASS / REPORT_AND_CONTINUITY_RECORDS_SYNCED_AFTER_READBACK
+NEXT_EXACT_ACTION = NEW_PREOPERATIONAL_PREFLIGHT_REQUIRED
+```
+
+Relatório: [S9 Real Gate Remediation 01](../../reports/S9_REAL_GATE_REMEDIATION_01/REPORT.md).
+
+## Handoff vigente — S9 Final Gates 01 — 2026-10-31
+
+G0, G2, G7 e T24 passaram validação offline. G7 admite duas syncs no mesmo
+run com recibos versionados e hash encadeado. A revisão independente é
+`PASS_WITH_LIMITS`, sem finding bloqueante. RISK-03 foi formalmente aceito
+somente para aplicativo pessoal, operador único e Windows controlado pelo
+usuário.
+
+A classificação final é `S9_PREOPERATIONAL_CODE_PARTIAL`: não há produtor real
+G6 no repositório, então G7 real permanece `NOT_ASSESSED`. Não executar novo
+preflight real, G0, RPC ou download até que a origem G6 genuína esteja definida
+e o ambiente do operador passe por um novo preflight. S9 real, S10 e Git
+publication não foram autorizados/executados.
+
+```text
+ACTIVITY_ID = TELEGRAM_S9_FINAL_GATES_01
+ROUTING_MODE_ACTUAL = MULTIAGENT / ROOT + security_reviewer
+FOCUSED_TESTS = 100_PASSED
+S9_REGRESSION = 214_PASSED
+FULL_OFFLINE_REGRESSION = 586_PASSED + 11_SUBTESTS
+SECURITY_REVIEW = PASS_WITH_LIMITS / 0_OPEN_BLOCKERS
+CONTRACT = S9_V1.0 / APPROVED_FROZEN / UNCHANGED
+RISK03 = FORMALLY_ACCEPTED_FOR_PERSONAL_USE / 2026-10-31
+G7_REAL = NOT_ASSESSED / REAL_G6_PRODUCER_ABSENT
+TELEGRAM_RPC = 0 / OPERATIONAL_DB_WRITES = 0 / S9_REAL = NOT_EXECUTED
+GIT_STAGE_COMMIT_PUSH = NOT_EXECUTED / S10 = NOT_AUTHORIZED
+WIP_PRESERVED = YES / 344_PREEXISTING_ENTRIES + 3_ACTIVITY_FILES / 0_STAGED
+DELIVERY_STATUS = SENT_UNCONFIRMED / send tool returned success; readback did not expose the new message
+MESSAGE_OBSERVED = NO / read_thread showed only pre-existing turns; list_threads metadata changed but no message content was visible
+RESPONSE_OBSERVED = NO / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9 / Projeto Telegram 3.0
+WORK_VALIDATED = YES / LOCAL_REPORT_AND_CONTINUITY_PASS / DELIVERY_UNCONFIRMED
+PROJECT_STATE_RECONCILIATION = PASS / REPORT_AND_DELIVERY_STATE_RECORDED
+NEXT_EXACT_ACTION = Identify authorized real G6 receipt producer and run new operator preflight
+SAFE_RESUME_POINT = Preserve WIP and frozen contract; no G0/RPC until G6 provenance and operator preflight are resolved.
+```
+
+Relatório: [S9 Final Gates 01](../../reports/S9_FINAL_GATES_01/REPORT.md).
+## Handoff vigente — TELEGRAM_S9_NATIVE_WINDOWS_HML_02 launcher pronto — 2026-11-02
+
+`LAUNCHER_READY=YES`. O usuário autorizou a preparação e a primeira
+transferência F limitada, condicionada a G0 e G4. Use somente o comando do
+relatório `docs/reports/S9_NATIVE_WINDOWS_HML_02/REPORT.md` em Windows
+PowerShell 5.1 nativo. O launcher verifica preparação e ACL offline, gera ou
+valida o manifesto privado, cria cópia SQLite por execução, e inicia o prazo
+de 3.600 s somente depois dessa preparação.
+
+G0 ainda não foi solicitado/aprovado e deve ocorrer no TTY antes de qualquer
+RPC. G4 continua obrigatório após revisar o plano fresco, antes da transferência.
+O primeiro passe é um item do perfil F, um worker, uma tentativa e
+`REMOTE_HASH_REQUIRED`; nunca usar `--confirm`. Nenhuma operação real ocorreu
+neste runtime Codex. Preservar o contrato S9, o banco preparado e todo WIP; não
+executar S10, baixar o canal inteiro ou publicar Git.
+
+## Continuação P0 vigente — ACL S9-HML-02 — 2026-11-02
+
+O reparo offline do helper está limitado a `S9-HML-02` e pastas diretas; usa a
+DACL esperada pelo criador privado e valida novamente com o guard S9. O
+pré-check DPAPI, contudo, exige que `%LOCALAPPDATA%\telegram_courses` também
+tenha DACL protegida. O diagnóstico informou que ela é herdada/não protegida.
+Essa pasta principal não foi alterada; a validação DPAPI ocorre antes de
+qualquer mudança HML. Aguarda-se autorização humana nova e específica para essa
+alteração de DACL, que pode propagar ACEs aos filhos. Até ela chegar, não
+executar launcher nem iniciar G0. S10, Git e payload seguem fora do escopo.
+
+O relatório P0 e o pedido específico de autorização da DACL parent foram
+enviados ao chat canônico `Projeto Telegram 3.0`; aguardar a decisão do operador.
+
+### Estado atual após autorização — 2026-11-02
+
+O operador autorizou a ACL DPAPI parent. Na inspeção nativa a pasta já tinha
+owner e DACL protegida esperados; parent e arquivos DPAPI ficaram inalterados.
+O snapshot de ACLs está em `%LOCALAPPDATA%\Temp\S9-HML-02-acl-c815368dc6e9468691800bc2c36a3c8a`.
+O guard HML passou durante reparo temporário, mas o preflight falhou porque o
+SQLite tem só migration 1, zero `catalog_nodes` e nenhuma tabela catalog_runs/
+catalog_unresolved_sources. As DACLs prévias de seis objetos foram restauradas e
+comparadas; `runs` recém-criado permanece vazio/privado. Aguardar DB isolado
+com catálogo S3 elegível ou instrução do operador; não flexibilizar S9, não
+executar launcher/G0/RPC/G4/download.
+
+## Handoff vigente — TELEGRAM-3-585-FINAL-CLOSURE-01 — 2026-11-04
+
+Atividade concluída. O readback do chat canônico contém a saída do operador no
+Windows PowerShell 5.1 nativo: G0=`SIM`; plano fresco selecionou exclusivamente
+585, uma mídia, 170.323 bytes pendentes, limite PASS e `REMOTE_HASH_FULL`; G4
+confirmado com `S`. A fila concluiu 1/1, zero falhas, uma tentativa e 170.323
+bytes transferidos. O pós-guard passou: `ATTEMPTS=4`, `STATE=DOWNLOADED`, hash
+local e prefixo preservados, caminho `REMOTE_HASH_REQUIRED`/`REMOTE_HASH_FULL`,
+586/587 intocados. Arquivo final: 6.199.635 bytes.
+
+`GATE2=PASS`; `RECOVERY585=COMPLETED`; `ATTEMPTS=4`. Findings históricos
+permanecem: exceção das cinco consultas Git read-only aceita com ressalvas sem
+conformidade retroativa, três findings Ruff globais fora do escopo e detalhe
+remoto da terceira falha não preservado. Nenhuma alteração de produção, S9/V2,
+ou operação Git ocorreu. 586/587 exigem autorização própria.
+
+O [relatório consolidado](../../reports/TELEGRAM_3_585_FINAL_CLOSURE_01/REPORT.md)
+foi enviado ao chat canônico `Projeto Telegram 3.0` via MCP. A ferramenta
+aceitou e retornou o ID do chat, mas o readback imediato não expôs a nova
+mensagem (`SENT_UNCONFIRMED / READBACK_NOT_OBSERVED`). Não reenviar para evitar
+duplicidade.
+
+## Ultimo handoff — Checkpoint global 2026-11-03
+
+Checkpoint atual: TELEGRAM-3-GLOBAL-CHECKPOINT-20261103. Design MIDNIGHT_GLASS_V1 aprovado, ainda nao implementado. Downloader do piloto 585 recuperado e validado (4 tentativas, REMOTE_HASH_FULL), sem aprovar globalmente S9; 586/587 permanecem pendentes. A fase seguinte e apresentar telas prontas em mockups para decisao do operador, antes da implementacao TUI. Preservar artefatos locais de testes e WIP; ver docs/continuity/checkpoints/TELEGRAM_3_GLOBAL_CHECKPOINT_20261103.md e docs/design/TELEGRAM_COURSES_TUI_MIDNIGHT_GLASS_V1.md.

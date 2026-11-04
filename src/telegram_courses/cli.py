@@ -5,18 +5,24 @@ from __future__ import annotations
 import argparse
 import asyncio
 import getpass
+import hashlib
 import io
 import os
 import re
+import stat
 import sys
+import time
 import unicodedata
 from collections.abc import Callable, Sequence
+from dataclasses import replace
+from pathlib import Path
+from typing import TYPE_CHECKING
 
 from rich.console import Console
 from rich.table import Table
 
 from telegram_courses import __version__
-from telegram_courses.auth import AuthenticationError
+from telegram_courses.auth import AuthenticationError, RateLimited
 from telegram_courses.auth_application import AuthenticationApplication
 from telegram_courses.catalog import CatalogError
 from telegram_courses.catalog_application import CatalogApplication
@@ -52,7 +58,80 @@ from telegram_courses.operational_logging import (
     configure_operational_logging,
     emit_operational_event,
 )
+from telegram_courses.s9_supervisor_handshake import (
+    HANDSHAKE_DIR_ENV,
+    HANDSHAKE_NONCE_ENV,
+    S9_LEDGER_PATH_ENV,
+    S9_PROFILE_ENV,
+    S9_SUPERVISED_CHILD_ENV,
+    ConfirmationHandshakeError,
+    supervised_confirmation,
+)
 from telegram_courses.telethon_gateway import TelethonGateway
+
+if TYPE_CHECKING:
+    from telegram_courses.download_repository import DownloadCandidate
+    from telegram_courses.s9_operational_ledger import _PrivateDirectoryGuard
+
+
+def _download_gateway_initialization_error(error: Exception) -> DownloadGatewayError:
+    if isinstance(error, ConfigurationError):
+        return DownloadGatewayError("CONFIGURATION")
+    if isinstance(error, RateLimited):
+        return DownloadGatewayError(
+            "RATE_LIMITED", retry_after_seconds=error.retry_after_seconds,
+        )
+    return DownloadGatewayError("GATEWAY_FAILURE")
+
+
+def _prepare_s9_download_directories(
+    root: Path, candidates: Sequence[DownloadCandidate],
+) -> list[_PrivateDirectoryGuard]:
+    """Create and pin only planned S9 directories with the existing private guard."""
+    from telegram_courses.downloads import destination_paths
+    from telegram_courses.s9_operational_ledger import (
+        LedgerError,
+        _create_private_directory,
+        _open_private_directory_guard,
+        _verify_private_file,
+    )
+
+    root = root.expanduser().absolute()
+    guards: list[_PrivateDirectoryGuard] = []
+    seen: set[str] = set()
+    try:
+        root_guard = _open_private_directory_guard(root)
+        guards.append(root_guard)
+        root_guard.verify(root)
+        seen.add(os.path.normcase(str(root)))
+        for candidate in candidates:
+            final, partial = destination_paths(root, candidate)
+            relative = final.parent.relative_to(root)
+            parent = root
+            for part in relative.parts:
+                parent = parent / part
+                key = os.path.normcase(str(parent))
+                if key in seen:
+                    continue
+                guard = (
+                    _open_private_directory_guard(parent)
+                    if os.path.lexists(parent)
+                    else _create_private_directory(parent)
+                )
+                guards.append(guard)
+                guard.verify(parent)
+                seen.add(key)
+            if os.path.lexists(partial):
+                info = partial.lstat()
+                if (not stat.S_ISREG(info.st_mode) or info.st_nlink != 1
+                        or getattr(info, "st_file_attributes", 0) & 0x400):
+                    raise LedgerError("PRIVATE_PARTIAL_UNVERIFIED")
+                _verify_private_file(partial)
+        return guards
+    except (LedgerError, OSError, RuntimeError, ValueError, DownloadError):
+        for guard in reversed(guards):
+            guard.close()
+        raise DownloadError("S9_PRIVATE_DOWNLOAD_DIRECTORY_UNAVAILABLE") from None
 
 
 class _ArgumentParser(argparse.ArgumentParser):
@@ -106,6 +185,14 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--reference-manifest")
     parser.add_argument("--confirm", action="store_true")
+    parser.add_argument("--private-downloads", action="store_true")
+    parser.add_argument("--require-full-remote-hash", action="store_true")
+    parser.add_argument("--required-module-id", type=int)
+    parser.add_argument("--max-single-media-bytes", type=int)
+    parser.add_argument("--max-runtime-seconds", type=int)
+    parser.add_argument("--pilot-message-ids")
+    parser.add_argument("--pilot-require-already-valid-id", type=int)
+    parser.add_argument("--pilot-resume-585-once", action="store_true")
     args = parser.parse_args(raw_arguments)
     if (args.config is not None and len(args.config) != 1) or (
         args.log_level is not None and len(args.log_level) != 1
@@ -123,6 +210,63 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         if supplied_once("--attempts-per-media")
         else None
     )
+    if args.private_downloads and (
+        args.command != "download" or args.credentials_action != "queue"
+        or args.cli_download_dir is None or args.confirm
+    ):
+        raise ConfigurationError from None
+    if args.require_full_remote_hash and (
+        not args.private_downloads or args.integrity_mode != "REMOTE_HASH_REQUIRED"
+        or args.scope != "module" or args.workers != 1
+        or args.attempts_per_media != 1 or args.max_media_items is None
+        or args.max_transfer_bytes is None
+        or args.required_module_id is None or args.required_module_id <= 0
+        or args.max_single_media_bytes is None or not 0 < args.max_single_media_bytes <= 134217728
+        or args.max_runtime_seconds is None or not 0 < args.max_runtime_seconds <= 3600
+    ):
+        raise ConfigurationError from None
+    if not args.require_full_remote_hash and any(
+        value is not None for value in (
+            args.required_module_id, args.max_single_media_bytes, args.max_runtime_seconds,
+            args.pilot_message_ids, args.pilot_require_already_valid_id,
+            args.pilot_resume_585_once or None,
+        )
+    ):
+        raise ConfigurationError from None
+    if args.pilot_message_ids is not None:
+        raw = args.pilot_message_ids
+        if (
+            not args.require_full_remote_hash
+            or not isinstance(raw, str)
+            or re.fullmatch(r"[1-9][0-9]*(?:,[1-9][0-9]*){0,2}", raw) is None
+        ):
+            raise ConfigurationError from None
+        message_ids = tuple(int(x) for x in raw.split(","))
+        if (
+            len(set(message_ids)) != len(message_ids)
+            or args.max_media_items != len(message_ids)
+            or args.pilot_require_already_valid_id is not None
+            and args.pilot_require_already_valid_id not in message_ids
+        ):
+            raise ConfigurationError from None
+        args.pilot_message_ids = message_ids
+    elif args.pilot_require_already_valid_id is not None:
+        raise ConfigurationError from None
+    if args.pilot_resume_585_once and not (
+        args.require_full_remote_hash
+        and args.channel_id == -1002758699600
+        and args.scope == "module"
+        and args.required_module_id == 44
+        and args.pilot_message_ids == (585,)
+        and args.max_media_items == 1
+        and args.max_transfer_bytes == 6291456
+        and args.max_single_media_bytes == 134217728
+        and args.max_runtime_seconds is not None
+        and 0 < args.max_runtime_seconds <= 1800
+        and args.workers == 1 and args.attempts_per_media == 1
+        and args.private_downloads and not args.confirm
+    ):
+        raise ConfigurationError from None
     if args.command != "download" and (
         args.max_media_items is not None or args.max_transfer_bytes is not None
         or args.integrity_mode != "REMOTE_HASH_REQUIRED" or args.reference_manifest is not None
@@ -279,13 +423,81 @@ def _download_batch(
     selection_prompt: Callable[[str], str],
     gateway_factory: Callable[[TelegramCredentials], object],
     credentials_loader: Callable[[], TelegramCredentials],
+    queue_accounting: object | None = None,
 ) -> int:
     from telegram_courses.s5_downloads import (
         DownloadPlanner,
         DownloadQueue,
         DownloadSelection,
     )
+    from telegram_courses.s9_operational_ledger import (
+        S9_MEASUREMENT_SOURCE_ENV,
+        S9_OPERATIONAL_GATE_ENV,
+    )
 
+    requested_operational_gate = os.environ.get(S9_OPERATIONAL_GATE_ENV)
+    if requested_operational_gate not in {None, "G5", "G8"}:
+        raise ConfigurationError from None
+    operational_gate = requested_operational_gate or getattr(
+        queue_accounting, "gate", "G5",
+    )
+    if operational_gate not in {"G5", "G8"}:
+        raise ConfigurationError from None
+
+    supervised_s9 = queue_accounting is not None or any(
+        os.environ.get(key) is not None
+        for key in (
+            HANDSHAKE_DIR_ENV, HANDSHAKE_NONCE_ENV,
+            S9_LEDGER_PATH_ENV, S9_MEASUREMENT_SOURCE_ENV,
+            S9_PROFILE_ENV, S9_SUPERVISED_CHILD_ENV,
+            S9_OPERATIONAL_GATE_ENV,
+        )
+    )
+    if supervised_s9:
+        if getattr(args, "require_full_remote_hash", False):
+            raise ConfigurationError from None
+        required_environment = (
+            HANDSHAKE_DIR_ENV, HANDSHAKE_NONCE_ENV,
+            S9_LEDGER_PATH_ENV, S9_MEASUREMENT_SOURCE_ENV,
+            S9_PROFILE_ENV, S9_SUPERVISED_CHILD_ENV,
+        )
+        if (
+            args.credentials_action != "queue"
+            or any(os.environ.get(key) is None for key in required_environment)
+            or args.integrity_mode != "REMOTE_HASH_REQUIRED"
+            or args.max_media_items is None
+            or args.max_transfer_bytes is None
+            or os.environ.get(S9_SUPERVISED_CHILD_ENV) != "1"
+            or operational_gate == "G8"
+            and requested_operational_gate != "G8"
+        ):
+            raise ConfigurationError from None
+        if args.confirm:
+            raise ConfigurationError from None
+        measurement_source = os.environ.get(S9_MEASUREMENT_SOURCE_ENV)
+        if measurement_source not in {"GATEWAY_RESPONSE", "SYNTHETIC_TEST"}:
+            raise ConfigurationError from None
+        if args.workers != 1 or args.attempts_per_media != 1:
+            raise ConfigurationError from None
+        if operational_gate == "G8" and os.environ.get(S9_PROFILE_ENV) != "F":
+            raise ConfigurationError from None
+        if queue_accounting is not None:
+            if getattr(queue_accounting, "gate", "G5") != operational_gate:
+                raise ConfigurationError from None
+            try:
+                queue_accounting.validate_queue(
+                    workers=args.workers,
+                    attempts_per_media=args.attempts_per_media,
+                )
+            except Exception:
+                raise ConfigurationError from None
+    pilot_authorized_remote_stdin = (
+        bool(getattr(args, "require_full_remote_hash", False))
+        and bool(getattr(args, "pilot_message_ids", None))
+        and os.environ.get("TELEGRAM_COURSES_PILOT_G0_INTERACTIVE") == "1"
+        and not supervised_s9
+        and not args.confirm
+    )
     planner = DownloadPlanner(args.database, args.download_dir)
     console = Console(file=_CatalogOutput(sys.stdout), force_terminal=False, no_color=True, color_system=None)
 
@@ -293,24 +505,88 @@ def _download_batch(
         node_id = None
         if args.scope != "channel":
             choices = planner.selectable_nodes(args.channel_id, args.scope)
+            if args.require_full_remote_hash:
+                choices = tuple(
+                    choice for choice in choices if choice[0] == args.required_module_id
+                )
             if not choices:
                 raise DownloadError("NO_SELECTABLE_CONTENT")
-            for index, (_, title) in enumerate(choices, start=1):
-                console.print(f"[{index}] {_safe_terminal_text(title)}", markup=False, highlight=False)
-            if not sys.stdin.isatty() and selection_prompt is input:
-                raise ConfigurationError from None
-            answer = selection_prompt("Selecione o conteúdo ou Q para cancelar: ").strip()
-            if answer.casefold() == "q":
-                return None
-            if not answer.isdecimal() or not 1 <= int(answer) <= len(choices):
-                raise ConfigurationError from None
-            node_id = choices[int(answer) - 1][0]
+            if args.pilot_resume_585_once:
+                # This exception authorizes exactly one module. No need to ask
+                # the operator to re-select the already pinned destination.
+                if len(choices) != 1 or choices[0][0] != 44:
+                    raise DownloadError("PILOT_MODULE_SCOPE_MISMATCH")
+                node_id = 44
+            else:
+                for index, (_, title) in enumerate(choices, start=1):
+                    console.print(f"[{index}] {_safe_terminal_text(title)}", markup=False, highlight=False)
+                if (not sys.stdin.isatty() and selection_prompt is input
+                        and not pilot_authorized_remote_stdin):
+                    raise ConfigurationError from None
+                answer = selection_prompt("Selecione o conteúdo ou Q para cancelar: ").strip()
+                if answer.casefold() == "q":
+                    return None
+                if not answer.isdecimal() or not 1 <= int(answer) <= len(choices):
+                    raise ConfigurationError from None
+                node_id = choices[int(answer) - 1][0]
         return await planner.build(DownloadSelection(args.channel_id, args.scope, node_id))
+
+    def _pilot_narrow_plan(source):
+        """Opt-in bounded subset; the ordinary course planner is unchanged."""
+        selected_ids = getattr(args, "pilot_message_ids", None)
+        if selected_ids is None:
+            return source
+        if source.selection.scope != "module" or source.selection.node_id != args.required_module_id:
+            raise DownloadError("PILOT_MODULE_SCOPE_MISMATCH")
+        selected = tuple(item for item in source.items if item.identity[1] in selected_ids)
+        if (
+            len(selected) != len(selected_ids)
+            or len({item.identity[1] for item in selected}) != len(selected_ids)
+            or any(
+                item.candidate is None
+                or (
+                    item.status not in {"PENDING", "ALREADY_VALID"}
+                    and not (args.pilot_resume_585_once
+                             and item.identity[1] == 585
+                             and item.status == "CONDITIONAL_RESUME_CANDIDATE"
+                             and item.part_bytes == 6029312
+                             and item.wire_offset == 6029312
+                             and item.overlap_bytes == 0
+                             and item.candidate.expected_bytes == 6199635)
+                )
+                or item.candidate.expected_bytes > args.max_single_media_bytes
+                for item in selected
+            )
+            or (args.pilot_resume_585_once and
+                (len(selected) != 1
+                 or selected[0].status != "CONDITIONAL_RESUME_CANDIDATE"))
+        ):
+            raise DownloadError("PILOT_EXACT_ITEM_SCOPE_BLOCKED")
+        required = args.pilot_require_already_valid_id
+        if required is not None and not any(
+            item.identity[1] == required and item.status == "ALREADY_VALID"
+            for item in selected
+        ):
+            raise DownloadError("PILOT_PREVIOUS_WAVE_NOT_COMPLETE")
+        stable_id = hashlib.sha256(
+            (source.plan_id + ":" + ",".join(str(x) for x in selected_ids)).encode()
+        ).hexdigest()[:20]
+        return replace(source, plan_id=stable_id, items=selected, lesson_count=len(selected))
 
     plan = asyncio.run(make_plan())
     if plan is None:
         console.print("seleção cancelada", markup=False, highlight=False)
         return 0
+    plan = _pilot_narrow_plan(plan)
+    if args.require_full_remote_hash and any(
+        item.candidate is None or item.candidate.expected_bytes > args.max_single_media_bytes
+        for item in plan.items
+    ):
+        raise DownloadError("STRICT_PILOT_MEDIA_LIMIT_BLOCKED")
+    if args.require_full_remote_hash and any(
+        item.status == "CONDITIONAL_RESUME_CANDIDATE" for item in plan.pending
+    ) and not args.pilot_resume_585_once:
+        raise DownloadError("PILOT_PARTIAL_RETRY_REQUIRES_NEW_AUTHORITY")
     console.print(
         f"Plano {plan.plan_id} | {_safe_terminal_text(plan.scope_title)} | aulas={plan.lesson_count} "
         f"elegíveis={len(plan.eligible)} pendentes={len(plan.pending)} já válidas={len(plan.already_valid)} "
@@ -335,11 +611,11 @@ def _download_batch(
         item.candidate.expected_bytes for item in plan.eligible if item.candidate is not None
     )
     unknown_sizes = sum(item.reason == "UNKNOWN_SIZE" for item in plan.excluded)
-    deterministic_plan = asyncio.run(planner.build(plan.selection))
+    deterministic_plan = _pilot_narrow_plan(asyncio.run(planner.build(plan.selection)))
     deterministic_order = (
         plan.plan_id == deterministic_plan.plan_id
-        and tuple(item.identity for item in plan.items)
-        == tuple(item.identity for item in deterministic_plan.items)
+        and tuple((item.identity, item.status) for item in plan.items)
+        == tuple((item.identity, item.status) for item in deterministic_plan.items)
     )
     limit_checks = []
     if args.max_media_items is not None:
@@ -363,6 +639,75 @@ def _download_batch(
         ("LIMIT_CHECK_RESULT", limit_check),
     ):
         console.print(f"{name}={value}", markup=False, highlight=False)
+    if queue_accounting is not None:
+        if limit_check != "PASS" or not deterministic_order:
+            raise ConfigurationError from None
+        try:
+            queue_accounting.validate_plan(plan)
+        except Exception:
+            raise ConfigurationError from None
+    elif supervised_s9:
+        if limit_check != "PASS" or not deterministic_order:
+            raise ConfigurationError from None
+        try:
+            from telegram_courses.s9_operational_ledger import (
+                F_CAP,
+                S9OperationalLedger,
+                S9QueueAccounting,
+                media_m_cap,
+            )
+
+            profile = os.environ[S9_PROFILE_ENV]
+            ledger_path = Path(os.environ[S9_LEDGER_PATH_ENV])
+            if not ledger_path.is_absolute():
+                raise ConfigurationError
+            if profile == "F":
+                if not 1 <= args.max_media_items <= 8 or args.max_transfer_bytes > F_CAP:
+                    raise ConfigurationError
+            elif profile == "M":
+                if args.max_media_items != 1 or not (
+                    len(plan.pending) == 1
+                    or not plan.pending and len(plan.already_valid) == 1
+                ):
+                    raise ConfigurationError
+                candidate = (
+                    plan.pending[0].candidate
+                    if plan.pending else plan.already_valid[0].candidate
+                )
+                if candidate is None or args.max_transfer_bytes > media_m_cap(candidate.expected_bytes):
+                    raise ConfigurationError
+            else:
+                raise ConfigurationError
+            ledger = S9OperationalLedger(ledger_path)
+            deadline_ns = ledger.snapshot()["run"]["deadline_ns"]
+            if type(deadline_ns) is not int or deadline_ns <= time.time_ns():
+                raise ConfigurationError
+            queue_accounting = S9QueueAccounting.register_plan(
+                ledger, plan, profile=profile,
+                measurement_source=measurement_source,
+                gate=operational_gate,
+                recovery=(profile == "F" and any(
+                    item.status == "CONDITIONAL_RESUME_CANDIDATE"
+                    for item in plan.pending
+                )),
+            )
+            queue_accounting.validate_queue(
+                workers=args.workers,
+                attempts_per_media=args.attempts_per_media,
+            )
+            queue_accounting.validate_plan(plan)
+        except Exception:
+            raise ConfigurationError from None
+    if queue_accounting is not None and supervised_s9:
+        idempotent_recheck = getattr(queue_accounting, "idempotent_recheck", False)
+        if idempotent_recheck and (
+            plan.pending
+            or not plan.already_valid
+            or len(plan.already_valid) != selected_count
+            or args.max_media_items != selected_count
+            or args.max_transfer_bytes != 1
+        ):
+            raise ConfigurationError from None
     reasons: dict[str, int] = {}
     for item in (*plan.excluded, *plan.blocked):
         reasons[item.reason or item.status] = reasons.get(item.reason or item.status, 0) + 1
@@ -372,7 +717,7 @@ def _download_batch(
         console.print("catálogo parcial: o plano cobre somente o conteúdo observado", markup=False, highlight=False)
     mode = args.integrity_mode
     guarantee = {
-        "REMOTE_HASH_REQUIRED": "REMOTE_HASH_FULL / V1 fail-closed",
+        "REMOTE_HASH_REQUIRED": "V1 tamanho e SHA-256 local; retomada exige prova remota",
         "OPERATIONAL_ONLY": "OPERATIONAL_ONLY / UNVERIFIED_ORIGIN",
         "TRUSTED_REFERENCE": "REFERENCE_MATCH; hashes remotos permanecem independentes",
     }[mode]
@@ -392,9 +737,19 @@ def _download_batch(
         transfer = sum(item.estimated_payload_bytes or 0 for item in plan.pending)
         cost = f"payload_estimado={transfer} bytes; releitura_integral_de_prefixo=0"
         limitation = "referência local e manifesto devem permanecer estáveis; não prova origem Telegram"
+    elif args.require_full_remote_hash:
+        guarantee = "REMOTE_HASH_FULL: faixas remotas integrais verificadas antes de finalizar"
+        cost = "transferência pendente + requisições extras de hash remoto, inclusive EOF"
+        limitation = (
+            "modo estrito opt-in do produto; integridade não demonstrada até "
+            "a comparação completa; não equivale aos gates S9 G6-G9"
+        )
     else:
-        cost = "releitura adicional=0; custo exato de hashes depende das faixas remotas"
-        limitation = "qualquer ausência, indisponibilidade, resposta inválida ou divergência não permite downgrade"
+        cost = "custo de hashes e releituras na retomada depende das faixas remotas"
+        limitation = (
+            "download inicial não comprova hash remoto independente; "
+            "retomada bloqueia se a prova remota estiver ausente ou inválida"
+        )
     console.print(
         f"modo selecionado={mode} garantia pretendida={guarantee} "
         f"limitação={limitation} custo={cost}",
@@ -430,6 +785,49 @@ def _download_batch(
         console.print("execução bloqueada: prévia ou limites configurados não aprovados", markup=False, highlight=False)
         return 4
     if not plan.pending:
+        idempotent_recheck = (
+            supervised_s9
+            and queue_accounting is not None
+            and getattr(queue_accounting, "idempotent_recheck", False)
+            and bool(plan.eligible)
+            and len(plan.already_valid) == len(plan.eligible)
+            and all(item.status == "ALREADY_VALID" for item in plan.eligible)
+            and len(plan.already_valid) == selected_count
+            and args.max_media_items == selected_count
+            and args.max_transfer_bytes == 1
+        )
+        if idempotent_recheck:
+            try:
+                queue_accounting.record_queue_result(
+                    status="COMPLETED", result="PASS", cause="NONE",
+                    observed_bytes=0,
+                )
+            except Exception:
+                raise ConfigurationError from None
+            console.print(
+                "status=SKIPPED segunda fila S9; todos os itens já válidos; bytes transferidos=0",
+                markup=False,
+                highlight=False,
+            )
+            emit_operational_event(
+                "download.queue.finished",
+                component="cli.download",
+                status="SKIPPED",
+                items_total=selected_count,
+                items_completed=0,
+                items_failed=0,
+                items_skipped=selected_count,
+                workers=args.workers,
+            )
+            return 0
+        if queue_accounting is not None:
+            try:
+                queue_accounting.record_queue_result(
+                    status="BLOCKED", result="BLOCKED", cause="NONE",
+                    observed_bytes=0,
+                )
+            except Exception:
+                raise ConfigurationError from None
         console.print(
             "status=SKIPPED nenhuma transferência pendente; conteúdo completo ou sem itens elegíveis",
             markup=False,
@@ -439,12 +837,34 @@ def _download_batch(
     if args.confirm:
         confirmed = True
     else:
-        if not sys.stdin.isatty() and selection_prompt is input:
+        if (not sys.stdin.isatty() and selection_prompt is input
+                and not pilot_authorized_remote_stdin):
             raise ConfigurationError from None
-        confirmed = selection_prompt("Iniciar os downloads? [s/N] ").strip().casefold() in {"s", "sim", "y", "yes"}
+        try:
+            answer = supervised_confirmation(
+                "Iniciar os downloads? [s/N] ",
+                selection_prompt=selection_prompt,
+            )
+        except ConfirmationHandshakeError:
+            raise ConfigurationError from None
+        confirmed = answer.strip().casefold() in {"s", "sim", "y", "yes"}
     if not confirmed:
+        if queue_accounting is not None:
+            try:
+                queue_accounting.record_queue_result(
+                    status="CANCELLED", result="CANCELLED", cause="CANCELLED",
+                    observed_bytes=0,
+                )
+            except Exception:
+                raise ConfigurationError from None
         console.print("execução não confirmada", markup=False, highlight=False)
         return 0
+
+    if queue_accounting is not None:
+        try:
+            queue_accounting.record_preconfirmation_pass()
+        except Exception:
+            raise ConfigurationError from None
 
     from telegram_courses.auth import AuthState
 
@@ -457,10 +877,8 @@ def _download_batch(
             try:
                 self.gateway = gateway_factory(credentials_loader())
                 state = await self.gateway.restore()
-            except ConfigurationError:
-                raise DownloadGatewayError("CONFIGURATION") from None
-            except Exception:
-                raise DownloadGatewayError("GATEWAY_FAILURE") from None
+            except Exception as error:
+                raise _download_gateway_initialization_error(error) from None
             if state is not AuthState.AUTHENTICATED:
                 raise DownloadGatewayError("SESSION_INVALID")
             return self.gateway
@@ -479,6 +897,14 @@ def _download_batch(
             if not callable(getter):
                 raise DownloadGatewayError("REMOTE_HASHES_UNAVAILABLE")
             return await getter(*call_args, **kwargs)
+        async def validate_media_identity(self, *call_args: object, **kwargs: object):
+            if self._initialization is None:
+                self._initialization = asyncio.create_task(self._initialize())
+            gateway = await self._initialization
+            validator = getattr(gateway, "validate_media_identity", None)
+            if not callable(validator):
+                raise DownloadGatewayError("IDENTITY_REVALIDATION_UNAVAILABLE")
+            return await validator(*call_args, **kwargs)
         async def close(self) -> None:
             if self.gateway is not None:
                 await self.gateway.close()
@@ -487,12 +913,51 @@ def _download_batch(
         gateway = _LazyGateway()
         try:
             repository = DownloadRepository(args.database)
+            prefix_proof_observer = None
+            if queue_accounting is not None and getattr(
+                queue_accounting, "recovery", False,
+            ):
+                observer = getattr(queue_accounting, "record_s6_prefix_proof", None)
+                if not callable(observer):
+                    raise ConfigurationError from None
+                prefix_proof_observer = observer
             app = SingleMediaDownloadApplication(
                 repository, gateway, args.download_dir,
                 progress_callback=lambda current, total: console.print(
                     f"progresso bytes={current}/{total}", markup=False, highlight=False
                 ),
+                prefix_proof_observer=prefix_proof_observer,
+                require_full_remote_hash=args.require_full_remote_hash,
+                allow_prefix_terminal_eof=args.pilot_resume_585_once,
             )
+            if args.require_full_remote_hash and plan.already_valid:
+                from telegram_courses.downloads import (
+                    _validate_remote_ranges,
+                    destination_paths,
+                )
+
+                for item in plan.already_valid:
+                    candidate = item.candidate
+                    if candidate is None:
+                        raise DownloadError("STRICT_PRIOR_ITEM_INVALID")
+                    final, _ = destination_paths(Path(args.download_dir), candidate)
+                    if final.is_symlink() or not final.is_file():
+                        raise DownloadError("STRICT_PRIOR_ITEM_INVALID")
+                    if await gateway.validate_media_identity(
+                        candidate.channel_id, candidate.telegram_message_id,
+                        candidate.media_ordinal, telegram_media_id=candidate.telegram_media_id,
+                        expected_bytes=candidate.expected_bytes,
+                    ) is not True:
+                        raise DownloadError("REMOTE_IDENTITY_CONFLICT")
+                    remote_ranges = await app._remote_hashes(
+                        candidate, candidate.expected_bytes, allow_terminal_eof=True,
+                    )
+                    if not _validate_remote_ranges(
+                        final, candidate.expected_bytes, remote_ranges,
+                        allow_terminal_eof=True,
+                    ):
+                        raise DownloadError("REMOTE_HASH_FULL_REQUIRED")
+                    console.print("STRICT_PRIOR_REMOTE_HASH_FULL=PASS", markup=False, highlight=False)
             queue = DownloadQueue(
                 repository, app, workers=args.workers,
                 attempts_per_media=args.attempts_per_media,
@@ -500,6 +965,7 @@ def _download_batch(
                 max_transfer_bytes=args.max_transfer_bytes,
                 integrity_mode=args.integrity_mode,
                 reference_manifest_path=args.reference_manifest,
+                queue_accounting=queue_accounting,
                 progress_callback=lambda state: console.print(
                     f"fila total={state['total']} pendentes={state['pending']} "
                     f"em_execução={state['running']} concluídos={state['completed']} "
@@ -513,7 +979,40 @@ def _download_batch(
         finally:
             await gateway.close()
 
-    result = asyncio.run(execute())
+    private_download_guards: list[_PrivateDirectoryGuard] = []
+    try:
+        if supervised_s9 or args.private_downloads:
+            private_download_guards = _prepare_s9_download_directories(
+                Path(args.download_dir),
+                [item.candidate for item in (
+                    plan.eligible if args.require_full_remote_hash else plan.pending
+                ) if item.candidate is not None],
+            )
+        try:
+            result = asyncio.run(
+                asyncio.wait_for(execute(), timeout=args.max_runtime_seconds)
+            ) if args.require_full_remote_hash else asyncio.run(execute())
+        except TimeoutError:
+            raise DownloadError("STRICT_PILOT_DEADLINE_EXCEEDED") from None
+    except DownloadError as error:
+        if queue_accounting is not None:
+            cause = {
+                "INSUFFICIENT_DISK_SPACE": "DISK",
+                "TRANSFER_BUDGET_EXHAUSTED": "OTHER",
+                "S9_ACCOUNTING_FAILED": "LEDGER",
+                "RATE_LIMITED": "FLOODWAIT",
+            }.get(error.category, "OTHER")
+            try:
+                queue_accounting.record_queue_result(
+                    status="BLOCKED", result="BLOCKED", cause=cause,
+                    observed_bytes=0,
+                )
+            except Exception:
+                raise DownloadError("S9_ACCOUNTING_FAILED") from None
+        raise
+    finally:
+        for guard in reversed(private_download_guards):
+            guard.close()
     for identity, status, detail in result.outcomes:
         if status in {"COMPLETED_V2", "RECOVERED_V2", "ALREADY_COMPLETED_V2"}:
             console.print(
@@ -557,6 +1056,40 @@ def _download_batch(
         items_skipped=skipped_count,
         workers=args.workers,
     )
+    if queue_accounting is not None:
+        idempotent_recheck_pass = (
+            supervised_s9
+            and getattr(queue_accounting, "idempotent_recheck", False)
+            and final_status == "SKIPPED"
+            and counts["ALREADY_VALID"] == selected_count
+            and failed_count == 0
+            and not result.cancelled
+            and result.transferred_bytes == 0
+        )
+        queue_status = "COMPLETED" if idempotent_recheck_pass else final_status if final_status in {
+            "COMPLETED", "PARTIAL", "FAILED", "CANCELLED", "BLOCKED",
+        } else "BLOCKED"
+        queue_result = {
+            "COMPLETED": "PASS", "PARTIAL": "PARTIAL", "FAILED": "FAIL",
+            "CANCELLED": "CANCELLED", "BLOCKED": "BLOCKED",
+        }[queue_status]
+        observed_categories = {
+            detail for _, _, detail in result.outcomes if isinstance(detail, str)
+        }
+        cause = (
+            "FLOODWAIT" if "RATE_LIMITED" in observed_categories
+            else "LEDGER" if "S9_ACCOUNTING_FAILED" in observed_categories
+            else "DISK" if "INSUFFICIENT_DISK_SPACE" in observed_categories
+            else "CANCELLED" if result.cancelled
+            else "NONE"
+        )
+        try:
+            queue_accounting.record_queue_result(
+                status=queue_status, result=queue_result, cause=cause,
+                observed_bytes=result.transferred_bytes,
+            )
+        except Exception:
+            raise ConfigurationError from None
     return 130 if result.cancelled else (4 if result.failed else 0)
 
 
@@ -575,6 +1108,27 @@ def _scan_channel(
     from telegram_courses.scan_application import ScanApplication
     from telegram_courses.sqlite_repository import SQLiteMessageRepository
 
+    s9_ledger = None
+    s9_scan_id = None
+    if (
+        os.environ.get(S9_SUPERVISED_CHILD_ENV) == "1"
+        and os.environ.get(S9_LEDGER_PATH_ENV)
+    ):
+        ledger_path = os.environ[S9_LEDGER_PATH_ENV]
+        if not os.path.isabs(ledger_path):
+            raise ConfigurationError from None
+        try:
+            from telegram_courses.s9_operational_ledger import S9OperationalLedger
+
+            s9_ledger = S9OperationalLedger(ledger_path)
+            s9_scan_id = s9_ledger.begin_scan(
+                max_messages=max_messages,
+                incremental=incremental,
+                reconcile_window=reconcile_window if incremental else None,
+            )
+        except Exception:
+            raise ConfigurationError from None
+
     application = ScanApplication(
         gateway_factory,
         credentials_loader,
@@ -591,6 +1145,11 @@ def _scan_channel(
             ),
         )
     )
+    if s9_ledger is not None and s9_scan_id is not None:
+        try:
+            s9_ledger.finish_scan(s9_scan_id, outcome.messages_seen)
+        except Exception:
+            raise ConfigurationError from None
     console = Console(file=sys.stdout, force_terminal=False, no_color=True)
     if incremental:
         catalog_result = None
@@ -1047,12 +1606,36 @@ def main(
             )
         if args.command == "download":
             if args.credentials_action in {"plan", "queue"}:
-                return _download_batch(
+                result = _download_batch(
                     args=args,
                     selection_prompt=selection_prompt,
                     gateway_factory=download_gateway_factory or gateway_factory,
                     credentials_loader=credentials_loader,
                 )
+                if (
+                    os.environ.get("TELEGRAM_COURSES_S9_SUPERVISED_CHILD") == "1"
+                    and os.environ.get("TELEGRAM_COURSES_S9_PROFILE") in {"F", "M"}
+                    and os.environ.get("TELEGRAM_COURSES_S9_STAGE") in {"queue_f", "queue_m"}
+                ):
+                    from telegram_courses.s9_operational_ledger import (
+                        LedgerError,
+                        S9OperationalLedger,
+                    )
+
+                    child_close_ledger = S9OperationalLedger(
+                        Path(os.environ["TELEGRAM_COURSES_S9_LEDGER_PATH"]),
+                    )
+                    try:
+                        # A new connection's constructor is already one fresh
+                        # replay; if the same process epoch is still referenced,
+                        # explicitly seal it once here instead.
+                        if not child_close_ledger._did_fresh_replay:
+                            child_close_ledger.checkpoint()
+                    except LedgerError:
+                        return 125
+                    finally:
+                        child_close_ledger.close()
+                return result
             return _download_single(
                 channel_id=args.channel_id, message_id=args.telegram_message_id,
                 media_ordinal=args.media_ordinal, database=args.database,
@@ -1129,7 +1712,10 @@ def main(
     except DownloadError as error:
         status = (
             "BLOCKED"
-            if error.category in {"INSUFFICIENT_DISK_SPACE", "TRANSFER_BUDGET_EXHAUSTED"}
+            if error.category in {
+                "INSUFFICIENT_DISK_SPACE", "TRANSFER_BUDGET_EXHAUSTED",
+                "S9_ACCOUNTING_FAILED",
+            }
             else "FAILED"
         )
         emit_operational_event(

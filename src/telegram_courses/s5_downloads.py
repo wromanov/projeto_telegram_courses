@@ -453,6 +453,7 @@ class DownloadQueue:
         max_transfer_bytes: int | None = None,
         integrity_mode: str = "REMOTE_HASH_REQUIRED",
         reference_manifest_path: str | Path | None = None,
+        queue_accounting: object | None = None,
     ) -> None:
         if type(workers) is not int or not 1 <= workers <= MAX_WORKERS:
             raise ValueError("workers must be 1 or 2")
@@ -477,10 +478,22 @@ class DownloadQueue:
         self.max_transfer_bytes = max_transfer_bytes
         self.integrity_mode = integrity_mode
         self.reference_manifest_path = reference_manifest_path
+        self.queue_accounting = queue_accounting
         self._rate_lock = asyncio.Lock()
         self._cooldown_until = 0.0
 
     async def run(self, plan: DownloadPlan) -> QueueResult:
+        if self.queue_accounting is not None:
+            if self.max_transfer_bytes is None:
+                raise DownloadError("S9_ACCOUNTING_BUDGET_REQUIRED")
+            try:
+                self.queue_accounting.validate_queue(
+                    workers=self.workers,
+                    attempts_per_media=self.attempts_per_media,
+                )
+                self.queue_accounting.validate_plan(plan)
+            except Exception:
+                raise DownloadError("S9_ACCOUNTING_FAILED") from None
         selected_count = len(plan.items)
         if self.max_media_items is not None and selected_count > self.max_media_items:
             raise DownloadError("MEDIA_LIMIT_EXCEEDED")
@@ -521,11 +534,60 @@ class DownloadQueue:
         total_transferred_bytes = 0
         task_items: dict[asyncio.Task[None], tuple[int, int, int]] = {}
         task_reserved_bytes: dict[asyncio.Task[None], int] = {}
+        task_accounting_leases: dict[asyncio.Task[None], set[object]] = {}
         budget_lock = asyncio.Lock()
         budget_consumed = 0
         budget_received = 0
         budget_uncertain = 0
         budget_reserved = 0
+
+        def reserve_accounting(task: asyncio.Task[None], amount: int):
+            if self.queue_accounting is None:
+                return None
+            identity = task_items.get(task)
+            if identity is None:
+                raise DownloadError("S9_ACCOUNTING_FAILED")
+            try:
+                lease = self.queue_accounting.reserve(identity, amount)
+            except Exception:
+                raise DownloadError("S9_ACCOUNTING_FAILED") from None
+            if not all(callable(getattr(lease, name, None)) for name in (
+                "received", "release", "charge_uncertain",
+            )):
+                raise DownloadError("S9_ACCOUNTING_FAILED")
+            task_accounting_leases.setdefault(task, set()).add(lease)
+            return lease
+
+        def settle_accounting(task: asyncio.Task[None], lease: object, method: str, *args: object) -> None:
+            if self.queue_accounting is None:
+                return
+            try:
+                getattr(lease, method)(*args)
+            except Exception:
+                raise DownloadError("S9_ACCOUNTING_FAILED") from None
+            leases = task_accounting_leases.get(task)
+            if leases is not None:
+                leases.discard(lease)
+                if not leases:
+                    task_accounting_leases.pop(task, None)
+
+        def charge_open_accounting(task: asyncio.Task[None]) -> None:
+            leases = tuple(task_accounting_leases.get(task, ()))
+            for lease in leases:
+                if getattr(lease, "settled", False):
+                    task_accounting_leases[task].discard(lease)
+                    continue
+                try:
+                    settle_accounting(task, lease, "charge_uncertain")
+                except DownloadError:
+                    # The durable ledger has already failed closed; preserve the
+                    # original transfer result and prevent subsequent work.
+                    nonlocal_stop("S9_ACCOUNTING_FAILED")
+
+        def nonlocal_stop(reason: str) -> None:
+            nonlocal stop_reason
+            stop_reason = reason
+            stop.set()
 
         def emit_progress() -> None:
             if self.progress_callback is None:
@@ -588,23 +650,32 @@ class DownloadQueue:
             budget_limit = self.max_transfer_bytes
 
             class _Reservation:
-                def __init__(self, task: asyncio.Task[None], amount: int) -> None:
+                def __init__(self, task: asyncio.Task[None], amount: int, accounting_lease) -> None:
                     self.task = task
                     self.amount = amount
                     self.settled = False
+                    self.accounting_lease = accounting_lease
 
                 def settle(self, consumed: int) -> None:
                     nonlocal budget_consumed, budget_received, budget_uncertain
                     nonlocal budget_reserved, stop_reason, total_transferred_bytes
                     if self.settled:
                         return
-                    self.settled = True
                     reserved = task_reserved_bytes.get(self.task, 0)
                     if reserved < self.amount or consumed < 0:
                         stop_reason_local = "TRANSFER_BUDGET_STATE_INVALID"
                         states[task_items[self.task]] = "BLOCKED"
                         self.task.cancel()
                         raise DownloadError(stop_reason_local)
+                    if self.accounting_lease is not None:
+                        try:
+                            settle_accounting(
+                                self.task, self.accounting_lease, "received", consumed,
+                            )
+                        except DownloadError:
+                            nonlocal_stop("S9_ACCOUNTING_FAILED")
+                            raise
+                    self.settled = True
                     task_reserved_bytes[self.task] = reserved - self.amount
                     budget_reserved -= self.amount
                     budget_received += consumed
@@ -629,6 +700,14 @@ class DownloadQueue:
                     nonlocal budget_reserved
                     if self.settled:
                         return
+                    if self.accounting_lease is not None:
+                        try:
+                            settle_accounting(
+                                self.task, self.accounting_lease, "charge_uncertain",
+                            )
+                        except DownloadError:
+                            nonlocal_stop("S9_ACCOUNTING_FAILED")
+                            raise
                     self.settled = True
                     reserved = task_reserved_bytes.get(self.task, 0)
                     if reserved < self.amount:
@@ -650,7 +729,14 @@ class DownloadQueue:
                         return None
                     budget_reserved += amount
                     task_reserved_bytes[task] = task_reserved_bytes.get(task, 0) + amount
-                return _Reservation(task, amount)
+                    try:
+                        accounting_lease = reserve_accounting(task, amount)
+                    except DownloadError:
+                        budget_reserved -= amount
+                        task_reserved_bytes[task] -= amount
+                        nonlocal_stop("S9_ACCOUNTING_FAILED")
+                        raise
+                return _Reservation(task, amount, accounting_lease)
 
             self.application.chunk_reserver = reserve_chunk
 
@@ -670,12 +756,27 @@ class DownloadQueue:
 
                     class _ChildReservation:
                         settled = False
+                        accounting_lease = None
+
+                        def __init__(self) -> None:
+                            self.accounting_lease = reserve_accounting(pool.task, amount)
 
                         def _settle(self, consumed: int, uncertain: bool = False) -> None:
                             nonlocal budget_reserved, budget_received, budget_uncertain
                             nonlocal budget_consumed, total_transferred_bytes
                             if self.settled:
                                 return
+                            if self.accounting_lease is not None:
+                                try:
+                                    settle_accounting(
+                                        pool.task,
+                                        self.accounting_lease,
+                                        "charge_uncertain" if uncertain else "received",
+                                        *(() if uncertain else (consumed,)),
+                                    )
+                                except DownloadError:
+                                    nonlocal_stop("S9_ACCOUNTING_FAILED")
+                                    raise
                             self.settled = True
                             held = task_reserved_bytes.get(pool.task, 0)
                             if held < amount or budget_reserved < amount:
@@ -820,8 +921,29 @@ class DownloadQueue:
                             emit_progress()
                             return
                         probe_path = root if root.exists() else probe
+                        if self.queue_accounting is not None:
+                            try:
+                                self.queue_accounting.check_disk(
+                                    probe_path,
+                                    pending_bytes=pending_bytes_left + item_disk_bytes,
+                                    free_space=self.free_space,
+                                )
+                            except Exception as error:
+                                failure = (
+                                    "INSUFFICIENT_DISK_SPACE"
+                                    if str(error) == "INSUFFICIENT_DISK_SPACE"
+                                    else "S9_ACCOUNTING_FAILED"
+                                )
+                                raise DownloadError(failure) from None
                         if self.free_space(probe_path) < pending_bytes_left + margin:
                             raise DownloadError("INSUFFICIENT_DISK_SPACE")
+                        if self.queue_accounting is not None:
+                            try:
+                                self.queue_accounting.begin_attempt(item.identity)
+                            except Exception:
+                                last_error = DownloadError("S9_ACCOUNTING_FAILED")
+                                nonlocal_stop("S9_ACCOUNTING_FAILED")
+                                break
                         attempts_total += 1
                         last_progress_by_item.pop(item.identity, None)
                         progress_seen.discard(item.identity)
@@ -845,6 +967,8 @@ class DownloadQueue:
                                         # whether the in-flight response delivered payload.
                                         budget_uncertain += unused
                                         budget_consumed = budget_received + budget_uncertain
+                                if task is not None:
+                                    charge_open_accounting(task)
                         if (
                             self.max_transfer_bytes is None
                             and item.identity not in progress_seen
@@ -877,6 +1001,10 @@ class DownloadQueue:
                             stop.set()
                             break
                         if error.category == "RATE_LIMITED":
+                            if self.queue_accounting is not None:
+                                stop_reason = "RATE_LIMITED"
+                                stop.set()
+                                break
                             retry_after = getattr(error, "retry_after_seconds", None)
                             if type(retry_after) is not int or retry_after < 0:
                                 break
@@ -926,6 +1054,7 @@ class DownloadQueue:
                         stop.set()
                     blocked_categories = {
                         "INSUFFICIENT_DISK_SPACE", "TRANSFER_BUDGET_EXHAUSTED", "BUDGET_BLOCK",
+                        "S9_ACCOUNTING_FAILED", "RATE_LIMITED",
                         "REMOTE_HASH_UNAVAILABLE", "REMOTE_HASHES_UNAVAILABLE",
                         "REMOTE_HASH_INVALID_RESPONSE", "REMOTE_HASH_DIVERGENT",
                         "BLOCKED_CONTRADICTORY_REMOTE_EVIDENCE", "REFERENCE_ABSENT",
@@ -940,7 +1069,10 @@ class DownloadQueue:
                         or last_error.failure_phase == "REMOTE_HASH"
                     )
                     final_category = (
-                        "REMOTE_HASH_UNAVAILABLE"
+                        "RATE_LIMITED"
+                        if self.queue_accounting is not None
+                        and last_error.category == "RATE_LIMITED"
+                        else "REMOTE_HASH_UNAVAILABLE"
                         if last_error.failure_phase == "REMOTE_HASH"
                         and last_error.category in {"RATE_LIMITED", "NETWORK", "GATEWAY_FAILURE", "TRANSFER_FAILED"}
                         else last_error.category
@@ -982,6 +1114,7 @@ class DownloadQueue:
                 self.application.pre_append_check = original_pre_append_check
             task_items.clear()
             task_reserved_bytes.clear()
+            task_accounting_leases.clear()
         return QueueResult(
             tuple(outcomes), total_transferred_bytes, attempts_total, False,
             self.clock() - started_at,

@@ -17,6 +17,7 @@ from telegram_courses.download_repository import (
 from telegram_courses.downloads import (
     DownloadError,
     DownloadGatewayError,
+    S6PrefixProofObservation,
     SingleMediaDownloadApplication,
 )
 
@@ -243,6 +244,7 @@ def test_resume_validates_prefix_compares_overlap_and_appends_without_rewrite(tm
     root = tmp_path / "downloads"
     gateway = FakeGateway(chunks=(PAYLOAD,))
     gateway.prefix_size = 9
+    prefix_proofs: list[S6PrefixProofObservation] = []
 
     async def exercise():
         await seed_lesson(database)
@@ -258,7 +260,10 @@ def test_resume_validates_prefix_compares_overlap_and_appends_without_rewrite(tm
             candidate.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=checkpoint,
             failure_category="NETWORK",
         )
-        app = SingleMediaDownloadApplication(repository, gateway, root)
+        app = SingleMediaDownloadApplication(
+            repository, gateway, root,
+            prefix_proof_observer=prefix_proofs.append,
+        )
         result = await app.download(CHANNEL_ID, MESSAGE_ID, 0)
         return result, partial, final, await repository.get_record(candidate.media_item_id)
 
@@ -269,8 +274,55 @@ def test_resume_validates_prefix_compares_overlap_and_appends_without_rewrite(tm
     assert not partial.exists()
     assert record.state == "DOWNLOADED"
     assert record.downloaded_bytes == len(PAYLOAD)
-    assert gateway.hash_calls == 2
-    assert gateway.calls == 1
+    assert len(prefix_proofs) == 1
+    proof = prefix_proofs[0]
+    assert proof.candidate_identity == (CHANNEL_ID, MESSAGE_ID, 0)
+    assert proof.expected_bytes == len(PAYLOAD)
+    assert proof.physical_prefix_bytes == 9
+    assert proof.local_prefix_sha256 == hashlib.sha256(PAYLOAD[:9]).hexdigest()
+    assert len(proof.remote_ranges) == 1
+    assert proof.remote_ranges[0].offset == 0
+    assert proof.remote_ranges[0].limit == 9
+    assert proof.remote_ranges[0].sha256 == hashlib.sha256(PAYLOAD[:9]).digest()
+    assert proof.integrity_mode == "REMOTE_HASH_REQUIRED"
+
+
+def test_prefix_proof_observer_failure_blocks_resume_before_payload_append(tmp_path) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    root = tmp_path / "downloads"
+    gateway = FakeGateway(chunks=(PAYLOAD,))
+    gateway.prefix_size = 9
+
+    async def exercise():
+        await seed_lesson(database)
+        repository = DownloadRepository(database)
+        selected = await repository.select_candidate(CHANNEL_ID, MESSAGE_ID, 0)
+        from telegram_courses.downloads import destination_paths
+
+        final, partial = destination_paths(root, selected)
+        partial.parent.mkdir(parents=True)
+        partial.write_bytes(PAYLOAD[:9])
+        await repository.start(selected, final, partial)
+        await repository.transition(
+            selected.media_item_id, "FAILED_RETRYABLE", downloaded_bytes=9,
+            failure_category="NETWORK",
+        )
+
+        def fail_observer(_proof: S6PrefixProofObservation) -> None:
+            raise OSError("synthetic durable proof failure")
+
+        app = SingleMediaDownloadApplication(
+            repository, gateway, root, prefix_proof_observer=fail_observer,
+        )
+        with pytest.raises(DownloadError, match="prefix proof persistence failed"):
+            await app.download(CHANNEL_ID, MESSAGE_ID, 0)
+        return partial, final
+
+    partial, final = asyncio.run(exercise())
+    assert partial.read_bytes() == PAYLOAD[:9]
+    assert not final.exists()
+    assert gateway.calls == 0
+    assert gateway.hash_calls == 1
 
 
 def test_unaligned_operational_resume_reuses_boundary_suffix_then_appends(tmp_path, monkeypatch) -> None:
@@ -677,3 +729,115 @@ def test_unknown_size_and_non_document_are_ineligible(tmp_path, update) -> None:
         assert await repository.select_candidate(CHANNEL_ID, MESSAGE_ID, 0) is None
 
     asyncio.run(exercise())
+
+def test_strict_new_download_requires_full_remote_hash(tmp_path) -> None:
+    database = tmp_path / "catalog.sqlite3"
+    gateway = FakeGateway()
+
+    async def exercise():
+        await seed_lesson(database)
+        app = SingleMediaDownloadApplication(
+            DownloadRepository(database), gateway, tmp_path / "downloads",
+            require_full_remote_hash=True,
+        )
+        return await app.download(CHANNEL_ID, MESSAGE_ID, 0)
+
+    outcome = asyncio.run(exercise())
+    assert outcome.result == "DOWNLOADED"
+    assert outcome.guarantee == "REMOTE_HASH_FULL"
+    assert outcome.remote_hash_class == "REMOTE_HASH_FULL"
+    assert gateway.hash_calls >= 1
+    assert outcome.final_path.read_bytes() == PAYLOAD
+
+
+@pytest.mark.parametrize("kind", ("absent", "partial", "divergent"))
+def test_strict_new_download_fails_closed_without_full_remote_proof(tmp_path, kind) -> None:
+    from telegram_courses.downloads import RemoteFileHash
+
+    class StrictGateway(FakeGateway):
+        async def get_file_hashes(self, channel_id, message_id, ordinal, *, telegram_media_id, expected_bytes, offset=0):
+            self.hash_calls += 1
+            if kind == "absent":
+                return ()
+            if kind == "partial":
+                return (
+                    RemoteFileHash(0, len(PAYLOAD) // 2, hashlib.sha256(PAYLOAD[:len(PAYLOAD) // 2]).digest()),
+                ) if offset == 0 else ()
+            return (RemoteFileHash(0, len(PAYLOAD), b"z" * 32),)
+
+    database = tmp_path / "catalog.sqlite3"
+    gateway = StrictGateway()
+
+    async def exercise():
+        await seed_lesson(database)
+        app = SingleMediaDownloadApplication(
+            DownloadRepository(database), gateway, tmp_path / "downloads",
+            require_full_remote_hash=True,
+        )
+        with pytest.raises(DownloadError):
+            await app.download(CHANNEL_ID, MESSAGE_ID, 0)
+
+    asyncio.run(exercise())
+    root = tmp_path / "downloads"
+    assert gateway.hash_calls >= 1
+    assert not any(path for path in root.rglob("*") if path.is_file() and not path.name.endswith(".part"))
+    assert list(root.rglob("*.part"))
+
+
+@pytest.mark.parametrize("bad_tail", (False, True))
+def test_strict_product_real_eof_shape_finalizes_only_if_digest_matches(
+    tmp_path, monkeypatch, bad_tail,
+) -> None:
+    """Synthetic 128 KiB range past EOF; keep default S9 behavior unchanged."""
+    payload = bytes(range(251)) * 523 + b"suffix"
+    assert 131072 < len(payload) < 2 * 131072
+    monkeypatch.setattr(sys.modules[__name__], "PAYLOAD", payload)
+
+    class TelegramEOFShapeGateway(FakeGateway):
+        async def get_file_hashes(
+            self, _channel_id, _message_id, _ordinal, *,
+            telegram_media_id, expected_bytes, offset=0,
+        ):
+            from telegram_courses.downloads import RemoteFileHash
+
+            self.hash_calls += 1
+            assert telegram_media_id == "synthetic-media"
+            assert expected_bytes == len(payload)
+            hashes = (
+                RemoteFileHash(
+                    0, 131072, hashlib.sha256(payload[:131072]).digest(),
+                ),
+                RemoteFileHash(
+                    131072, 131072,
+                    b"f" * 32 if bad_tail
+                    else hashlib.sha256(payload[131072:]).digest(),
+                ),
+            )
+            return tuple(h for h in hashes if h.offset >= offset)
+
+    gateway = TelegramEOFShapeGateway(chunks=(payload[:131072], payload[131072:]))
+    database = tmp_path / "catalog.sqlite3"
+    root = tmp_path / "downloads"
+
+    async def exercise():
+        await seed_lesson(database)
+        app = SingleMediaDownloadApplication(
+            DownloadRepository(database), gateway, root,
+            require_full_remote_hash=True,
+        )
+        if bad_tail:
+            with pytest.raises(DownloadError, match="remote hash full required"):
+                await app.download(CHANNEL_ID, MESSAGE_ID, 0)
+            return None
+        return await app.download(CHANNEL_ID, MESSAGE_ID, 0)
+
+    outcome = asyncio.run(exercise())
+    assert gateway.hash_calls == 1
+    if bad_tail:
+        assert list(root.rglob("*.part"))
+        assert not list(root.rglob("*.mp4"))
+    else:
+        assert outcome is not None
+        assert outcome.result == "DOWNLOADED"
+        assert outcome.remote_hash_class == "REMOTE_HASH_FULL"
+        assert outcome.final_path.read_bytes() == payload

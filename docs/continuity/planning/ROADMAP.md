@@ -5,7 +5,7 @@
 **Execution model = INCREMENTAL_VERTICAL_SLICES**
 **Maximum active formal activities = 1**
 
-Estado corrente: PHASE 6 / S6, S7 e S8 formalmente CLOSED_WITH_EXCEPTIONS. S6 Gates A=PARTIAL e B=BLOCKED_BY_REMOTE_EVIDENCE continuam sem comprovação integral V1. A S7 foi aceita pela OPTION_B, com critérios A2/A4/A6 ainda parciais e quatro exceções registradas; não há conformidade integral nem homologação de exclusão remota positiva. S8 — Operational Hardening — foi formalmente aceita pelo usuário em 2026-10-28, CLOSED_WITH_EXCEPTIONS, após regressão offline de 366 testes e 11 subtestes aprovados. Permanecem limites documentados da medição de memória NFR-02 e ausência de homologação real Telegram; a próxima sprint planejada é S9, ainda NOT_STARTED e sem autorização. Ver PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública), [relatório de fechamento S7](../../reports/S7_FORMAL_CLOSURE_2026-10-26/REPORT.md), [parecer final S7](../../reports/S7_FINAL_ACCEPTANCE_DECISION_2026-10-26/REPORT.md) e aprovações (authority canônica mantida localmente e omitida da baseline pública).
+Estado corrente: PHASE 6 / S6, S7 e S8 formalmente CLOSED_WITH_EXCEPTIONS. S6 Gates A=PARTIAL e B=BLOCKED_BY_REMOTE_EVIDENCE continuam sem comprovação integral V1. A S7 foi aceita pela OPTION_B, com critérios A2/A4/A6 ainda parciais e quatro exceções registradas; não há conformidade integral nem homologação de exclusão remota positiva. S8 — Operational Hardening — foi formalmente aceita pelo usuário em 2026-10-28, CLOSED_WITH_EXCEPTIONS, após regressão offline de 366 testes e 11 subtestes aprovados. Permanecem limites documentados da medição de memória NFR-02 e ausência de homologação real Telegram; S9 teve execução real limitada e permanece PARTIAL; o estado vigente e as autorizações constam em PROJECT_STATE. S10 permanece não executado. Ver PROJECT_STATE (authority canônica mantida localmente e omitida da baseline pública), [relatório de fechamento S7](../../reports/S7_FORMAL_CLOSURE_2026-10-26/REPORT.md), [parecer final S7](../../reports/S7_FINAL_ACCEPTANCE_DECISION_2026-10-26/REPORT.md) e aprovações (authority canônica mantida localmente e omitida da baseline pública).
 
 | Phase | Name | Sprint(s) | Outcome |
 |---|---|---|---|
@@ -36,3 +36,7 @@ ROADMAP_VERSION = 1.1 / 2026-10-05
 ROADMAP_STATUS = DEFINED_USER_BASELINE_RECONCILED
 
 Estado de execução, seleção, prontidão e autorização: PROJECT_STATE.md (authority canônica mantida localmente e omitida da baseline pública). Este roadmap não inicia nenhuma unidade.
+
+## Direcao de interface aprovada — 2026-11-03
+
+Para a experiencia final do operador, esta aprovada a CLI/TUI navegavel no estilo **Midnight Glass (Direcao 1)**; a interface esta **NOT_IMPLEMENTED**. O proximo passo de produto e a apresentacao de mockups completos das telas antes do inicio de implementacao, sem alterar retroativamente o aceite ou a sequencia historica das sprints. Ver [especificacao visual](../../design/TELEGRAM_COURSES_TUI_MIDNIGHT_GLASS_V1.md).

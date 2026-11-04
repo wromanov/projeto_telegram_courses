@@ -1,5 +1,35 @@
 # Sprint plan — projeto_telegram_courses
 
+## Estado corrente da S9 — correção P0 do ledger — 2026-11-01
+
+O estado vigente e a autoridade de autorização permanecem em [PROJECT_STATE](../PROJECT_STATE.md). A atividade `TELEGRAM_S9_LEDGER_PERFORMANCE_FIX_01` foi concluída com implementação e validação somente offline/sintéticas: benchmark ledger-only de 1 GiB em 373,02 s, E2E G0–G9 sintético aprovado, regressão com 283 testes aprovados e revisão independente `PASS_WITH_LIMITS`. O contrato S9 v1 permanece congelado e inalterado. Relatório e artefatos: [S9_LEDGER_PERFORMANCE_FIX_01](../../reports/S9_LEDGER_PERFORMANCE_FIX_01/REPORT.md).
+
+Nenhuma chamada Telegram, download real, escrita operacional, S10 ou operação de publicação Git ocorreu. O plano continua sendo referência e não concede nova autorização. A primeira tentativa de envio foi recusada pela revisão automática; após autorização expressa, a ferramenta aceitou o envio do relatório. O readback ainda mostra o snapshot anterior, então confirmar visibilidade antes de qualquer nova tentativa.
+
+## Estado histórico da S9 — 2026-10-30
+
+O estado desta delivery unit é mantido em
+[PROJECT_STATE](../PROJECT_STATE.md). A atividade anterior
+`TELEGRAM_S9_FINAL_INTEGRATION_01` entregou integração offline **parcial**;
+o runner nativo pós-refatoração passou 121 testes S9 focados, 218 testes
+afetados S5–S8 e 488 testes offline + 11 subtests na suíte completa, com exit 0
+em todas as fases. O teste AST passou e 52 testes do ledger passaram
+isoladamente. A revisão de segurança do snapshot offline passou com limites e
+sem achados materiais de código. G1 não
+tem produtor de PASS, G2/G3 seguem `NOT_ASSESSED` e G6–G9 não foram fechados.
+S9 real e S10 não estão autorizados. O usuário autorizou agora a atividade
+`TELEGRAM_S9_G1_G9_OFFLINE_COMPLETION_01`, limitada à implementação, validação
+offline, revisão independente e relatório para completar G1–G9 sob o contrato
+congelado. A implementação sintética foi entregue, mas a revisão de segurança
+encontrou um finding alto e dois médios; a regressão nativa expirou em
+focused-s9. O estado desta atividade é
+`S9_OFFLINE_ORCHESTRATION_PARTIAL`; aguardar autorização humana direta antes de
+outro ciclo corretivo. Nenhuma operação Telegram, escrita no banco operacional
+ou publicação Git está autorizada. Detalhes em
+[REPORT](../../reports/S9_G1_G9_OFFLINE_COMPLETION_01/REPORT.md).
+O relatório foi enviado e observado no chat canônico; a resposta confirmou
+`S9_OFFLINE_ORCHESTRATION_PARTIAL` sem conceder autorização adicional.
+
 **Delivery unit:** Sprint
 **Execution model:** Incremental vertical slices
 **Maximum active formal activities:** 1
@@ -219,7 +249,7 @@ no canal real permanece planejada para S9.
 - **GATES:** RASMOO real-channel acceptance gate.
 - **DEFINITION_OF_DONE:** Acceptance results are recorded; blocking discrepancies are resolved or explicitly remain release blockers.
 - **NEXT_SPRINT_ENTRY_CONDITIONS:** S9 accepted for the agreed distribution scope; packaging documentation inputs are known.
-- **STATUS:** PLANNED / NOT_STARTED.
+- **STATUS:** CONTRACT_APPROVED_FROZEN_V1.0 / RAT-01..RAT-05_APPROVED_2026-10-28 / S9_EXECUTION_NOT_STARTED_NOT_AUTHORIZED. O supervisor/ledger com validação offline é pré-requisito G0 antes de operações reais. Ver [contrato S9](../../contracts/S9_RASMOO_REAL_CHANNEL_ACCEPTANCE_CONTRACT_2026-10-28.md).
 
 ## S10 — Windows Packaging + Operational Documentation
 

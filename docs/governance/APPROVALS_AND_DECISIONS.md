@@ -676,3 +676,116 @@ congelados nem autoriza sessão/Telegram/RPC reais, escrita em dados operacionai
 início da S9, stage, commit ou push. O próximo passo natural é o checkpoint Git
 local S8, condicionado a autorização específica do usuário; S9 requer gate
 e autorização próprios.
+
+
+## Ratificação formal — contrato S9 v1.0 — 2026-10-28
+
+```text
+DECISION_ID = S9_CONTRACT_RATIFICATION_2026-10-28
+DECISION_AUTHORITY = USER_EXPLICIT / "aprovo"
+DECISION_DATE = 2026-10-28 / America/Sao_Paulo
+CONTRACT = docs/contracts/S9_RASMOO_REAL_CHANNEL_ACCEPTANCE_CONTRACT_2026-10-28.md
+CONTRACT_VERSION = 1.0
+CONTRACT_STATUS = APPROVED / FROZEN
+RAT_01 = APPROVED / TRACK_OBSERVED + 2_COURSES + 2_MODULES + F_AND_M_PROFILES
+RAT_02 = APPROVED / S9-L01..L12 + S9-L15..L16
+RAT_03 = APPROVED / S9-L13 + S9-L14 + M_DOCUMENT_1_TO_2_GIB
+RAT_04 = APPROVED / SUPERVISOR_AND_LEDGER_OFFLINE_PROOF_BEFORE_RPC
+RAT_05 = APPROVED / GATE_RESULT_SEMANTICS_AND_INHERITED_LIMITATIONS
+S9_CONTRACT = RATIFIED
+S9_STATUS = PLANNED / NOT_STARTED
+S9_EXECUTION_AUTHORIZATION = NOT_GRANTED
+REAL_TELEGRAM_OPERATIONS = NOT_AUTHORIZED
+SUPERVISOR_IMPLEMENTATION = REQUIRES_SEPARATE_AUTHORIZATION
+S10 = NOT_AUTHORIZED
+GIT_STAGE_COMMIT_PUSH = NOT_AUTHORIZED_BY_THIS_DECISION
+V1_ACTIVE = YES
+V2_GLOBAL = OFF
+```
+
+O usuário aprovou expressamente as cinco ratificações após revisão do contrato e do parecer técnico. Todos os limites S9-L01..L16 da seção 8.2 estão aprovados para o escopo controlado da S9. A amostra RASMOO exige Track observado, dois Courses e dois Modules, sem coleta expansiva automática; a ausência causa BLOCKED_DATASET. O perfil M exige DOCUMENT elegível de 1 a 2 GiB para a prova real do NFR-02, com Working Set e crescimento medidos segundo L13/L14. Sem mídia M, NFR-02 real permanece NOT_TESTED e o resultado agregado não é PASS; não reduzir o mínimo silenciosamente.
+
+Antes de qualquer RPC, o supervisor/ledger deve ser implementado e comprovado em ensaio offline, dentro de atividade posterior autorizada; sem essa evidência, G0 permanece BLOCKED. O contrato aprovado não autoriza autenticação, scan, download, escrita em SQLite operacional, execução da S9 ou S10, nem operações Git mutáveis. S6/S7/S8 permanecem CLOSED_WITH_EXCEPTIONS; nenhuma lacuna histórica é encerrada por esta decisão. A autorização da execução real e o aceite da sprint S9 são atos futuros distintos.
+
+Referências: [contrato ratificado S9](../contracts/S9_RASMOO_REAL_CHANNEL_ACCEPTANCE_CONTRACT_2026-10-28.md) e [relatório de fechamento do contrato](../reports/S9_CONTRACT_CLOSURE_2026-10-28/REPORT.md).
+
+## Decisão de escopo RISK-03 — operador pessoal único — 2026-10-30
+
+```text
+DECISION_ID = S9_RISK03_SINGLE_OPERATOR_SCOPE_2026-10-30
+DECISION_AUTHORITY = USER_EXPLICIT / card TELEGRAM_S9_FINAL_INTEGRATION_01
+APPLICATION_USAGE = PERSONAL
+OPERATORS = ONE
+ENVIRONMENT = USER_CONTROLLED_WINDOWS
+MULTIUSER_REQUIREMENT = NONE
+RISK03_IMPLEMENTATION_SCOPE = OPTION_A
+CONTROLS = PRIVATE_DACL + SQLITE_INTEGRITY + AUDIT_HASH_CHAIN + DURABLE_AUDIT + FAIL_CLOSED
+EXTERNAL_AUDIT_ANCHOR = NOT_REQUIRED_FOR_THIS_USER_SCOPE
+RESIDUAL_RISK_ACCEPTANCE = NOT_GRANTED_BY_THIS_SCOPE_DECISION
+FORMAL_ACCEPTANCE = PENDING_IF_REQUIRED_BY_ACTIVE_AUTHORITY
+```
+
+Esta decisão escolhe a opção A somente para o escopo pessoal de operador único. A cadeia SHA-256 não autentica alterações feitas por um escritor com acesso à mesma conta e ao banco que possa recomputar a cadeia; não protege contra rollback malicioso nem contra administrador comprometido. A decisão de implementação e o aceite formal desses riscos residuais são atos distintos. Se a authority vigente exigir aceite formal, ele permanece pendente e não bloqueia o desenvolvimento offline.
+
+## Aceite formal residual RISK-03 — uso pessoal — 2026-10-31
+
+```text
+DECISION_ID = S9_RISK03_FORMAL_RESIDUAL_ACCEPTANCE_2026-10-31
+RISK03_DECISION = FORMALLY_ACCEPTED_FOR_PERSONAL_USE
+DECISION_DATE = 2026-10-31
+DECISION_SOURCE = EXPLICIT_USER_APPROVAL_IN_CANONICAL_CHAT
+SCOPE = PERSONAL_SINGLE_USER_WINDOWS
+RISK_ACCEPTED = SAME_ACCOUNT_LOCAL_EVIDENCE_MODIFICATION_AND_ROLLBACK
+CONTROLS_PRESERVED = PRIVATE_ACL; SQLITE_INTEGRITY_CHECK; AUDIT_HASH_CHAIN; DURABLE_AUDIT; FAIL_CLOSED
+ADDITIONAL_ENTERPRISE_INFRASTRUCTURE = NOT_REQUIRED_FOR_THIS_SCOPE
+REASSESS_IF = MATERIAL_CHANGE_TO_USERS, ENVIRONMENT, OR AUDIT REQUIREMENTS
+```
+
+O usuário aceitou formalmente o risco residual de alteração ou rollback da
+evidência local por processo com controle de escrita da mesma conta Windows,
+exclusivamente para o aplicativo pessoal de operador único no computador sob
+seu controle. Permanecem ACL privada, verificação de integridade SQLite, cadeia
+de hashes, auditoria durável e fail-closed. O aceite não autoriza exposição de
+credenciais/sessões nem operação Telegram real, escrita em banco operacional,
+alteração do contrato S9, Git publication ou S10. Se o contexto de uso mudar de
+forma material, reavaliar separadamente.
+
+## Autorização limitada — primeira transferência real S9 — 2026-11-02
+
+```text
+DECISION_ID = S9_NATIVE_WINDOWS_HML_02_BOUNDED_REAL_DOWNLOAD
+DECISION_DATE = 2026-11-02 / America/Sao_Paulo
+DECISION_AUTHORITY = USER_EXPLICIT / current chat plus readback of canonical “Projeto Telegram 3.0” / PROCEED / REAL_DOWNLOAD_NOW / option A and per-run SQLite copy confirmed
+ROUTING = DIRECT / ROOT_ONLY
+OPTION_A = APPROVED / offline manifest proposal from isolated SQLite; prepared database remains intact; consistent per-run SQLite backup
+SCOPE = first real F-profile download / maximum 1 media item / 1 worker / 1 attempt / REMOTE_HASH_REQUIRED
+CAPS = 200 messages per scan / 120 s scan / 536870912 aggregate F bytes / per-media limit remains the frozen S9 contract
+G0 = REQUIRED / fresh interactive TTY confirmation before the first Telegram RPC
+G4 = REQUIRED / fresh plan, limits and interactive TTY confirmation before any download payload
+WINDOWS_ROOT = %LOCALAPPDATA%\telegram_courses\S9-HML-02 / operator-reported private root
+DATABASE = private isolated SQLite / operator-reported backup and integrity PASS / launcher uses a new consistent per-run copy
+S9_CONTRACT = UNCHANGED / no S10 / no whole-channel download / no Git publication
+FORMAL_S9_ACCEPTANCE = NOT_GRANTED_BY_THIS_DECISION / G6/G9 and remaining S9 scope are not claimed complete
+```
+
+Esta autorização posterior e específica supersede apenas a ausência anterior de
+autorização para executar o primeiro fluxo real limitado da S9. O usuário
+autorizou preparar e entregar o launcher, e autorizou a opção de proposta de
+manifesto offline com cópia SQLite por execução. A proposta não aprova seu
+conteúdo: o operador deve revisá-lo e aprová-lo somente no G0 interativo; G4
+continua uma confirmação distinta no terminal nativo. O
+contrato congelado permanece intacto; qualquer falha de ACL, manifesto,
+integridade, cap, sessão, G0 ou G4 encerra a execução sem avançar para o
+download. A autorização não estende a S9 inteira nem concede S10 ou Git.
+
+## 2026-11-03 — Direcao visual aprovada para Telegram Courses CLI/TUI
+
+DECISION_ID = TELEGRAM_3_MIDNIGHT_GLASS_V1_APPROVED
+AUTHORITY = USER_EXPLICIT / Projeto Telegram 3.0
+DECISION = DIRECAO_1_MIDNIGHT_GLASS / APPROVED
+SCOPE = visual e experiencia de CLI/TUI navegavel (catalogo; tamanho por arquivo/lote; estados dos downloads; velocidade MB/s; ETA; progresso; atalhos).
+IMPLEMENTATION = NOT_STARTED_BY_THIS_APPROVAL
+NO_WEBSITE_OR_SEPARATE_GUI = YES
+TELEGRAM_REAL_OPERATIONS = NOT_AUTHORIZED_BY_THIS_DECISION
+S9_GLOBAL_APPROVAL = NOT_GRANTED
+DESIGN_SPEC = docs/design/TELEGRAM_COURSES_TUI_MIDNIGHT_GLASS_V1.md

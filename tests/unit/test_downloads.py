@@ -127,3 +127,25 @@ def test_cli_download_requires_explicit_complete_identity() -> None:
     assert args.download_dir == "D:/Courses"
     with pytest.raises(ConfigurationError):
         _parse_arguments(["download", "--channel-id", "-1001"])
+
+def test_strict_remote_hash_flag_requires_interactive_private_queue() -> None:
+    from telegram_courses.cli import _parse_arguments
+    from telegram_courses.config import ConfigurationError
+
+    valid = [
+        "download", "queue", "--channel-id", "-1001",
+        "--scope", "module", "--download-dir", "C:/private/downloads",
+        "--private-downloads", "--require-full-remote-hash",
+        "--integrity-mode", "REMOTE_HASH_REQUIRED",
+        "--workers", "1", "--attempts-per-media", "1",
+        "--max-media-items", "5", "--max-transfer-bytes", "536870912",
+        "--required-module-id", "46", "--max-single-media-bytes", "134217728",
+        "--max-runtime-seconds", "3600",
+    ]
+    assert _parse_arguments(valid).require_full_remote_hash is True
+    with pytest.raises(ConfigurationError):
+        _parse_arguments([arg for arg in valid if arg != "--private-downloads"])
+    with pytest.raises(ConfigurationError):
+        _parse_arguments(valid + ["--confirm"])
+    with pytest.raises(ConfigurationError):
+        _parse_arguments(["download", "plan", "--channel-id", "-1001", "--require-full-remote-hash"])

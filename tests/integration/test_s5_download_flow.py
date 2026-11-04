@@ -324,7 +324,12 @@ def test_s5_preview_is_offline_and_disk_gate_blocks_before_transfer(tmp_path, ca
         "download", "plan", "--channel-id", str(CHANNEL), "--database", str(database),
         "--download-dir", str(root),
     ], credentials_loader=lambda: (_ for _ in ()).throw(AssertionError("credentials accessed"))) == 0
-    assert "pendentes=4" in capsys.readouterr().out
+    preview = capsys.readouterr().out
+    assert "pendentes=4" in preview
+    normalized_preview = " ".join(preview.split())
+    assert "download inicial não comprova hash remoto independente" in normalized_preview
+    assert "retomada bloqueia se a prova remota estiver ausente ou inválida" in normalized_preview
+    assert "REMOTE_HASH_FULL / V1 fail-closed" not in preview
 
     gateway = FakeGateway()
 

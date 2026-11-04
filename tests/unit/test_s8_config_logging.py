@@ -9,8 +9,11 @@ import pytest
 
 from telegram_courses.config import ConfigurationError, load_configuration
 from telegram_courses.operational_logging import (
+    OperationalLoggingFailure,
     configure_operational_logging,
     emit_operational_event,
+    finalize_operational_logging,
+    finalize_s9_child_exit_code,
 )
 
 
@@ -118,4 +121,92 @@ def test_s8_logging_handler_failure_does_not_leak_traceback_or_secret(
         assert captured.err == ""
         assert captured.out == ""
     finally:
+        configure_operational_logging("WARNING", stream=io.StringIO())
+
+
+def test_t24_supervised_handler_failure_is_redacted_and_cannot_exit_zero(
+    monkeypatch,
+) -> None:
+    class FailingStream:
+        def write(self, _message: str) -> None:
+            raise RuntimeError("secret-canary-in-log-handler")
+
+        def flush(self) -> None:
+            return None
+
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", "1")
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_STAGE", "scan")
+    configure_operational_logging("INFO", stream=FailingStream())
+    try:
+        with pytest.raises(OperationalLoggingFailure, match="OPERATIONAL_LOGGING_UNAVAILABLE"):
+            emit_operational_event(
+                "operation.failed", component="scan", category="INTERNAL",
+                token="secret-canary-context",
+            )
+        assert finalize_operational_logging() is False
+        assert finalize_s9_child_exit_code(0) == 125
+    finally:
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", raising=False)
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_STAGE", raising=False)
+        configure_operational_logging("WARNING", stream=io.StringIO())
+
+
+def test_t24_supervised_flush_failure_blocks_before_child_success(monkeypatch) -> None:
+    class FailingFlushStream(io.StringIO):
+        def flush(self) -> None:
+            raise OSError("secret-canary-flush")
+
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", "1")
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_STAGE", "catalog")
+    configure_operational_logging("INFO", stream=FailingFlushStream())
+    try:
+        assert finalize_s9_child_exit_code(0) == 125
+    finally:
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", raising=False)
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_STAGE", raising=False)
+        configure_operational_logging("WARNING", stream=io.StringIO())
+
+
+def test_t24_missing_or_unexpected_handler_cannot_exit_zero(monkeypatch) -> None:
+    logger = logging.getLogger("telegram_courses")
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", "1")
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_STAGE", "scan")
+    configure_operational_logging("INFO", stream=io.StringIO())
+    try:
+        for handler in tuple(logger.handlers):
+            logger.removeHandler(handler)
+            handler.close()
+        assert finalize_operational_logging() is False
+        assert finalize_s9_child_exit_code(0) == 125
+
+        configure_operational_logging("INFO", stream=io.StringIO())
+        logger.addHandler(logging.StreamHandler(io.StringIO()))
+        assert finalize_operational_logging() is False
+        assert finalize_s9_child_exit_code(0) == 125
+    finally:
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", raising=False)
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_STAGE", raising=False)
+        configure_operational_logging("WARNING", stream=io.StringIO())
+
+
+def test_t24_audit_failure_cannot_reuse_message_limit_exit(monkeypatch) -> None:
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", "1")
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_STAGE", "scan")
+    monkeypatch.setattr(
+        "telegram_courses.operational_logging.finalize_operational_logging",
+        lambda: False,
+    )
+    assert finalize_s9_child_exit_code(4) == 125
+    assert finalize_s9_child_exit_code(None) == 125
+
+
+def test_t24_successful_audit_preserves_message_limit_exit(monkeypatch) -> None:
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", "1")
+    monkeypatch.setenv("TELEGRAM_COURSES_S9_STAGE", "scan")
+    configure_operational_logging("INFO", stream=io.StringIO())
+    try:
+        assert finalize_s9_child_exit_code(4) == 4
+    finally:
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_SUPERVISED_CHILD", raising=False)
+        monkeypatch.delenv("TELEGRAM_COURSES_S9_STAGE", raising=False)
         configure_operational_logging("WARNING", stream=io.StringIO())

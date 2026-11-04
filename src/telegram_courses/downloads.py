@@ -14,7 +14,7 @@ import uuid
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import AsyncIterator, Protocol
+from typing import AsyncIterator, Literal, Protocol
 
 from telegram_courses.download_repository import (
     DownloadCandidate,
@@ -122,6 +122,24 @@ class RemoteFileHash:
     offset: int
     limit: int
     sha256: bytes | str
+
+
+@dataclass(frozen=True)
+class S6PrefixProofObservation:
+    """Remote-hash ranges that were checked against an owned partial file.
+
+    The application creates this value only after S6 V1 has verified complete
+    remote range coverage and matching local bytes. A caller cannot use a
+    boolean flag in place of those range observations.
+    """
+
+    candidate_identity: tuple[int, int, int]
+    expected_bytes: int
+    physical_prefix_bytes: int
+    local_prefix_sha256: str
+    remote_ranges: tuple[RemoteFileHash, ...]
+    verification_payload_bytes: int
+    integrity_mode: Literal["REMOTE_HASH_REQUIRED"] = "REMOTE_HASH_REQUIRED"
 
 
 class ChunkReservation(Protocol):
@@ -251,14 +269,23 @@ def _matches(path: Path, size: int, digest: str | None) -> bool:
     return actual_size == size and actual_hash == digest
 
 
-def _validate_remote_ranges(path: Path, length: int, ranges: object) -> bool:
-    """Fail closed unless remote SHA-256 ranges prove every byte in [0,length)."""
-    if type(length) is not int or length < 0 or not isinstance(ranges, (tuple, list)):
+def _validate_remote_ranges(
+    path: Path, length: int, ranges: object, *, allow_terminal_eof: bool = False,
+) -> bool:
+    """Prove complete SHA-256 coverage; opt-in for Telegram's terminal EOF shape.
+
+    For a terminal 128 KiB range advertised beyond EOF, the *remote* digest
+    must match SHA-256 of the actual remaining file bytes, not zero padding.
+    This behavior is restricted to the explicit product pilot, not S9.
+    """
+    if (type(length) is not int or length < 0
+            or not isinstance(ranges, (tuple, list))
+            or type(allow_terminal_eof) is not bool):
         return False
     if length == 0:
         return len(ranges) == 0
     normalized: list[tuple[int, int, bytes]] = []
-    for item in ranges:
+    for index, item in enumerate(ranges):
         try:
             start, size, raw_digest = item.offset, item.limit, item.sha256
         except AttributeError:
@@ -269,7 +296,13 @@ def _validate_remote_ranges(path: Path, length: int, ranges: object) -> bool:
         if type(start) is not int or type(size) is not int or start < 0 or size <= 0:
             return False
         end = start + size
-        if end < start or end > length:
+        if end <= start:
+            return False
+        if end > length and not (
+            allow_terminal_eof and index == len(ranges) - 1
+            and start < length and size == 128 * 1024
+            and start % (128 * 1024) == 0 and end - length < 128 * 1024
+        ):
             return False
         if isinstance(raw_digest, str):
             try:
@@ -282,10 +315,12 @@ def _validate_remote_ranges(path: Path, length: int, ranges: object) -> bool:
             return False
         if len(digest_bytes) != hashlib.sha256().digest_size:
             return False
-        normalized.append((start, end, digest_bytes))
+        normalized.append((start, min(end, length), digest_bytes))
     normalized.sort(key=lambda item: (item[0], item[1]))
     cursor = 0
     try:
+        if allow_terminal_eof and (path.is_symlink() or path.stat().st_size != length):
+            return False
         with path.open("rb") as source:
             for start, end, expected_hash in normalized:
                 if start != cursor:
@@ -302,6 +337,8 @@ def _validate_remote_ranges(path: Path, length: int, ranges: object) -> bool:
                 if digest.digest() != expected_hash:
                     return False
                 cursor = end
+        if allow_terminal_eof and path.stat().st_size != length:
+            return False
     except OSError:
         return False
     return cursor == length
@@ -342,6 +379,9 @@ class SingleMediaDownloadApplication:
         progress_callback: Callable[[int, int], None] | None = None,
         chunk_callback: Callable[[int], None] | None = None,
         free_space: Callable[[Path], int] | None = None,
+        prefix_proof_observer: Callable[[S6PrefixProofObservation], None] | None = None,
+        require_full_remote_hash: bool = False,
+        allow_prefix_terminal_eof: bool = False,
     ) -> None:
         if type(chunk_bytes) is not int or not 0 < chunk_bytes <= CHUNK_BYTES:
             raise ValueError("chunk_bytes must be between 1 and 256 KiB")
@@ -352,6 +392,15 @@ class SingleMediaDownloadApplication:
         self.progress_callback = progress_callback
         self.chunk_callback = chunk_callback
         self.free_space = free_space or (lambda path: shutil.disk_usage(path).free)
+        self.prefix_proof_observer = prefix_proof_observer
+        if type(require_full_remote_hash) is not bool:
+            raise ValueError("require_full_remote_hash must be boolean")
+        if type(allow_prefix_terminal_eof) is not bool or (
+            allow_prefix_terminal_eof and not require_full_remote_hash
+        ):
+            raise ValueError("allow_prefix_terminal_eof requires strict remote hashes")
+        self.require_full_remote_hash = require_full_remote_hash
+        self.allow_prefix_terminal_eof = allow_prefix_terminal_eof
         self.chunk_reserver: Callable[[int], Awaitable[ChunkReservation | None]] | None = None
         self.operation_reserver: Callable[[int], Awaitable[object | None]] | None = None
         self.pre_append_check: Callable[[int], Awaitable[bool]] | None = None
@@ -505,7 +554,7 @@ class SingleMediaDownloadApplication:
         continuation_received = 0
         try:
             if physical:
-                prefix_digest, verification_bytes = await self._verify_prefix(
+                prefix_digest, verification_bytes, proof = await self._verify_prefix(
                     candidate, partial, physical
                 )
                 received += verification_bytes
@@ -526,6 +575,11 @@ class SingleMediaDownloadApplication:
                 current_size, current_digest = _hash_file(partial)
                 if current_size != physical or current_digest != prefix_digest:
                     raise DownloadError("PARTIAL_CHANGED")
+                if self.prefix_proof_observer is not None:
+                    try:
+                        self.prefix_proof_observer(proof)
+                    except Exception:
+                        raise DownloadError("PREFIX_PROOF_PERSISTENCE_FAILED") from None
 
             wire_offset = (physical // CHUNK_BYTES) * CHUNK_BYTES
             overlap_size = physical - wire_offset
@@ -595,11 +649,18 @@ class SingleMediaDownloadApplication:
             local_size, local_hash = _hash_file(partial)
             if local_size != candidate.expected_bytes:
                 raise DownloadError("SIZE_MISMATCH")
-            if resuming and not _validate_remote_ranges(
+            if (resuming or self.require_full_remote_hash) and not _validate_remote_ranges(
                 partial, candidate.expected_bytes,
-                await self._remote_hashes(candidate, candidate.expected_bytes),
+                await self._remote_hashes(
+                    candidate, candidate.expected_bytes,
+                    allow_terminal_eof=self.require_full_remote_hash,
+                ),
+                allow_terminal_eof=self.require_full_remote_hash,
             ):
-                raise DownloadError("CONTINUATION_INTEGRITY_MISMATCH")
+                raise DownloadError(
+                    "CONTINUATION_INTEGRITY_MISMATCH" if resuming
+                    else "REMOTE_HASH_FULL_REQUIRED"
+                )
             await self.repository.transition(candidate.media_item_id, "VALIDATED", downloaded_bytes=total, sha256=local_hash)
             await self.repository.transition(candidate.media_item_id, "FINALIZATION_PENDING", downloaded_bytes=total)
             if final.exists():
@@ -608,7 +669,11 @@ class SingleMediaDownloadApplication:
             if not _matches(final, candidate.expected_bytes, local_hash):
                 raise DownloadError("FINAL_FILE_MISMATCH")
             await self.repository.transition(candidate.media_item_id, "DOWNLOADED", downloaded_bytes=total)
-            return DownloadOutcome("DOWNLOADED", candidate, final, received, local_hash)
+            return DownloadOutcome(
+                "DOWNLOADED", candidate, final, received, local_hash,
+                remote_hash_class="REMOTE_HASH_FULL" if self.require_full_remote_hash else None,
+                guarantee="REMOTE_HASH_FULL" if self.require_full_remote_hash else None,
+            )
         except asyncio.CancelledError:
             await self._record_failure_state(candidate, partial, total, "CANCELLED")
             raise
@@ -1394,7 +1459,9 @@ class SingleMediaDownloadApplication:
         )
 
     async def _remote_hashes(
-        self, candidate: DownloadCandidate, required_bytes: int
+        self, candidate: DownloadCandidate, required_bytes: int, *,
+        allow_terminal_eof: bool = False,
+        allow_prefix_terminal_eof: bool = False,
     ) -> tuple[RemoteFileHash, ...]:
         getter = getattr(self.gateway, "get_file_hashes", None)
         if not callable(getter):
@@ -1419,7 +1486,7 @@ class SingleMediaDownloadApplication:
             if not isinstance(ranges, (tuple, list)) or not ranges:
                 raise DownloadError("REMOTE_HASHES_INCOMPLETE")
             end = cursor
-            for item in ranges:
+            for index, item in enumerate(ranges):
                 try:
                     start, size, raw_digest = item.offset, item.limit, item.sha256
                 except AttributeError:
@@ -1429,11 +1496,28 @@ class SingleMediaDownloadApplication:
                         raise DownloadError("REMOTE_HASH_RESPONSE_INVALID") from None
                 if type(start) is not int or type(size) is not int or start < 0 or size <= 0:
                     raise DownloadError("REMOTE_HASH_RESPONSE_INVALID")
+                if allow_prefix_terminal_eof and (
+                    start % (128 * 1024) != 0 or size != 128 * 1024
+                ):
+                    raise DownloadError("REMOTE_HASH_RANGE_INVALID")
                 if start != end:
                     raise DownloadError("REMOTE_HASH_COVERAGE_GAP")
-                end = start + size
-                if end > candidate.expected_bytes:
-                    raise DownloadError("REMOTE_HASH_RANGE_INVALID")
+                reported_end = start + size
+                if reported_end > candidate.expected_bytes:
+                    if not (
+                        ((allow_terminal_eof and required_bytes == candidate.expected_bytes)
+                         or (allow_prefix_terminal_eof and self.allow_prefix_terminal_eof
+                             and 0 < required_bytes < candidate.expected_bytes
+                             and required_bytes % (128 * 1024) == 0
+                             and start >= required_bytes))
+                        and index == len(ranges) - 1 and start < candidate.expected_bytes
+                        and size == 128 * 1024 and start % (128 * 1024) == 0
+                        and reported_end - candidate.expected_bytes < 128 * 1024
+                    ):
+                        raise DownloadError("REMOTE_HASH_RANGE_INVALID")
+                    end = candidate.expected_bytes
+                else:
+                    end = reported_end
                 digest = _remote_digest(raw_digest)
                 if digest is None:
                     raise DownloadError("REMOTE_HASH_RESPONSE_INVALID")
@@ -1445,8 +1529,22 @@ class SingleMediaDownloadApplication:
 
     async def _verify_prefix(
         self, candidate: DownloadCandidate, partial: Path, physical: int
-    ) -> tuple[str, int]:
-        ranges = await self._remote_hashes(candidate, physical)
+    ) -> tuple[str, int, S6PrefixProofObservation]:
+        block_size = 128 * 1024
+        if (self.allow_prefix_terminal_eof and self.require_full_remote_hash
+                and physical < candidate.expected_bytes
+                and candidate.expected_bytes % block_size
+                and physical > candidate.expected_bytes // block_size * block_size):
+            raise DownloadError("REMOTE_HASH_RANGE_INVALID")
+        aligned_pilot = (
+            self.allow_prefix_terminal_eof and self.require_full_remote_hash
+            and 0 < physical < candidate.expected_bytes
+            and physical % block_size == 0
+        )
+        ranges = await self._remote_hashes(
+            candidate, physical, allow_prefix_terminal_eof=aligned_pilot,
+        )
+        verified_ranges: list[RemoteFileHash] = []
         cursor = 0
         full_digest = hashlib.sha256()
         verification_bytes = 0
@@ -1458,6 +1556,8 @@ class SingleMediaDownloadApplication:
                         raise DownloadError("REMOTE_HASH_COVERAGE_GAP")
                     if start >= physical:
                         break
+                    if aligned_pilot and end > physical:
+                        raise DownloadError("REMOTE_HASH_RANGE_INVALID")
                     digest = hashlib.sha256()
                     local_end = min(end, physical)
                     remaining = local_end - start
@@ -1474,12 +1574,28 @@ class SingleMediaDownloadApplication:
                         )
                     if digest.digest() != item.sha256:
                         raise DownloadError("PARTIAL_INTEGRITY_MISMATCH")
+                    verified_ranges.append(item)
                     cursor = end
         except OSError:
             raise DownloadError("PARTIAL_CHANGED") from None
         if cursor < physical:
             raise DownloadError("REMOTE_HASHES_INCOMPLETE")
-        return full_digest.hexdigest(), verification_bytes
+        prefix_digest = full_digest.hexdigest()
+        observation = S6PrefixProofObservation(
+            candidate_identity=(
+                candidate.channel_id,
+                candidate.telegram_message_id,
+                candidate.media_ordinal,
+            ),
+            expected_bytes=candidate.expected_bytes,
+            physical_prefix_bytes=physical,
+            local_prefix_sha256=prefix_digest,
+            remote_ranges=(
+                tuple(verified_ranges) if self.allow_prefix_terminal_eof else ranges
+            ),
+            verification_payload_bytes=verification_bytes,
+        )
+        return prefix_digest, verification_bytes, observation
 
     async def _hash_remote_complement(
         self, candidate: DownloadCandidate, physical: int, end: int,
