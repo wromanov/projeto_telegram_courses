@@ -276,6 +276,7 @@ class ChannelDiscoveryApplication:
         discovery_elapsed = 0.0
         cleanup_elapsed = 0.0
         cleanup_status = "NOT_RUN"
+        failure_stage = "RESTORE"
         try:
             remaining = request.deadline - time.monotonic()
             if remaining <= 0:
@@ -295,8 +296,13 @@ class ChannelDiscoveryApplication:
                 outcome = DiscoveryOutcome(DiscoveryOutcomeState.SESSION_INVALID)
             elif state is not AuthState.AUTHENTICATED:
                 failure_category = DiscoveryErrorCategory.ADAPTER_FAILURE.value
+                _CALIBRATION_LOGGER.warning(
+                    "channel discovery FAILURE_STAGE=RESTORE REASON=INVALID_AUTH_STATE "
+                    "CATEGORY=ADAPTER_FAILURE"
+                )
                 raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
             else:
+                failure_stage = "DISCOVERY"
                 discovery_started = time.monotonic()
                 try:
                     result = await gateway.discover_channels(request)
@@ -325,6 +331,10 @@ class ChannelDiscoveryApplication:
                 failure_category = "CANCELLED"
             else:
                 failure_category = DiscoveryErrorCategory.ADAPTER_FAILURE.value
+            _CALIBRATION_LOGGER.warning(
+                "channel discovery FAILURE_STAGE=%s REASON=OPERATION_FAILURE CATEGORY=%s",
+                failure_stage, failure_category,
+            )
             if isinstance(error, RateLimited):
                 failure_category = DiscoveryErrorCategory.RATE_LIMITED.value
                 raise ChannelDiscoveryError(
@@ -357,6 +367,9 @@ class ChannelDiscoveryApplication:
                 cleanup_status = "COMPLETE"
             except ChannelDiscoveryError:
                 cleanup_status = "FAILED"
+                _CALIBRATION_LOGGER.warning(
+                    "channel discovery FAILURE_STAGE=CLEANUP REASON=CLEANUP_FAILURE"
+                )
                 if primary_error is None:
                     failure_category = DiscoveryErrorCategory.CLEANUP_FAILED.value
                 if primary_error is None:
@@ -366,6 +379,9 @@ class ChannelDiscoveryApplication:
                 raise
             except BaseException:
                 cleanup_status = "FAILED"
+                _CALIBRATION_LOGGER.warning(
+                    "channel discovery FAILURE_STAGE=CLEANUP REASON=CLEANUP_FAILURE"
+                )
                 if primary_error is None:
                     failure_category = DiscoveryErrorCategory.CLEANUP_FAILED.value
                 if primary_error is None:

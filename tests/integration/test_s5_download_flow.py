@@ -12,8 +12,13 @@ import pytest
 
 from telegram_courses.auth import AuthState
 from telegram_courses.cli import main
+from telegram_courses.course_download_planning import create_course_plan_review
 from telegram_courses.download_repository import DownloadRepository
-from telegram_courses.downloads import SingleMediaDownloadApplication, destination_paths
+from telegram_courses.downloads import (
+    DownloadError,
+    SingleMediaDownloadApplication,
+    destination_paths,
+)
 from telegram_courses.s5_downloads import (
     DownloadPlanner,
     DownloadQueue,
@@ -280,6 +285,147 @@ def test_s5_selectable_nodes_reject_inactive_ancestor(tmp_path) -> None:
         for _, label in lesson_choices
         for lesson in ("Aula 1", "Aula 2", "Aula 3")
     )
+
+
+def test_s5_explicit_course_selection_is_exact_ordered_and_keeps_all_mode_scoped(tmp_path) -> None:
+    database, root = tmp_path / "catalog.sqlite3", tmp_path / "downloads"
+
+    async def exercise():
+        await seed_s5_database(database)
+        planner = DownloadPlanner(database, root)
+        course_id = next(
+            node_id for node_id, label in planner.selectable_nodes(CHANNEL, "course")
+            if "Curso A" in label
+        )
+        explicit = DownloadSelection(
+            CHANNEL, "course", course_id,
+            ((CHANNEL, 103, 0), (CHANNEL, 101, 0)),
+        )
+        selected_plan = await planner.build(explicit)
+        same_set_different_input_order = await planner.build(DownloadSelection(
+            CHANNEL, "course", course_id,
+            ((CHANNEL, 101, 0), (CHANNEL, 103, 0)),
+        ))
+        all_plan = await planner.build(DownloadSelection(CHANNEL, "course", course_id))
+        return selected_plan, same_set_different_input_order, all_plan
+
+    selected_plan, same_set_different_input_order, all_plan = asyncio.run(exercise())
+    assert selected_plan.selection.media_identities == (
+        (CHANNEL, 103, 0), (CHANNEL, 101, 0),
+    )
+    assert [item.identity[1] for item in selected_plan.items] == [101, 103]
+    assert [item.identity[1] for item in selected_plan.pending] == [101, 103]
+    assert selected_plan.lesson_count == 2
+    assert selected_plan.plan_id == same_set_different_input_order.plan_id
+    assert selected_plan.plan_id != all_plan.plan_id
+    assert {item.identity[1] for item in all_plan.items} == {101, 102, 103, 104}
+    assert all(item.identity[1] != 201 for item in all_plan.items)
+    assert [(item.identity[1], item.reason) for item in all_plan.excluded] == [(104, "UNKNOWN_SIZE")]
+    assert all_plan.excluded[0].observed_size_bytes is None
+
+    review = create_course_plan_review(
+        all_plan,
+        selection_mode="ALL_CATALOGED",
+        download_root=root,
+        max_media_items=10,
+        max_transfer_bytes=10_000,
+        disk_usage=lambda _path: type("Disk", (), {"free": 10**12})(),
+    )
+    assert review.selected_count == 4
+    assert review.unknown_size_count == 1
+    assert review.byte_limit_result == "FAIL"
+    assert review.result_status == "BLOQUEADO"
+    assert review.known_size_bytes == sum(
+        len(CONTENT[message]) for message in (101, 102, 103)
+    )
+    item_limited = create_course_plan_review(
+        all_plan,
+        selection_mode="ALL_CATALOGED",
+        download_root=root,
+        max_media_items=2,
+        disk_usage=lambda _path: type("Disk", (), {"free": 10**12})(),
+    )
+    assert item_limited.item_limit_result == "FAIL"
+    assert item_limited.result_status == "BLOQUEADO"
+
+
+@pytest.mark.parametrize("identities", [
+    ((CHANNEL, 101, 0), (CHANNEL, 101, 0)),
+    ((CHANNEL, 201, 0),),
+    ((CHANNEL - 1, 101, 0),),
+    ((CHANNEL, 999, 0),),
+])
+def test_s5_explicit_course_selection_rejects_duplicates_or_stale_out_of_scope_identity(
+    tmp_path, identities,
+) -> None:
+    database = tmp_path / "catalog.sqlite3"
+
+    async def exercise():
+        await seed_s5_database(database)
+        planner = DownloadPlanner(database, tmp_path / "downloads")
+        course_id = next(
+            node_id for node_id, label in planner.selectable_nodes(CHANNEL, "course")
+            if "Curso A" in label
+        )
+        return await planner.build(DownloadSelection(
+            CHANNEL, "course", course_id, identities,
+        ))
+
+    with pytest.raises(DownloadError) as error:
+        asyncio.run(exercise())
+    assert error.value.category == "INVALID_SELECTION"
+
+
+def test_s5_explicit_selection_does_not_inherit_unknown_size_outside_selected_set(tmp_path) -> None:
+    database, root = tmp_path / "catalog.sqlite3", tmp_path / "downloads"
+
+    async def exercise():
+        await seed_s5_database(database)
+        planner = DownloadPlanner(database, root)
+        course_id = next(
+            node_id for node_id, label in planner.selectable_nodes(CHANNEL, "course")
+            if "Curso A" in label
+        )
+        plan = await planner.build(DownloadSelection(
+            CHANNEL, "course", course_id, ((CHANNEL, 101, 0),),
+        ))
+        return plan
+
+    plan = asyncio.run(exercise())
+    review = create_course_plan_review(
+        plan,
+        selection_mode="SELECTED",
+        download_root=root,
+        max_media_items=1,
+        max_transfer_bytes=10_000,
+        disk_usage=lambda _path: type("Disk", (), {"free": 10**12})(),
+    )
+    assert [item.identity[1] for item in plan.items] == [101]
+    assert review.unknown_size_count == 0
+    assert review.limit_result == "PASS"
+    assert review.result_status == "PLANO_REVISAVEL"
+
+
+def test_s5_explicit_course_selection_rejects_inactive_lesson_association(tmp_path) -> None:
+    database = tmp_path / "catalog.sqlite3"
+
+    async def exercise():
+        await seed_s5_database(database)
+        async with aiosqlite.connect(database) as db:
+            await db.execute("UPDATE catalog_nodes SET is_active=0 WHERE title='Aula 1'")
+            await db.commit()
+        planner = DownloadPlanner(database, tmp_path / "downloads")
+        course_id = next(
+            node_id for node_id, label in planner.selectable_nodes(CHANNEL, "course")
+            if "Curso A" in label
+        )
+        return await planner.build(DownloadSelection(
+            CHANNEL, "course", course_id, ((CHANNEL, 101, 0),),
+        ))
+
+    with pytest.raises(DownloadError) as error:
+        asyncio.run(exercise())
+    assert error.value.category == "INVALID_SELECTION"
 
 
 def test_s5_preview_exposes_conditional_resume_without_mutating_state(tmp_path) -> None:

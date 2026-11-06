@@ -4891,3 +4891,7 @@ MEDIA_586_587 = PENDING
 S9_GLOBAL_ACCEPTANCE = NOT_GRANTED
 NEXT = APRESENTAR_MOCKUPS_DAS_TELAS_CLI_TUI
 AUTHORITY = docs/continuity/checkpoints/TELEGRAM_3_GLOBAL_CHECKPOINT_20261103.md
+
+## Checkpoint — TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01 — 2026-11-06
+
+A integração local da CLI V1 foi composta e validada offline para o próximo gate de homologação limitada. O gateway é restaurado e autenticado antes da fila S5; preparação SQLite valida ancestrais de paths e formato dos schemas suportados. Foram executados 110 testes focados offline, Ruff, compilação, diff check e import safety; revisão estática independente não encontrou finding de produção aberto neste recorte. Nenhum Telegram RPC, sessão real, banco operacional, download real, mudança de schema, commit ou push ocorreu. A homologação de metadados aguarda preflight e autorização G0 em TTY; G4 específico é obrigatório antes de qualquer payload. O MCP aceitou o resumo sanitizado, o readback mostrou a mensagem e houve resposta. A resposta recomenda G0/TTY, mas não é autorização do operador. Relatório: [remediação CLI V1](../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md). Handoff: [LAST_HANDOFF](handoff/LAST_HANDOFF.md).

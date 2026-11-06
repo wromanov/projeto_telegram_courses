@@ -66,6 +66,23 @@ S6_PEER_RECOVERY_REASONS = frozenset({
     "TARGET_ENTITY_CONFLICT",
     "PEER_RESOLVED",
 })
+_DISCOVERY_ADAPTER_REASONS = {
+    "INVALID_LIMITS": "PROFILE",
+    "INVALID_REQUEST": "PROFILE",
+    "INVALID_STATE": "STATE",
+    "INVALID_UPDATE_PROFILE": "PROFILE",
+    "RESPONSE_NOT_MODIFIED": "RESPONSE_VALIDATION",
+    "INVALID_RESPONSE_TYPE": "RESPONSE_VALIDATION",
+    "INVALID_COLLECTIONS": "RESPONSE_VALIDATION",
+    "RAW_BUDGET_EXCEEDED": "RESPONSE_VALIDATION",
+    "UNSUPPORTED_PAGE_OVERFLOW": "RESPONSE_VALIDATION",
+    "CONFLICTING_ENTITY": "RESPONSE_VALIDATION",
+    "INVALID_CHANNEL_ID": "RESPONSE_VALIDATION",
+    "CONFLICTING_CHANNEL": "RESPONSE_VALIDATION",
+    "INVALID_RESPONSE_COUNT": "RESPONSE_VALIDATION",
+    "CURSOR_MISSING": "CURSOR",
+    "CURSOR_REPEATED": "CURSOR",
+}
 _FAILURE_STAGES = frozenset({
     "CLIENT_CREATION",
     "CONNECT",
@@ -79,6 +96,18 @@ _FAILURE_STAGES = frozenset({
     "MEDIA_DOWNLOAD",
     "MEDIA_HASH",
 })
+
+
+def _discovery_adapter_failure(reason: str) -> ChannelDiscoveryError:
+    """Record only predeclared diagnostics; never serialize Telegram objects."""
+    stage = _DISCOVERY_ADAPTER_REASONS.get(reason)
+    if stage is None:
+        reason, stage = "INVALID_RESPONSE_TYPE", "RESPONSE_VALIDATION"
+    _DISCOVERY_LOGGER.warning(
+        "channel discovery FAILURE_STAGE=%s REASON=%s CATEGORY=ADAPTER_FAILURE",
+        stage, reason,
+    )
+    return ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
 
 
 def _direct_download_limit(expected_bytes: int, chunk_bytes: int) -> int:
@@ -197,6 +226,7 @@ class TelethonGateway:
         receive_updates: bool | None = None,
         catch_up: bool | None = None,
         bounded_metadata_channel_id: int | None = None,
+        allow_bounded_peer_recovery: bool = False,
         request_retries: int = 1,
         connection_retries: int = 1,
     ) -> None:
@@ -207,6 +237,8 @@ class TelethonGateway:
         )
         if (receive_updates is None) != (catch_up is None):
             raise ValueError("discovery update profile must be complete")
+        if type(allow_bounded_peer_recovery) is not bool:
+            raise ValueError("invalid peer recovery policy")
         if receive_updates is not None and (
             type(receive_updates) is not bool or type(catch_up) is not bool
         ):
@@ -233,6 +265,7 @@ class TelethonGateway:
         self._session_factory = session_factory
         self._receive_updates = receive_updates
         self._catch_up = catch_up
+        self._allow_bounded_peer_recovery = allow_bounded_peer_recovery
         self._request_retries = request_retries
         self._connection_retries = connection_retries
         try:
@@ -450,7 +483,7 @@ class TelethonGateway:
     @staticmethod
     def _validate_limits(limits: DiscoveryLimits) -> None:
         if not isinstance(limits, DiscoveryLimits):
-            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+            raise _discovery_adapter_failure("INVALID_LIMITS")
 
     async def discover_channels(self, request: DiscoveryRequest) -> DiscoveryResult:
         """Enumerate dialogs using bounded requests and return metadata-only DTOs."""
@@ -470,16 +503,16 @@ class TelethonGateway:
         )
 
         if not isinstance(request, DiscoveryRequest):
-            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+            raise _discovery_adapter_failure("INVALID_REQUEST")
         self._validate_limits(request.limits)
         if self._state is AuthState.AUTH_REQUIRED:
             raise ChannelDiscoveryError(DiscoveryErrorCategory.AUTH_REQUIRED)
         if self._state is AuthState.SESSION_INVALID:
             raise ChannelDiscoveryError(DiscoveryErrorCategory.SESSION_INVALID)
         if self._state is not AuthState.AUTHENTICATED or self._client is None:
-            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+            raise _discovery_adapter_failure("INVALID_STATE")
         if self._receive_updates is not False or self._catch_up is not False:
-            raise ChannelDiscoveryError(DiscoveryErrorCategory.ADAPTER_FAILURE)
+            raise _discovery_adapter_failure("INVALID_UPDATE_PROFILE")
 
         limits = request.limits
         deadline = request.deadline
@@ -530,17 +563,13 @@ class TelethonGateway:
                 pages_received += 1
 
                 if isinstance(response, DialogsNotModified):
-                    raise ChannelDiscoveryError(
-                        DiscoveryErrorCategory.ADAPTER_FAILURE
-                    )
+                    raise _discovery_adapter_failure("RESPONSE_NOT_MODIFIED")
                 if isinstance(response, DialogsResult):
                     response_is_terminal = True
                 elif isinstance(response, DialogsSlice):
                     response_is_terminal = False
                 else:
-                    raise ChannelDiscoveryError(
-                        DiscoveryErrorCategory.ADAPTER_FAILURE
-                    )
+                    raise _discovery_adapter_failure("INVALID_RESPONSE_TYPE")
 
                 page_dialogs = getattr(response, "dialogs", None)
                 page_messages = getattr(response, "messages", None)
@@ -550,9 +579,7 @@ class TelethonGateway:
                     isinstance(items, (list, tuple))
                     for items in (page_dialogs, page_messages, page_chats, page_users)
                 ):
-                    raise ChannelDiscoveryError(
-                        DiscoveryErrorCategory.ADAPTER_FAILURE
-                    )
+                    raise _discovery_adapter_failure("INVALID_COLLECTIONS")
 
                 raw_dialogs_received += len(page_dialogs)
                 page_overflow = len(page_dialogs) - requested_limit
@@ -584,9 +611,7 @@ class TelethonGateway:
                         pinned_dialogs,
                         raw_dialogs_received,
                     )
-                    raise ChannelDiscoveryError(
-                        DiscoveryErrorCategory.ADAPTER_FAILURE
-                    )
+                    raise _discovery_adapter_failure(reason)
 
                 entities: dict[tuple[str, int], Any] = {}
                 for entity in (*page_chats, *page_users):
@@ -598,9 +623,7 @@ class TelethonGateway:
                             or self._channel_kind(previous_entity)
                             is not self._channel_kind(entity)
                         ):
-                            raise ChannelDiscoveryError(
-                                DiscoveryErrorCategory.ADAPTER_FAILURE
-                            )
+                            raise _discovery_adapter_failure("CONFLICTING_ENTITY")
                         entities[peer_key] = entity
 
                 messages: dict[tuple[tuple[str, int], int], Any] = {}
@@ -623,9 +646,7 @@ class TelethonGateway:
                         continue
                     marked_id = utils.get_peer_id(entity)
                     if not self._valid_channel_id(entity, marked_id):
-                        raise ChannelDiscoveryError(
-                            DiscoveryErrorCategory.ADAPTER_FAILURE
-                        )
+                        raise _discovery_adapter_failure("INVALID_CHANNEL_ID")
                     channel = ChannelSummary(
                         telegram_chat_id=marked_id,
                         title=entity.title,
@@ -634,9 +655,7 @@ class TelethonGateway:
                     )
                     previous = candidates.get(marked_id)
                     if previous is not None and previous.kind is not kind:
-                        raise ChannelDiscoveryError(
-                            DiscoveryErrorCategory.ADAPTER_FAILURE
-                        )
+                        raise _discovery_adapter_failure("CONFLICTING_CHANNEL")
                     candidates.setdefault(marked_id, channel)
 
                 if time.monotonic() >= deadline:
@@ -653,9 +672,7 @@ class TelethonGateway:
                         or total_count < 0
                         or total_count > raw_dialogs_received
                     ):
-                        raise ChannelDiscoveryError(
-                            DiscoveryErrorCategory.ADAPTER_FAILURE
-                        )
+                        raise _discovery_adapter_failure("INVALID_RESPONSE_COUNT")
                     complete = True
                     break
 
@@ -671,14 +688,10 @@ class TelethonGateway:
 
                 cursor = self._cursor_for_page(page_dialogs, messages, entities)
                 if cursor is None:
-                    raise ChannelDiscoveryError(
-                        DiscoveryErrorCategory.ADAPTER_FAILURE
-                    )
+                    raise _discovery_adapter_failure("CURSOR_MISSING")
                 offset_id, offset_date, offset_peer, fingerprint = cursor
                 if fingerprint in cursors:
-                    raise ChannelDiscoveryError(
-                        DiscoveryErrorCategory.ADAPTER_FAILURE
-                    )
+                    raise _discovery_adapter_failure("CURSOR_REPEATED")
                 cursors.add(fingerprint)
                 exclude_pinned = True
 
@@ -723,10 +736,49 @@ class TelethonGateway:
             )
             raise project_error from None
 
-    async def _input_entity_for_selected_channel(self, telegram_chat_id: int) -> Any:
+    async def _input_entity_for_selected_channel(
+        self, telegram_chat_id: int, *, allow_bounded_recovery: bool | None = None,
+    ) -> Any:
+        if allow_bounded_recovery is None:
+            allow_bounded_recovery = getattr(
+                self, "_allow_bounded_peer_recovery", False,
+            )
         try:
             return await self._client.get_input_entity(telegram_chat_id)
         except ValueError:
+            if (
+                allow_bounded_recovery
+                and type(telegram_chat_id) is int
+                and self._bounded_metadata_channel_id == telegram_chat_id
+            ):
+                try:
+                    recovered = await self.recover_selected_channel_peer(
+                        telegram_chat_id, max_dialogs=100,
+                    )
+                except ScanGatewayError:
+                    reason = self._metadata_peer_recovery_reason
+                    if reason not in S6_PEER_RECOVERY_REASONS:
+                        reason = "METADATA_RPC_FAILURE"
+                    _DISCOVERY_LOGGER.warning(
+                        "channel resolution FAILURE_STAGE=PEER_RESOLUTION REASON=%s",
+                        reason,
+                    )
+                    raise
+                if recovered and self._selected_metadata_peer is not None:
+                    _DISCOVERY_LOGGER.warning(
+                        "channel resolution FAILURE_STAGE=PEER_RESOLUTION "
+                        "REASON=PEER_RESOLVED"
+                    )
+                    return self._selected_metadata_peer
+                _DISCOVERY_LOGGER.warning(
+                    "channel resolution FAILURE_STAGE=PEER_RESOLUTION "
+                    "REASON=TARGET_NOT_FOUND_IN_PAGE"
+                )
+            else:
+                _DISCOVERY_LOGGER.warning(
+                    "channel resolution FAILURE_STAGE=PEER_RESOLUTION "
+                    "REASON=RECOVERY_NOT_AUTHORIZED_FOR_TARGET"
+                )
             raise ScanGatewayError("CHANNEL_UNRESOLVED") from None
 
     @staticmethod
@@ -815,7 +867,9 @@ class TelethonGateway:
         if self._state is not AuthState.AUTHENTICATED or self._client is None:
             raise AdapterError from None
         try:
-            entity = await self._input_entity_for_selected_channel(telegram_chat_id)
+            entity = await self._input_entity_for_selected_channel(
+                telegram_chat_id, allow_bounded_recovery=True,
+            )
             options = {
                 "offset_id": before_message_id or 0,
                 "reverse": False,
