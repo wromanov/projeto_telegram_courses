@@ -380,6 +380,7 @@ class SingleMediaDownloadApplication:
         chunk_callback: Callable[[int], None] | None = None,
         free_space: Callable[[Path], int] | None = None,
         prefix_proof_observer: Callable[[S6PrefixProofObservation], None] | None = None,
+        traffic_observer: Callable[[str, int], None] | None = None,
         require_full_remote_hash: bool = False,
         allow_prefix_terminal_eof: bool = False,
     ) -> None:
@@ -393,6 +394,7 @@ class SingleMediaDownloadApplication:
         self.chunk_callback = chunk_callback
         self.free_space = free_space or (lambda path: shutil.disk_usage(path).free)
         self.prefix_proof_observer = prefix_proof_observer
+        self.traffic_observer = traffic_observer
         if type(require_full_remote_hash) is not bool:
             raise ValueError("require_full_remote_hash must be boolean")
         if type(allow_prefix_terminal_eof) is not bool or (
@@ -404,6 +406,13 @@ class SingleMediaDownloadApplication:
         self.chunk_reserver: Callable[[int], Awaitable[ChunkReservation | None]] | None = None
         self.operation_reserver: Callable[[int], Awaitable[object | None]] | None = None
         self.pre_append_check: Callable[[int], Awaitable[bool]] | None = None
+
+    def _observe_traffic(self, kind: str, byte_count: int) -> None:
+        if self.traffic_observer is not None:
+            try:
+                self.traffic_observer(kind, byte_count)
+            except Exception:
+                pass
 
     async def download(
         self, channel_id: int, message_id: int, media_ordinal: int, *,
@@ -620,6 +629,7 @@ class SingleMediaDownloadApplication:
                     data = chunk
                     if overlap_seen < overlap_size:
                         compare_count = min(len(data), overlap_size - overlap_seen)
+                        self._observe_traffic("overlap", compare_count)
                         append_buffer.extend(data[:compare_count])
                         overlap_seen += compare_count
                         data = data[compare_count:]
@@ -1120,6 +1130,7 @@ class SingleMediaDownloadApplication:
                                 data = chunk
                                 if overlap_seen < stream_overlap_bytes:
                                     count = min(len(data), stream_overlap_bytes - overlap_seen)
+                                    self._observe_traffic("overlap", count)
                                     overlap_buffer.extend(data[:count])
                                     overlap_seen += count
                                     data = data[count:]
@@ -1618,6 +1629,7 @@ class SingleMediaDownloadApplication:
                     raise DownloadError("SIZE_EXCEEDED")
                 if self.chunk_callback is not None:
                     self.chunk_callback(len(chunk))
+                self._observe_traffic("proof", len(chunk))
                 received += len(chunk)
                 segment_start = max(physical - position, 0)
                 segment_end = min(end - position, len(chunk))

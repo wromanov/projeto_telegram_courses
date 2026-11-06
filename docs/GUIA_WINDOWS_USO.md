@@ -1,5 +1,17 @@
 # Telegram Courses — uso no Windows 11
 
+## Demonstração offline
+
+Na raiz do projeto, escolha um caminho novo e execute:
+
+```powershell
+.\.venv\Scripts\telegram-courses.exe demo --workspace "$env:LOCALAPPDATA\TelegramCoursesDemo"
+```
+
+Escolha canal `1` e curso `1`; marque arquivos por número, lista ou `T`, use `V` para revisar e `P` para planejar. Confirme o plano com `s` e autorize separadamente a execução sintética com `s`. O workspace é preservado: execute o mesmo comando novamente para conferir arquivos já válidos. Um diretório existente sem o marcador da demonstração é recusado. O gateway serve apenas bytes fictícios em memória e não usa Telegram.
+
+Para consultar catálogo local: `.\.venv\Scripts\telegram-courses.exe interactive --database <caminho>`. Esse comando não habilita automaticamente a execução sintética.
+
 Este guia usa o checkout e a `.venv` já preparados. Não é um instalador nem o pacote S10. Os comandos que acessam o Telegram ou iniciam uma fila para além da homologação S9 exigem a autorização específica do operador para canal, seleção e limites. A fila de produto descrita abaixo não é o supervisor S9 e não produz recibos G0–G9.
 
 ## Preparar uma vez
@@ -47,6 +59,20 @@ $Canal = Read-Host 'ID do canal autorizado'
 ```
 
 A varredura limitada pode ser parcial: o catálogo mostra apenas o que foi observado. O parser `rasmoo` é apropriado ao formato RASMOO; para outro canal, confirme o parser suportado. O banco de produto começa separado das cópias de homologação; nenhuma run encerrada é reutilizada.
+
+Para consultar o catálogo local e marcar arquivos observados de um curso, use o modo interativo em um terminal. Ele abre o banco somente para leitura; a tela informa quando o catálogo é parcial e mostra mídias sem associação classificável. A lista usa páginas simples de 20 itens e mantém os índices globais ao navegar:
+
+```powershell
+& $Py -B -m telegram_courses interactive --database $Banco
+```
+
+Na lista do curso, use números, listas (`1,3`) ou intervalos (`2-5`) para marcar itens; `T` marca todos os itens associados e selecionáveis do curso, `R` remove itens, `L` limpa a seleção, `V` revisa e `Q` volta. `A` e `N` navegam entre páginas. `P` prepara um plano para a seleção exata; `B` prepara um plano para todos os arquivos elegíveis catalogados daquele curso. “Todos” não significa todo o canal nem prova que o catálogo remoto está completo.
+
+Antes da confirmação, o plano mostra a sequência determinística S5, as identidades locais, os estados atuais, tamanhos conhecidos e desconhecidos, limites, destino e exclusões. A ordem não afirma sequência pedagógica; ambiguidades de ordinal são sinalizadas. Tamanho desconhecido nunca é omitido silenciosamente: permanece visível e, com limite de bytes configurado, bloqueia a confirmação quando pertence ao plano. Também são exibidos itens observados que não são elegíveis para seleção.
+
+O modo interativo aceita `--download-dir`, `--max-media-items` e `--max-transfer-bytes` para revisar o destino e os limites aplicáveis. A confirmação revalida o plano e os dados atuais; nesta etapa, ela apenas valida a intenção. A fila e os downloads ainda não são iniciados.
+
+Se houver itens pendentes, a confirmação é bloqueada quando o espaço disponível não puder ser verificado ou for insuficiente. Uma variação de espaço livre de pelo menos 1 GiB após a revisão descarta a confirmação e exige nova revisão; variações menores são aceitas somente se o espaço continuar suficiente. O espaço pode mudar novamente depois da revisão.
 
 ## Planejar e baixar um curso
 

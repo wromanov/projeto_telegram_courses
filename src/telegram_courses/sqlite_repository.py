@@ -164,6 +164,36 @@ class SQLiteMessageRepository:
         finally:
             await db.close()
 
+    async def update_channel_metadata(
+        self, telegram_chat_id: int, *, title: str, username: str | None,
+    ) -> None:
+        """Persist only the metadata of the channel selected from a fresh snapshot."""
+        if (
+            type(telegram_chat_id) is not int
+            or telegram_chat_id > -1_000_000_000_000
+            or not isinstance(title, str)
+            or len(title) > 1024
+            or username is not None and (not isinstance(username, str) or len(username) > 128)
+        ):
+            raise ValueError("invalid selected channel metadata")
+        db = await self._connect()
+        now = _now()
+        try:
+            await db.execute("BEGIN IMMEDIATE")
+            await db.execute(
+                "INSERT INTO channels(telegram_chat_id, title, username, created_at, updated_at) "
+                "VALUES(?, ?, ?, ?, ?) "
+                "ON CONFLICT(telegram_chat_id) DO UPDATE SET "
+                "title=excluded.title, username=excluded.username, updated_at=excluded.updated_at",
+                (telegram_chat_id, title, username, now, now),
+            )
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            raise
+        finally:
+            await db.close()
+
     async def get_confirmed_high_water(
         self, telegram_chat_id: int
     ) -> tuple[bool, int | None]:

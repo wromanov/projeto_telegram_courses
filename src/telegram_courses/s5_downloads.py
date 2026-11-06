@@ -41,6 +41,9 @@ class DownloadSelection:
     channel_id: int
     scope: str = "channel"
     node_id: int | None = None
+    # None preserves the frozen S5 scope behavior. A tuple narrows a course
+    # plan to these stable catalog identities, in planner order at build time.
+    media_identities: tuple[tuple[int, int, int], ...] | None = None
 
 
 @dataclass(frozen=True)
@@ -54,6 +57,7 @@ class PlanItem:
     overlap_bytes: int = 0
     estimated_payload_bytes: int | None = None
     estimated_additional_disk_bytes: int | None = None
+    observed_size_bytes: int | None = None
 
 
 @dataclass(frozen=True)
@@ -187,6 +191,26 @@ class DownloadPlanner:
             raise DownloadError("INVALID_SELECTION")
         if (selection.scope == "channel") != (selection.node_id is None):
             raise DownloadError("INVALID_SELECTION")
+        requested_identities = selection.media_identities
+        requested_identity_set: set[tuple[int, int, int]] | None = None
+        if requested_identities is not None:
+            if (
+                selection.scope != "course"
+                or type(requested_identities) is not tuple
+                or not requested_identities
+            ):
+                raise DownloadError("INVALID_SELECTION")
+            if any(
+                type(identity) is not tuple
+                or len(identity) != 3
+                or any(type(part) is not int for part in identity)
+                or identity[0] != selection.channel_id
+                or identity[1] <= 0
+                or identity[2] < 0
+                for identity in requested_identities
+            ) or len(set(requested_identities)) != len(requested_identities):
+                raise DownloadError("INVALID_SELECTION")
+            requested_identity_set = set(requested_identities)
         db = _connect_readonly(self.database)
         try:
             db.execute("BEGIN")
@@ -262,14 +286,36 @@ class DownloadPlanner:
                 ).fetchall()}
             entries: list[tuple[tuple[object, ...], PlanItem]] = []
             seen: dict[tuple[int, int, int], tuple[int, int | None]] = {}
+            observed_identity_counts: dict[tuple[int, int, int], int] = {}
+            scoped_identity_counts: dict[tuple[int, int, int], int] = {}
+            selected_lesson_ids: set[int] = set()
             for row in media:
                 identity = (row["channel_id"], row["telegram_message_id"], row["media_ordinal"])
+                if requested_identity_set is not None:
+                    if identity not in requested_identity_set:
+                        continue
+                    observed_identity_counts[identity] = observed_identity_counts.get(identity, 0) + 1
                 node_id = row["catalog_node_id"]
                 if node_id not in included_nodes:
+                    if requested_identity_set is not None:
+                        continue
                     if selection.scope == "channel":
                         reason = "INVALID_LINEAGE" if row["node_kind"] == "lesson" else "UNRESOLVED_OR_ORPHAN"
-                        entries.append(((1, (), identity[1], identity[2]), PlanItem(identity, None, "EXCLUDED", reason)))
+                        entries.append(((1, (), identity[1], identity[2]), PlanItem(
+                            identity, None, "EXCLUDED", reason,
+                            observed_size_bytes=row["file_size_bytes"],
+                        )))
                     continue
+                if requested_identity_set is not None:
+                    if (
+                        node_id not in by_id
+                        or by_id[node_id]["kind"] != "lesson"
+                        or "catalog_active" in media_columns and row["catalog_active"] is False
+                    ):
+                        continue
+                    scoped_identity_counts[identity] = scoped_identity_counts.get(identity, 0) + 1
+                if node_id in by_id and by_id[node_id]["kind"] == "lesson":
+                    selected_lesson_ids.add(node_id)
                 reason = None
                 if row["kind"] != "DOCUMENT":
                     reason = "UNSUPPORTED_MEDIA"
@@ -280,13 +326,19 @@ class DownloadPlanner:
                 elif not row["telegram_media_id"]:
                     reason = "MISSING_MEDIA_ID"
                 if reason:
-                    entries.append(((1, (), identity[1], identity[2]), PlanItem(identity, None, "EXCLUDED", reason)))
+                    entries.append(((1, (), identity[1], identity[2]), PlanItem(
+                        identity, None, "EXCLUDED", reason,
+                        observed_size_bytes=row["file_size_bytes"],
+                    )))
                     continue
                 prior = seen.get(identity)
                 association = (node_id, row["file_size_bytes"])
                 if prior is not None:
                     if prior != association:
-                        entries.append(((1, (), identity[1], identity[2]), PlanItem(identity, None, "EXCLUDED", "AMBIGUOUS_IDENTITY")))
+                        entries.append(((1, (), identity[1], identity[2]), PlanItem(
+                            identity, None, "EXCLUDED", "AMBIGUOUS_IDENTITY",
+                            observed_size_bytes=row["file_size_bytes"],
+                        )))
                     continue
                 seen[identity] = association
                 # S4 select_candidate returns the linked lesson for its physical
@@ -408,12 +460,30 @@ class DownloadPlanner:
                 entries.append(((0, path_order, identity[1], identity[2]), PlanItem(
                     identity, candidate, status, reason, part_bytes, wire_offset,
                     overlap_bytes, estimated_payload, estimated_disk,
+                    row["file_size_bytes"],
                 )))
+            if requested_identity_set is not None and any(
+                observed_identity_counts.get(identity, 0) != 1
+                or scoped_identity_counts.get(identity, 0) != 1
+                for identity in requested_identity_set
+            ):
+                raise DownloadError("INVALID_SELECTION")
             entries.sort(key=lambda pair: pair[0])
             items = tuple(item for _, item in entries)
-            lesson_count = len(lesson_nodes)
+            lesson_count = (
+                len(selected_lesson_ids)
+                if requested_identity_set is not None
+                else len(lesson_nodes)
+            )
+            selection_key: object = [selection.channel_id, selection.scope, selection.node_id]
+            if requested_identities is not None:
+                selection_key = {
+                    "scope": selection_key,
+                    "mode": "EXPLICIT_IDENTITIES",
+                    "identities": [list(item.identity) for item in items],
+                }
             canonical = {
-                "selection": [selection.channel_id, selection.scope, selection.node_id],
+                "selection": selection_key,
                 "entries": [list(item.identity) + ([item.candidate.telegram_media_id, item.candidate.expected_bytes] if item.candidate else [item.reason]) for item in items],
             }
             plan_id = hashlib.sha256(json.dumps(canonical, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:20]
@@ -430,6 +500,8 @@ class QueueResult:
     attempts: int
     cancelled: bool = False
     elapsed_seconds: float = 0.0
+    budget_consumed_bytes: int | None = None
+    budget_uncertain_bytes: int = 0
 
     @property
     def failed(self) -> int:
@@ -607,12 +679,16 @@ class DownloadQueue:
                 "elapsed_seconds": int(self.clock() - started_at),
                 "bytes_per_second": int(total_transferred_bytes / max(0.001, self.clock() - started_at)),
             }
+            if self.max_transfer_bytes is not None:
+                counts["budget_consumed_bytes"] = budget_consumed
+                counts["budget_uncertain_bytes"] = budget_uncertain
             self.progress_callback(counts)
 
         if not pending:
             emit_progress()
             return QueueResult(
                 tuple(outcomes), 0, 0, False, self.clock() - started_at,
+                0 if self.max_transfer_bytes is not None else None, 0,
             )
         root = self.application.download_root.expanduser().absolute()
         probe = root
@@ -1103,6 +1179,8 @@ class DownloadQueue:
             return QueueResult(
                 tuple(outcomes), total_transferred_bytes, attempts_total, True,
                 self.clock() - started_at,
+                budget_consumed if self.max_transfer_bytes is not None else None,
+                budget_uncertain,
             )
         finally:
             self.application.progress_callback = original_progress
@@ -1118,6 +1196,8 @@ class DownloadQueue:
         return QueueResult(
             tuple(outcomes), total_transferred_bytes, attempts_total, False,
             self.clock() - started_at,
+            budget_consumed if self.max_transfer_bytes is not None else None,
+            budget_uncertain,
         )
 
     async def _wait_for_global_cooldown(

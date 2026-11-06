@@ -4,7 +4,7 @@
 enabled = true
 
 # Orçamento LOCAL de concorrência. Não representa default normativo da OpenAI.
-max_concurrent_threads_per_session = 2
+max_concurrent_threads_per_session = 10
 
 # Mantém a interrupção visível ao modelo quando um agente é interrompido.
 interrupt_message = true

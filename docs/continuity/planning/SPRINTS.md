@@ -1,5 +1,28 @@
 # Sprint plan — projeto_telegram_courses
 
+## Direcao de entrega vigente — CLI V1 Python + Rich (2026-11-03)
+
+CLI_V1_STACK = PYTHON_3_14 + RICH_15 / EXISTING_PROJECT_DEPENDENCY
+UI_SCOPE = SIMPLE_INTERACTIVE_CLI / NOT_FULL_SCREEN_TUI
+AFTER_CLI = PROVE_COURSE_DOWNLOAD_E2E_GATE
+AFTER_E2E = DESIGN_AND_IMPLEMENT_GUI_V2
+MIDNIGHT_GLASS = DESIGN_REFERENCE_ONLY_UNTIL_GUI_REVIEW
+
+Critérios de entrega CLI V1, com interface proporcional:
+- Mostrar catalogo de cursos e arquivos legivelmente com Rich (Tree/Table/Prompt/Confirm/Progress conforme utilidade).
+- Escolher **arquivos especificos** por selecao multipla, inclusive entre modulos, ou **Baixar tudo** do curso escolhido. Nao confundir curso inteiro com canal inteiro.
+- A opcao Baixar tudo corresponde a todos os arquivos elegiveis *descobertos* daquele curso, na ordem canonica. Catalogo parcial deve ser identificado claramente, sem chamar o resultado de curso remoto completo.
+- Exibir plano antes de executar: total de arquivos, ordem, tamanhos conhecidos, bytes totais e desconhecidos, itens ja validos e limites. Permitir voltar ou cancelar.
+- Executar inicialmente com workers=1, sem paralelismo complexo; status por arquivo, barra de progresso, bytes, MB/s decimal e ETA apenas quando estimavel; concluido/falha/pendente devem refletir estado real.
+- Preservar confirmacoes de seguranca, identidade de midia, integridade, deduplicacao, retomada e persistencia SQLite. Nenhum downgrade dos contratos existentes.
+- **Aceite funcional** requer demonstracao ponta a ponta do curso/escopo selecionado, com execucao real apenas se especificamente autorizada; testes isolados e recuperacao da midia 585 nao substituem o gate.
+- **GUI V2** depende do gate aceito; definicao de tecnologia e telas fica para uma nova decisao, sem implementacao automatica agora.
+
+A presente decisao reprioriza a entrega e os criterios do produto; nao altera retroativamente o status formal de S5/S6/S7/S8/S9 nem cria nova autorizacao para acesso real ao Telegram.
+
+---
+
+
 ## Estado corrente da S9 — correção P0 do ledger — 2026-11-01
 
 O estado vigente e a autoridade de autorização permanecem em [PROJECT_STATE](../PROJECT_STATE.md). A atividade `TELEGRAM_S9_LEDGER_PERFORMANCE_FIX_01` foi concluída com implementação e validação somente offline/sintéticas: benchmark ledger-only de 1 GiB em 373,02 s, E2E G0–G9 sintético aprovado, regressão com 283 testes aprovados e revisão independente `PASS_WITH_LIMITS`. O contrato S9 v1 permanece congelado e inalterado. Relatório e artefatos: [S9_LEDGER_PERFORMANCE_FIX_01](../../reports/S9_LEDGER_PERFORMANCE_FIX_01/REPORT.md).
@@ -320,3 +343,25 @@ Controles básicos de credenciais/sessão, streaming, workers limitados, caminho
 | NFR-10 | S1 | S2–S9 |
 
 FR-14/FR-15/FR-16 são transversais desde a primeira operação/configuração que os utiliza; o endurecimento em S8 não é seu primeiro uso. FR-13 em S3 fornece inspeção de catálogo; S5 estende a pré-varredura ao plano/fila.
+
+## Gate de prontidao do produto — COURSE_DOWNLOAD_E2E_GATE — 2026-11-03
+
+GATE_ID = COURSE_DOWNLOAD_E2E_GATE
+PRIORITY = P0 / BEFORE_TUI_AND_S10
+STATUS = NOT_PROVEN / REVIEW_REQUIRED
+TYPE = CROSS_SPRINT_PRODUCT_READINESS / NOT_NEW_RETROACTIVE_S5_OR_S9_ACCEPTANCE
+REAL_TELEGRAM_AUTHORIZATION = NOT_GRANTED_BY_THIS_DOCUMENT
+
+**Fluxo central (dois modos equivalentes):** (A) escolher no catalogo multiplos arquivos especificos de um curso, inclusive de modulos diferentes; ou (B) selecionar **Baixar tudo** para o curso escolhido, com execucao dos arquivos na sequencia canonica catalogada. O modo B NAO significa baixar todo o canal ou conteudo fora do curso selecionado. Preservar a ordem do catalogo/mensagens e criterio de desempate estavel. Ao reiniciar, manter estado. Arquivo fisicamente valido e deduplicado.
+
+**Gates de avaliacao, proporcionais e sem repeticao automatica de suites historicas:**
+- G1 CATALOGO: canal e curso corretos, modulos/aulas/midias e quantidade identificados; scan incompleto destacado. Nao prometer 'tudo' fora dos arquivos conhecidos do catalogo.
+- G2 SELECAO: selecionar/desmarcar arquivos individuais (multi-select), selecionar todos do curso, visualizar quantidade/tamanho, alterar selecao e cancelar sem iniciar transferencia.
+- G3 ORDEM E PLANO: ordem deterministica entre modulos/aulas/arquivos, lista exata, bytes por arquivo/lote, limites, disponibilidade de espaco, itens ja validos e tamanhos desconhecidos; nenhuma midia externa a selecao.
+- G4 EXECUCAO: com autorizacao operacional propria e confirmacoes de seguranca vigentes, fila executa na ordem especificada, progresso e velocidade reais exibidos, estados e falhas evidenciados; no primeiro ciclo usar workers=1, sem paralelismo nao solicitado.
+- G5 INTEGRIDADE E PERSISTENCIA: tamanho/identidade/hash conforme contrato, organizacao no filesystem, reconciliacao SQLite/arquivos, reinicio/reentrada, nao duplicacao e retomada segura quando cabivel.
+- G6 ACEITE: uma execucao completa de curso elegivel com escopo aprovado demonstra os dois modos (o modo nao escolhido pode ser demonstrado offline com o mesmo catalogo); sem mascarar itens ausentes/nao suportados, bloqueios ou falhas. Resultado PASS somente se os arquivos planejados estiverem validos ou os itens nao concluidos forem explicitamente relatados e tratados no escopo aceito; caso contrario PARTIAL/FAIL. Nao declarar 'curso completo' com scan parcial.
+
+**Indicadores obrigatorios da CLI:** nome de curso/modulo/aula, identificador da midia, status, tamanho real ou desconhecido, total de bytes do lote, bytes baixados/restantes, progresso por arquivo e do lote, velocidade em MB/s (decimal), ETA fundamentado ou indisponivel, concluido/pendente/falhou, quantidade selecionada. Ordem visivel no plano antes de confirmar.
+
+**Entrega imediata:** auditoria curta do codigo e prova offline read-only para inventariar G1-G5; proposta de patch apenas onde necessario; execucao real unicamente apos autorizacao explicita e com limites. A TUI Midnight Glass tem APPROVED_VISUAL, IMPLEMENTATION_DEFERRED. Nao criar novo ciclo extenso de homologacao para o video 585, nao aumentar o escopo de S9 por inferencia, nao iniciar S10.

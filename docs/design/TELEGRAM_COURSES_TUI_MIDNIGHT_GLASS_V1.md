@@ -1,5 +1,12 @@
 # Telegram Courses CLI/TUI — Direcao visual 1: Midnight Glass
 
+## Mudanca de prioridade e destino deste conceito — 2026-11-03
+
+A Direcao 1 "Midnight Glass" foi aprovada como conceito visual no historico do projeto, mas a decisao posterior do operador determinou **CLI V1 minima usando Python + Rich**. Portanto, este documento **nao e um requisito de implementacao de TUI fullscreen para V1**. A referencia estetica pode ser reavaliada quando for iniciada a **GUI futura**, depois que o downloader concluir e comprovar um fluxo completo de curso. A GUI nao foi ainda especificada nem aprovada como desenho de telas. Ver ROADMAP.md e COURSE_DOWNLOAD_E2E_GATE em SPRINTS.md.
+
+---
+
+
 STATUS = CANONICAL_VISUAL_APPROVED / NOT_IMPLEMENTED
 DECISION_DATE = 2026-11-03 (America/Sao_Paulo)
 SOURCE = aprovacao humana no chat canonico "Projeto Telegram 3.0"
@@ -30,3 +37,7 @@ Antes de codificar a nova TUI, apresentar mockups completos das telas propostas 
 
 ## Invariantes
 Preservar backend e dados operacionais existentes; nao alterar S9/V2, sessao Telegram, banco operacional nem executar downloads reais por esta decisao visual.
+
+## Dependencia de prontidao funcional — 2026-11-03
+
+A aprovacao visual permanece valida, mas a implementacao da TUI fica subordinada ao COURSE_DOWNLOAD_E2E_GATE. O operador quer dois caminhos muito simples: selecionar arquivos especificos (multi-select) ou 'Baixar tudo' no curso atual, respeitando a ordem do catalogo. A interface nao deve complicar o fluxo com dashboards obrigatorios, formularios redundantes ou misturar escopo de canal e curso. Primeiro validar o backend/CLI existente; depois mostrar mockups de telas e implementar a apresentacao.

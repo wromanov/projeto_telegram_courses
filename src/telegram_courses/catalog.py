@@ -19,6 +19,9 @@ class CatalogError(Exception):
             "INVALID_SOURCE",
             "INVALID_CATALOG",
             "SOURCE_CHANGED",
+            "CATALOG_NOT_FOUND",
+            "CATALOG_SCHEMA_UNSUPPORTED",
+            "CATALOG_READ_FAILED",
         }:
             raise ValueError("invalid catalog error category")
         self.category = category
