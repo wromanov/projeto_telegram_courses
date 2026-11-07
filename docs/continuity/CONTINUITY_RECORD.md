@@ -4891,3 +4891,22 @@ MEDIA_586_587 = PENDING
 S9_GLOBAL_ACCEPTANCE = NOT_GRANTED
 NEXT = APRESENTAR_MOCKUPS_DAS_TELAS_CLI_TUI
 AUTHORITY = docs/continuity/checkpoints/TELEGRAM_3_GLOBAL_CHECKPOINT_20261103.md
+
+## Checkpoint — TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01 — 2026-11-06
+
+A integração local da CLI V1 foi composta e validada offline para o próximo gate de homologação limitada. O gateway é restaurado e autenticado antes da fila S5; preparação SQLite valida ancestrais de paths e formato dos schemas suportados. Foram executados 110 testes focados offline, Ruff, compilação, diff check e import safety; revisão estática independente não encontrou finding de produção aberto neste recorte. Nenhum Telegram RPC, sessão real, banco operacional, download real, mudança de schema, commit ou push ocorreu. A homologação de metadados aguarda preflight e autorização G0 em TTY; G4 específico é obrigatório antes de qualquer payload. O MCP aceitou o resumo sanitizado, o readback mostrou a mensagem e houve resposta. A resposta recomenda G0/TTY, mas não é autorização do operador. Relatório: [remediação CLI V1](../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md). Handoff: [LAST_HANDOFF](handoff/LAST_HANDOFF.md).
+
+## Checkpoint G0 — 2026-11-06
+
+Com autorização direta do usuário, `telegram-courses interactive` no PowerShell 5.1 restaurou a sessão existente e concluiu descoberta real limitada (1000 diálogos, 20 páginas, 120s). O banco local foi inspecionado read-only (integridade OK, schema LEGACY v1, 2 canais, 10 mensagens, 5 mídias, 0 downloads). Backup SQLite consistente e verificado foi criado; cópia privada isolada contém os mesmos schema/counts. O comando está aguardando o operador escolher canal e `max_messages`/`timeout_seconds`; nenhum scan de mensagens, catalogação, confirmação de fila ou download foi iniciado. Safe resume: responder ao prompt já enviado com identidade do canal e limites. Ver o estado corrente e o [relatório G0](../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md).
+
+## Fechamento G0 — 2026-11-06
+
+Após resposta a `G0_CHANNEL_AND_LIMITS_01`, RASMOO foi confirmado no snapshot real como canal de transmissão ID `-1002758699600`; foram usados `max_messages=200`, `timeout_seconds=120`. A autorização anterior no PROJECT_STATE limitava a 30 mensagens; o pedido G0 corrente e a resposta do chat canônico fixaram 200 como máximo desta verificação, sem ampliar o escopo para payload. Scan retornou PARTIAL/MESSAGE_LIMIT com 200 mensagens e 196 mídias. Parser `rasmoo` construiu 589 nós, 2 não classificados e 21 cursos visíveis. CLI pública exibiu o curso candidato `Spring Security Com Keycloak`, com 1 módulo/15 aulas observados e um arquivo elegível de 51.925.314 bytes. O plano com cap de 1 item e 51.925.314 bytes, espaço PASS, `REMOTE_HASH_REQUIRED`, 1 worker e 3 tentativas foi apresentado e recusado na confirmação; nenhuma fila ou transferência iniciou. O banco original permaneceu inalterado; scan/build ocorreram na cópia privada isolada após backup verificado. Safe resume: solicitar G4 explícito para o único arquivo candidato antes de qualquer payload. Relatório: [G0 da CLI](../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md).
+
+O resumo sanitizado do relatório G0 foi enviado ao chat canônico pelo MCP, que aceitou a mensagem. O readback imediato ainda não mostrou a nova mensagem (`SENT_UNCONFIRMED`); não houve reenvio automático.
+
+
+## Checkpoint de reconciliação documental — 2026-11-07
+
+A pedido expresso do usuário, reconciliado o fechamento parcial da campanha G4 de 06/11 com o checkpoint Git seletivo publicado (branch `work/s0-bootstrap`, commit `c79c3dee`) e o backup verificado no drive D: de 07/11. A autoridade única do estado é [PROJECT_STATE](PROJECT_STATE.md). Evidências, WIP preservado, ressalvas DPAPI e limites de escopo: [checkpoint documental de 07/11](checkpoints/TELEGRAM_3_DOC_RECONCILIATION_20261107.md). Próxima atividade: proposta de conferência manual da CLI Rich, sem payload, ainda não autorizada. Esta reconciliação não autoriza novas transferências, alteração operacional ou commit/push.

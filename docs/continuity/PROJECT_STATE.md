@@ -1,5 +1,176 @@
 # Estado corrente — projeto_telegram_courses
 
+## Reconciliação documental vigente — TELEGRAM-3-DOC-RECONCILIATION-20261107 — 2026-11-07
+
+ACTIVITY = DOCUMENTARY_RECONCILIATION / USER_EXPLICIT / DIRECT / ONLY_DOCS.
+GIT_RUNTIME = ROMA_CASA / branch `work/s0-bootstrap` / HEAD `c79c3dee196f514d3f4dde833315c67ddd5a0c0f` / upstream `origin/work/s0-bootstrap` apontando ao mesmo commit no preflight de 07/11. Commit e push seletivos previamente autorizados foram concluídos e confirmados por consulta remota em 07/11; nenhum novo commit ou push está autorizado nesta atividade.
+WORKTREE_PREFLIGHT = DIRTY / seis documentos tracked modificados + 15 entradas untracked; WIP, relatórios, contratos e evidências preservados sem limpeza/stage/reset. O checkpoint Git não abrange todo o estado local.
+OPERATIONAL_BASELINE = CLI V1 Python + Rich integrada; G4 bounded encerrada em 06/11 como `G4_PARTIAL_ACCEPTED_WITH_EVIDENCE`, controles principais reais validados. Roteiros compostos 1 e 2 `NOT_FULLY_EXECUTED`; `COURSE_DOWNLOAD_E2E_GATE=NOT_PROVEN`; S9 global sem aceite e S10 não iniciada.
+LOCAL_BACKUP = `D:\backup\Projeto Telegram 3.0` / 6.485 arquivos / 382.100.538 bytes / 6.456 SHA-256 correspondentes / 21 snapshots SQLite verificados / zero erros / bundle Git validado. DPAPI e integridade do drive D: exigem atenção antes da formatação.
+NEXT_ACTIVITY = `TELEGRAM-3-CLI-V1-OPERATOR-ACCEPTANCE-01` / PROPOSED / NOT_AUTHORIZED: conferência manual da CLI Rich pelo operador, começando sem novas transferências.
+AUTHORIZATION = atualização documental atual somente; novos downloads/RPC, reabertura dos roteiros compostos, implementação funcional/GUI, S10 e publicação Git exigem autorizações separadas. Não reutilizar qualquer saldo anterior da G4.
+SAFE_RESUME_POINT = partir da G4 encerrada com aceite parcial; usar a baseline Git publicada e o backup verificado como checkpoints distintos; preparar inspeção manual da CLI sem payload e preservar WIP e evidências. Uma prova E2E real requer aprovação própria de escopo, limites e destino.
+EVIDENCE = [checkpoint de 07/11](checkpoints/TELEGRAM_3_DOC_RECONCILIATION_20261107.md), [handoff](handoff/LAST_HANDOFF.md) e [plano](planning/SPRINTS.md). Seções datadas anteriores deste arquivo continuam históricas.
+
+## Campanha G4 bounded — TELEGRAM-3-CLI-V1-G4-BOUNDED-EXECUTION — continuidade 2026-11-06
+
+RESULT = G4_PARTIAL_ACCEPTED_WITH_EVIDENCE / decisão canônica de encerrar a campanha BOUNDED com aceite parcial; CORE_DOWNLOAD_CONTROLS=VALIDATED_REAL. O teste adicional autorizado de Ctrl+C, parcial, retomada e dedupe em 417:0 passou; os roteiros compostos originais 1 e 2 continuam NOT_FULLY_EXECUTED.
+AUTHORIZATION = envelope inicial para 410:0, 411:0, 416:0 e 412:0, teto por etapas 2.000.000 B + 75.000.000 B + 80.000.000 B (total 157.000.000 B); autorização separada posterior cobriu somente 417:0, cap próprio 80.000.000 B, um worker, REMOTE_HASH_REQUIRED e até duas invocações.
+DESTINATION = cópia privada isolada em LocalAppData, ACL restrita a walac/SYSTEM/Administradores; X:\ resolve para o mesmo objeto privado e foi usado pela CLI. C:\TelegramCourses\RASMOO e suas ACLs permaneceram intocados.
+EXECUTION = envelope inicial recebeu 49.170.849 B; 410:0 validada sem bytes adicionais na conclusão estrita, 411:0 e 416:0 concluídas/validadas e deduplicadas, 412:0 concluída/validada. CLI revisou seleção múltipla exata 408:0+409:0 como ALREADY_VALID/0 pendentes e planos individuais para 410:0 e 417:0; fila S5 com workers=1 executou 408→409→410 sem admitir uma quarta identidade. Teste 417:0: Ctrl+C real após checkpoint de 67.108.864 B; estado CANCELADO/FAILED_RETRYABLE, owner liberado; retomada recebeu 3.751.202 B e concluiu 70.860.066 B, hash confirmado; reabertura mostrou TODOS_JA_VALIDOS. Cap contabilizado no teste separado: 71.384.354/80.000.000 B, sem ampliar limites.
+PRESERVATION = snapshot fonte íntegro; 408/409 válidas; parcial fonte 410 permanece FAILED_RETRYABLE com 8.650.752 B e hash original. Banco da cópia: integrity_check=ok, zero violações FK; sete arquivos finais no destino conferem com tamanhos e hashes persistidos.
+OPEN = os fluxos originais Teste 1 (408/409/410 com interrupção na terceira) e Teste 2 (seleção do módulo com interrupção/retomada) não foram executados como roteiros completos. A evidência em 417:0 não substitui esses critérios. Nenhuma transferência adicional está autorizada.
+REPORT_DELIVERY = relatório inicial MCP_ACCEPTED / READBACK_CONFIRMED; addendum sanitizado 417:0 MCP_SEND=ACCEPTED / CODEX_MCP_READBACK=CONFIRMED; a resposta canônica confirma recebimento e decide CLOSE_BOUNDED_CAMPAIGN_WITH_PARTIAL_ACCEPTANCE. O agente canônico declara não poder verificar seu próprio readback (`MCP_READBACK_CONFIRMED=NO`), distinto do readback observado pelo Codex.
+SAFE_RESUME_POINT = campanha BOUNDED encerrada conforme decisão canônica; próxima ação é conferência final da CLI pelo operador e eventual decisão futura sobre os roteiros compostos. Não iniciar novos downloads nem reutilizar saldo de qualquer cap. Sem alteração de ACL, escrita no snapshot fonte, commit ou push.
+PROJECT_STATE_RECONCILIATION = PASS / resultados, limites, preservação e lacuna remanescente registrados em ../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md, seção 15.
+
+## Correção de prova de prefixo G4 — 2026-11-06
+
+ACTIVITY = TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01.
+RESULT = BLOCKED_WITH_EXPLICIT_FINDINGS / prova de prefixo corrigida e validada offline; G4 ainda não pronto para autorização.
+EVIDENCE = resposta real da janela final excede EOF; prova parcial encerra na cobertura do checkpoint; 172 testes offline, Ruff, compilação e diff check PASS.
+OPEN = correspondência real do hash terminal ainda não comprovada; orçamento total para retries/provas e destino seguro de retomada não definidos.
+SAFETY = não alterar ACL ou arquivos existentes; sem payload real adicional, commit ou push.
+SAFE_RESUME_POINT = resolver orçamento e segurança de destino e avaliar prova final sem presumir padding; não iniciar transferência sem autorização específica.
+PROJECT_STATE_RECONCILIATION = PASS / relatório da atividade, seção 12.
+
+## G0 real — TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01 — 2026-11-06
+
+G0_AUTH_STATUS = PASS / sessão existente restaurada; sem prompt OTP/2FA.
+G0_DISCOVERY_STATUS = PASS / 91 canais listados sob limites 1000 diálogos, 20 páginas, 120s; RASMOO selecionado por snapshot, ID=-1002758699600.
+G0_CATALOG_STATUS = PASS_PARTIAL / 200 mensagens, 196 mídias, MESSAGE_LIMIT; parser rasmoo gerou 589 nós, 2 não classificados, 21 cursos visíveis.
+G0_INTERACTIVE_STATUS = PASS / curso, hierarquia, arquivo, seleção e plano revisados no PowerShell 5.1.
+G0_REPORT_DELIVERY = SUMMARY_SENT / MCP aceitou; readback imediato não mostrou a nova mensagem; sem reenvio automático.
+DATABASE = original íntegro / backup verificado / cópia privada isolada em data/.g0_real_metadata_20261106/catalog.sqlite3; writes restritos à cópia.
+QUEUE_PAYLOAD = plano não confirmado / fila não iniciada / payload não autorizado.
+SAFE_RESUME_POINT = apresentar ao usuário pedido G4 específico para RASMOO / Spring Security Com Keycloak / 1 arquivo / 51.925.314 bytes / destino proposto e integridade REMOTE_HASH_REQUIRED. Não iniciar transferência sem autorização G4.
+PROJECT_STATE_RECONCILIATION = PASS / G0 real e parcialidade do catálogo evidenciados; limite G4 e WIP registrados.
+
+## Remediação final da CLI — TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01 — 2026-11-06
+
+RESULT = READY_FOR_REAL_COURSE_HOMOLOGATION / homologação operacional pendente.
+DELIVERY = CLI operacional compõe descoberta limitada, catálogo, seleção por identidade, plano revalidado e fila S5; autenticação do gateway ocorre antes da fila; preparo SQLite valida paths e formato de schema.
+VALIDATION = 110 testes offline focados PASS; Ruff, compileall, diff check e import safety PASS; revisão estática independente PASS.
+LIMITS = G0/TTY e diagnóstico real de metadados pendentes; PowerShell manual e banco legado representativo não homologados; nenhum payload real autorizado.
+SAFETY = sem Telegram RPC, sessão real, banco operacional, download real, schema/migração, staging, commit ou push; WIP preservado.
+REPORT_DELIVERY = SENT / MESSAGE_OBSERVED=YES / RESPONSE_OBSERVED=YES; resposta recomenda G0/TTY, sem equivaler a autorização do operador.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md.
+SAFE_RESUME_POINT = aguardar/obter preflight e autorização G0 em TTY para metadados; G4 específico antes de qualquer payload. Não declarar produto operacional homologado.
+PROJECT_STATE_RECONCILIATION = PASS / relatório, resposta do chat e safe resume registrados.
+
+## Entrega final CLI offline — TELEGRAM-3-CLI-V1-FINAL-DELIVERY-01 — 2026-11-05
+
+RESULT = CLI_V1_FUNCTIONAL_OFFLINE / homologação operacional não realizada.
+DELIVERY = comando público demo com workspace sintético persistente, gateway fake, autorização separada, fila S5 e Rich; reabertura e dedupe comprovados.
+VALIDATION = E2E público, SIGINT real com parcial e retomada, 66 testes offline; após reforço do marcador, 27 testes e 1 teste adicional PASS; Ruff e diff check PASS.
+LIMITS = PowerShell 5.1 e Windows Terminal manuais não homologados; Telegram real requer autorização específica.
+SAFETY = sem RPC, sessão real, banco operacional, download real, staging, commit ou push; WIP preservado.
+REPORT_DELIVERY = SENT / MESSAGE_OBSERVED=YES / RESPONSE_OBSERVED=YES / chat canônico recomenda ACCEPTED_WITH_LIMITATIONS, baseado nas evidências reportadas.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_FINAL_DELIVERY_01/REPORT.md.
+SAFE_RESUME_POINT = aguardar decisão e autorização específicas para homologação real; workspace demo permanece disponível.
+PROJECT_STATE_RECONCILIATION = PASS / entrega offline, evidência e limites registrados.
+
+## Fechamento do Gate C4 — TELEGRAM-3-CLI-V1-SLICE-C-C4-CLOSURE-01 — 2026-11-05
+
+RESULT = SLICE_C_C4_READY_FOR_CANONICAL_ACCEPTANCE / revisão canônica pendente.
+EVIDENCE = C4-01–C4-07 PASS; subprocesso Windows recebeu CTRL_C_EVENT real antes do primeiro payload e após 60 bytes persistidos; cancelamento, contagens, partial/checkpoint/ownership SQLite e retomada S6 foram inspecionados.
+VALIDATION = 5 testes focados PASS; Ruff PASS; git diff --check PASS.
+LIMITS = Ctrl+C manual no PowerShell 5.1 não executado; exceção KeyboardInterrupt injetada não usada; resultado não representa aceite total da Slice C nem E2E real.
+SAFETY = somente gateway fake, bytes sintéticos, sandbox e SQLite temporários; nenhuma alteração de produção/testes/schema; sem Telegram RPC, sessão real, banco operacional, download real, staging, commit ou push.
+REPORT_DELIVERY = SENT / MESSAGE_OBSERVED=YES / RESPONSE_OBSERVED=YES / chat Projeto Telegram 3.0 reconhece C4 aprovado e solicita decisão humana formal sobre aceite offline da Slice C e autorização da Slice D; resposta não equivale a essa decisão.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_SLICE_C_C4_CLOSURE_01/REPORT.md.
+SAFE_RESUME_POINT = aguardar decisão humana formal no chat canônico sobre aceite offline da Slice C e eventual autorização da Slice D; não avançar automaticamente. Ctrl+C manual no PowerShell 5.1 permanece separado; Telegram real continua sem autorização.
+PROJECT_STATE_RECONCILIATION = PASS / evidências, limite manual, WIP e próximo passo reconciliados.
+
+## Slice C — TELEGRAM-3-CLI-V1-SLICE-C-IMPLEMENTATION-01 — 2026-11-04
+
+AUTHORITY = USER_EXPLICIT / Slice A ACCEPTED_OFFLINE / Slice B APPROVED_WITH_FINDINGS / Slice C somente offline.
+RESULT = SLICE_C_IMPLEMENTED_OFFLINE / revisão canônica pendente.
+DELIVERY = plano confirmado e revalidado alimenta fila S5 com workers=1 mediante autorização sintética separada; sandbox temporário, gateway de bytes em memória e apresentação Rich; comando público continua sem execução da Slice C.
+VALIDATION = 162 testes offline focados PASS / Ruff PASS / compileall PASS / git diff --check PASS.
+SAFETY = sem Telegram RPC, download real, sessão real, banco operacional, commit ou push; contratos congelados e schema preservados.
+RISKS = filesystem e SQLite não são atômicos; renderização tardia é sinalizada; PowerShell 5.1 manual e E2E real não comprovados; S9 mantém limites históricos.
+REPORT_DELIVERY = SENT / READBACK_OBSERVED / resposta canônica recomenda revisão independente C1–C4 e propõe SLICE_C_REVIEW_PENDING; sem reenvio.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_SLICE_C_IMPLEMENTATION_01/REPORT.md.
+SAFE_RESUME_POINT = aguardar decisão sobre revisão independente da Slice C; resposta canônica é recomendação, não autorização de outra atividade. Slice D/operação real/Git publication exigem autoridade própria.
+PROJECT_STATE_RECONCILIATION = PASS / implementação offline, evidência e limites registrados.
+
+## Revisão final da Slice B — TELEGRAM-3-CLI-V1-SLICE-B-FINAL-REVIEW-01 — 2026-11-04
+
+RESULT = SLICE_B_READY_FOR_CANONICAL_ACCEPTANCE / aceite canônico pendente.
+INDEPENDENT_REVIEW = ACCEPT_WITH_FINDINGS / revisor independente read-only; achado de markup Rich em tabelas corrigido e revisado.
+DISK_POLICY = diferença absoluta em relação à revisão; >= 1 GiB exige reconfirmação; variação menor somente com capacidade suficiente; desconhecida/insuficiente bloqueia transferências pendentes.
+VALIDATION = 61 testes focados + 5 testes adicionais offline PASS; Ruff, compileall e diff check PASS.
+RESIDUALS = espaço é medição pontual; navegação PowerShell 5.1 e E2E real não comprovados; catálogo parcial e ordem pedagógica têm limites de evidência.
+TELEGRAM_RPC_REAL_DOWNLOAD_GIT_PUBLICATION = NOT_AUTHORIZED / NOT_EXECUTED.
+REPORT_DELIVERY = SENT / READBACK_OBSERVED / decisão de aceite canônico pendente.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_SLICE_B_FINAL_REVIEW_01/REPORT.md.
+SAFE_RESUME_POINT = aguardar decisão de aceite canônico; Slice C e operação real exigem autorização própria.
+PROJECT_STATE_RECONCILIATION = PASS / revisão independente, evidências e limites registrados.
+
+## Correção da revalidação de disco da Slice B — 2026-11-04
+
+AUTHORITY = USER_EXPLICIT / corrigir problemas encontrados na revisão Slice B.
+IMPLEMENTATION = OFFLINE_FIXED / o fingerprint inclui bytes livres apresentados; espaço não verificável bloqueia confirmação de itens pendentes; itens já válidos não exigem espaço para transferência.
+VALIDATION = 56 testes focados offline PASS; Ruff PASS; git diff --check PASS.
+RESIDUALS = mudanças frequentes do espaço livre podem exigir nova confirmação; revalidação e filesystem não são atômicos; revisão independente e casos adicionais do card anterior permanecem pendentes.
+SAFE_RESUME_POINT = revisar correção e cobertura restante antes de Slice C; Telegram real, download real e publicação Git não autorizados por esta correção.
+PROJECT_STATE_RECONCILIATION = PASS / correção offline e limites registrados.
+
+## Revisão da Slice B — TELEGRAM-3-CLI-V1-SLICE-B-REVIEW-01 — 2026-11-04
+
+PARECER = SLICE_B_REVISION_REQUIRED / B3 FAIL: mudança de espaço livre entre valores ainda suficientes não altera o fingerprint; espaço indeterminado permite confirmação.
+INDEPENDENCE = NOT_DEMONSTRATED / revisão pela mesma conversa que implementou a Slice B; revisão independente pendente.
+VALIDATION = 52 testes offline PASS; Ruff, compileall e diff check PASS; cobertura individual do card incompleta.
+REPORT_DELIVERY = SENT / READBACK_OBSERVED / revisão independente e decisão canônica pendentes.
+SAFE_RESUME_POINT = aguardar decisão sobre finding e revisão independente; correção, Slice C, Telegram real e publicação Git não autorizados por este card.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_SLICE_B_REVIEW_01/REPORT.md.
+PROJECT_STATE_RECONCILIATION = PASS / finding e limites de independência registrados.
+
+## Atividade corrente — TELEGRAM-3-CLI-V1-SLICE-B-IMPLEMENTATION-01 — 2026-11-04
+
+CONTRACT = CLI_V1_PYTHON_RICH_V0.2 / APPROVED_WITH_MINOR_DOCUMENTARY_CORRECTION.
+AUTHORITY = card de implementação Slice B fornecido pelo usuário após revisão canônica da Slice A.
+IMPLEMENTATION = SLICE_B_OFFLINE_IMPLEMENTED / revisão canônica pendente.
+DELIVERED = planejamento integrado ao DownloadPlanner S5 para seleção exata de mídias ou todos os arquivos elegíveis catalogados do curso; páginas de 20 itens; revisão de ordem, identidade, estados, tamanho, destino, integridade, limites, exclusões e catálogo parcial; confirmação seguida de revalidação sem executar fila.
+ORDER = regra S5 preservada; sequência determinística, sem alegar ordem pedagógica; ambiguidades permanecem visíveis.
+CATALOG = apenas conteúdo observado no escopo do curso; “todos” não significa canal inteiro nem completude remota.
+UNKNOWN_SIZE = permanece visível; arquivo desconhecido dentro do plano bloqueia quando há cap de bytes; nenhuma omissão silenciosa.
+REVALIDATION = compara identidade/seleção, ordem, status, tamanho, destino, integridade, limites e contexto do catálogo após confirmação; divergência descarta a confirmação e apresenta revisão fresca.
+CONFIRMATION = apenas valida intenção e consistência; fila e downloader não foram chamados.
+VALIDATION = 52 testes offline focados PASS; Ruff PASS; compileall PASS; git diff --check PASS.
+TELEGRAM_RPC = NOT_AUTHORIZED / NOT_EXECUTED.
+REAL_DOWNLOAD = NOT_AUTHORIZED / NOT_EXECUTED.
+OPERATIONAL_DB = NOT_ACCESSED / NO_WRITES.
+GIT_COMMIT_PUSH = NOT_AUTHORIZED / NOT_EXECUTED.
+SLICES_C_D = NOT_STARTED / exigem autoridade própria.
+RESIDUALS = uso manual em PowerShell 5.1 nativo não verificado nesta atividade; catálogo parcial não prova completude; ordem pedagógica pode ser desconhecida; revalidação não torna SQLite e filesystem atômicos; fluxo de curso ponta a ponta permanece não demonstrado.
+REPORT_DELIVERY = SENT / READBACK_OBSERVED / revisão canônica da Slice B ainda pendente.
+REPORT_TARGET = Projeto Telegram 3.0 / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9.
+REPORT = ../reports/TELEGRAM_3_CLI_V1_SLICE_B_IMPLEMENTATION_01/REPORT.md.
+SAFE_RESUME_POINT = aguardar revisão canônica da Slice B; nenhuma fila/download real ou próxima slice sem autorização específica.
+PROJECT_STATE_RECONCILIATION = PASS / escopo, limites, validação offline, WIP e próximo passo registrados.
+
+## Atividade corrente — TELEGRAM-3-CLI-V1-SLICE-A-IMPLEMENTATION-01 — 2026-11-04
+
+CONTRACT = CLI_V1_PYTHON_RICH_V0.2 / APPROVED_WITH_MINOR_DOCUMENTARY_CORRECTION / autoridade USER_EXPLICIT registrada em APPROVALS_AND_DECISIONS.md.
+SLICE_AUTHORITY = card do usuário / Slice A offline somente.
+IMPLEMENTATION = SLICE_A_OFFLINE_IMPLEMENTED / pronto para revisão canônica.
+DELIVERED = consulta interativa Rich do catálogo existente; seleção por curso; identidade estável canal/mensagem/mídia; revisão ordenada; avisos de parcialidade, ordinais ambíguos, tamanho desconhecido e mídias sem associação; sem início de download.
+READ_ONLY = queries em modo SQLite read-only e sem migrations/alterações de dados; conexões WAL podem criar sidecars transitórios de coordenação. Banco operacional não foi acessado nesta atividade.
+VALIDATION = 24 testes da Slice A + 33 regressões de catálogo/CLI passaram; Ruff, compileall, git diff --check e verificação de import lazy passaram.
+TEST_FIXTURES = SQLite sintético em diretórios temporários; nenhum conteúdo de curso real.
+TELEGRAM_RPC = NOT_AUTHORIZED / NOT_EXECUTED.
+REAL_DOWNLOAD = NOT_AUTHORIZED / NOT_EXECUTED.
+OPERATIONAL_DB_WRITES = NOT_AUTHORIZED / NOT_EXECUTED.
+GIT_COMMIT_PUSH = NOT_AUTHORIZED / NOT_EXECUTED.
+SLICES_B_C_D = NOT_STARTED_AT_A_CLOSE.
+RESIDUALS = elegibilidade de download, caps para tamanho desconhecido e progresso/velocidade/ETA reais seguem para slices autorizados; não houve E2E Telegram real.
+REPORT_DELIVERY = SENT / READBACK_OBSERVED / resposta canônica PASS_WITH_LIMITS; recomendou paginação simples e documentar/verificar sidecars WAL.
+REPORT_TARGET = Projeto Telegram 3.0 / THREAD_ID=6add6aa9-12e0-83e8-b02f-870f0a0edaf9.
+NEXT_ACTION = Slice B foi autorizada por card próprio; a autorização não se estende às Slices C/D. O relatório da Slice A foi observado no chat canônico.
+PROJECT_STATE_RECONCILIATION = PASS / escopo, validação, sidecars transitórios, limites de autoridade, WIP e entrega MCP reconciliados.
+
 ## Encerramento — TELEGRAM-3-585-FINAL-CLOSURE-01 — 2026-11-04
 
 GATE1 = PASS_WITH_FINDINGS_TECHNICAL / regressão completa 829 PASS + 11 subtests PASS; bateria focada 569 PASS. Fixture scan→G1 passou 2/2; Ruff do escopo e compileall PASS.
@@ -43,9 +214,9 @@ REPORT = ../reports/TELEGRAM_3_HASH_RANGE_FIX_01/REPORT.md.
 PROJECT_STATE_RECONCILIATION = PASS / status parcial e limites registrados.
 
 DOCUMENT_ROLE = PROJECT_STATE
-STATE_VERSION = 3.34
+STATE_VERSION = 3.35
 STATUS = ACTIVE / S9_PARTIAL / PRODUCT_REAL_BATCH_RESUME_PENDING
-LAST_UPDATED = 2026-11-03 / America/Sao_Paulo
+LAST_UPDATED = 2026-11-04 / America/Sao_Paulo
 
 ## Atualização vigente — TELEGRAM-3-CLOSURE-01 — 2026-11-02
 
@@ -2293,3 +2464,21 @@ SAFE_RESUME_POINT = NEW_PREOPERATIONAL_PREFLIGHT_REQUIRED; NÃO INICIAR G0 OU RP
 ## Checkpoint global — 2026-11-03 — TELEGRAM-3-GLOBAL-CHECKPOINT-20261103
 
 Direcao 1 "Midnight Glass" aprovada para CLI/TUI navegavel; design NOT_IMPLEMENTED. Piloto 585 COMPLETED (4 tentativas, 170323 bytes complementares, 6199635 bytes finais, REMOTE_HASH_FULL); 586/587 pendentes e intocados. S9 global sem novo aceite, S10 nao executado. WIP legitimo preservado no saneamento Git. Fonte: docs/continuity/checkpoints/TELEGRAM_3_GLOBAL_CHECKPOINT_20261103.md. Proxima entrega: telas completas da TUI para adjudicacao visual, nao mais testes do 585.
+
+## Correcao de prioridade — COURSE_DOWNLOAD_E2E_GATE — 2026-11-03
+
+Decisao humana explicita: produto alvo e CLI utilizavel para selecionar arquivos especificos de um curso ou escolher 'Baixar tudo' em ordem. A capacidade de executar o ciclo completo de curso NAO esta demonstrada pela homologacao limitada a cinco midias da S5 ou pela recuperacao isolada de 585. STATUS=PRODUCT_E2E_NOT_PROVEN. Prioridade=P0 avaliar capacidade real da CLI (inclusive multi-select, total de curso e ordem), corrigir lacunas e validar um ciclo de curso com autorizacao de execucao propria. Midnight Glass=APPROVED_VISUAL/DEFERRED_IMPLEMENTATION. S5 aceito historicamente, S6-S8 closed with exceptions, S9 PARTIAL e S10 nao iniciado; nao reescrever estados anteriores nem inferir nova autorizacao real. Planos em docs/continuity/planning/ROADMAP.md e SPRINTS.md.
+
+## Decisao vigente — CLI V1 Python + Rich antes de GUI — 2026-11-03
+
+DECISION_ID = TELEGRAM_3_CLI_V1_RICH_FIRST
+PRODUCT_PRIORITY = SELECT_FILES_OR_DOWNLOAD_ALL_OF_SELECTED_COURSE
+CLI_V1 = PYTHON_RICH / SIMPLE_MENUS_TABLES_PROGRESS
+COURSE_DOWNLOAD_E2E_GATE = NOT_YET_PROVEN / P0
+GUI = FUTURE / ONLY_AFTER_CLI_OPERATIONAL_ACCEPTANCE
+MIDNIGHT_GLASS = PREVIOUS_VISUAL_APPROVAL / DEFERRED_REFERENCE
+REAL_DOWNLOAD_AUTHORIZATION = NOT_GRANTED_BY_THIS_DECISION
+S9_GLOBAL_ACCEPTANCE = NOT_GRANTED / NO_CHANGE
+S10 = NOT_STARTED / NO_CHANGE
+
+A aprovacao anterior de TUI Midnight Glass foi superada no sequenciamento, sem ser apagada do historico. Primeiro demonstrar selecao de arquivos individuais ou todos em ordem, com download e validacao reais no escopo autorizado; depois GUI. Reutilizar Python/Rich, scanner, catalogo, planner, fila, SQLite e mecanismo de retomada existentes antes de propor novas implementacoes.

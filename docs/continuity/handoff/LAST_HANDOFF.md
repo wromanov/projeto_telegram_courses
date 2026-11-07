@@ -1,3 +1,73 @@
+# Handoff vigente — reconciliação documental / TELEGRAM-3-DOC-RECONCILIATION-20261107 — 2026-11-07
+
+Estado atual: [PROJECT_STATE](../PROJECT_STATE.md) é a autoridade. A campanha G4 bounded terminou em 2026-11-06 com `G4_PARTIAL_ACCEPTED_WITH_EVIDENCE`, controles reais essenciais comprovados e dois roteiros compostos `NOT_FULLY_EXECUTED`; não há aceite de curso completo. O checkpoint Git seletivo de 2026-11-07 (commit `c79c3dee`) foi publicado por autorização anterior separada. Outros arquivos WIP continuaram locais.
+
+Backup pré-formatação em `D:\backup\Projeto Telegram 3.0`: 6.485 arquivos, 6.456 verificações SHA-256 corretas, 21 snapshots SQLite consistentes e zero erros; Git bundle validado. Restaurar DPAPI pode exigir reautenticação; preservar o drive D: e considerar segunda cópia externa. Evidências no [checkpoint documental](../checkpoints/TELEGRAM_3_DOC_RECONCILIATION_20261107.md).
+
+**Próxima atividade proposta (não autorizada):** `TELEGRAM-3-CLI-V1-OPERATOR-ACCEPTANCE-01`, conferência manual da CLI Python + Rich no PowerShell sem novos downloads. `COURSE_DOWNLOAD_E2E_GATE=NOT_PROVEN`; transferências futuras, GUI e S10 exigem novas decisões. A autorização atual restringe-se à documentação. Não fazer commit/push, Telegram RPC, alteração de ACL ou banco.
+
+## Handoff anterior — campanha G4 bounded / TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01 — 2026-11-06
+
+O envelope inicial G4 foi executado na cópia privada isolada: 410:0 foi validada por `REMOTE_HASH_REQUIRED` sem bytes adicionais na conclusão estrita; 411:0 e 416:0 concluíram com 23.289.304 B e foram deduplicadas na reabertura; 412:0 concluiu com 25.631.673 B. O payload observado nesse envelope foi 49.170.849 B dos 157.000.000 B aprovados. Depois, o operador autorizou separadamente somente 417:0, com cap próprio de 80.000.000 B. A CLI pública recebeu Ctrl+C real após persistir parcial/checkpoint de 67.108.864 B; `QueueResult=CANCELADO`, SQLite `FAILED_RETRYABLE`, ownership liberado e parcial preservado. A segunda invocação retomou e validou o arquivo de 70.860.066 B com SHA-256 correspondente; a reabertura seguinte mostrou `TODOS_JA_VALIDOS`/`ALREADY_VALID`, sem terceira tentativa. O consumo conservador do cap adicional foi 71.384.354 B, sem ampliação. A evidência local read-only confirmou integridade de ambos os bancos, hashes dos arquivos finais e preservação de 408/409 mais parcial fonte 410.
+
+Decisão canônica recebida: `CLOSE_BOUNDED_CAMPAIGN_WITH_PARTIAL_ACCEPTANCE`; `G4_PARTIAL_ACCEPTED_WITH_EVIDENCE`; `CORE_DOWNLOAD_CONTROLS=VALIDATED_REAL`; testes compostos 1 e 2 `NOT_FULLY_EXECUTED`; novos downloads não autorizados. Planos unitários para 410:0 e 417:0 e plano múltiplo exato 408:0+409:0 foram revisados; a seleção múltipla encontrou ambos já válidos e não repetiu payload. A fila de um worker processou 408→409→410 e não admitiu quarto item. O Codex confirmou no readback a mensagem sanitizada enviada e a resposta canônica. A campanha BOUNDED foi encerrada sem transformar os dois roteiros compostos em PASS. Próximo passo: conferência final da CLI pelo operador e decisão futura sobre os roteiros ainda não executados. O destino privado segue com ACL aprovada, `X:\` resolve para o mesmo objeto físico e o destino legado `C:\TelegramCourses\RASMOO` permaneceu intocado. Não iniciar payload adicional, alterar ACL, escrever no snapshot fonte ou fazer commit/push. Ver [relatório](../../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — remediação offline / TELEGRAM-3-CLI-V1-REAL-REMEDIATION-01 — 2026-11-06
+
+Integração local da CLI V1 pronta para o gate seguinte de homologação limitada. A navegação operacional compõe descoberta limitada, catálogo, seleção/plano e execução com a fila S5. O gateway só é criado para itens pendentes, restaura e valida autenticação antes da fila; um worker e revalidação do plano são preservados. Preparação SQLite bloqueia paths inseguros e esquemas incompletos. 110 testes offline, Ruff, compilação, diff check e import safety passaram; revisão estática independente não deixou finding de produção aberto no recorte.
+
+Não houve Telegram RPC, sessão real, banco operacional, download real, schema/migração, staging, commit ou push. O resultado não é homologação operacional. O envio e o readback foram confirmados; o chat respondeu que o status é apenas prontidão técnica e recomendou G0/TTY com Telegram real. Essa resposta não substitui autorização do operador. A próxima etapa segura exige preflight e autorização G0 em TTY para metadados; G4 específico antes de payload. Ver [relatório](../../reports/TELEGRAM_3_CLI_V1_REAL_REMEDIATION_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-FINAL-DELIVERY-01 — 2026-11-05
+
+CLI V1 funcional offline: `telegram-courses demo --workspace <caminho novo>` abre catálogo sintético persistente e executa a fila S5 com gateway fake após confirmação e autorização separadas. E2E público, Ctrl+C com parcial, retomada e dedupe passaram; 66 testes offline, Ruff e diff check passaram. PowerShell 5.1 manual e homologação real permanecem pendentes. Sem Telegram real, banco operacional, commit ou push. Ver [relatório](../../reports/TELEGRAM_3_CLI_V1_FINAL_DELIVERY_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-SLICE-C-C4-CLOSURE-01 — 2026-11-05
+
+Fechamento de evidências C4 pronto para revisão canônica: C4-01 a C4-07 passaram. Um subprocesso Windows recebeu `CTRL_C_EVENT` real antes do primeiro payload e durante o primeiro arquivo; após 60 bytes, SQLite registrou `FAILED_RETRYABLE`, checkpoint 60/120, `CANCELLED` e ownership liberado, com `.part` preservado. O resumo Rich/QueueResult mostrou as duas identidades canceladas e nenhum próximo arquivo admitido. Retomada offline com plano fresco concluiu os dois arquivos, aplicou prova e overlap S6, e deixou ambos `DOWNLOADED` sem `.part`. Cinco testes focados, Ruff e `git diff --check` passaram. Nenhuma alteração de produção/testes/schema nem operação Telegram real. O evento de console foi controlado pelo harness; KeyboardInterrupt não foi injetado e Ctrl+C manual no PowerShell 5.1 continua separado e não executado. O relatório foi enviado ao chat canônico com readback observado; a resposta reconhece C4 aprovado, recomenda `SLICE_C_ACCEPTED_OFFLINE_WITH_FINDINGS` e aguarda decisão humana formal sobre aceite da Slice C e eventual autorização da Slice D. Não avançar automaticamente. Ver [relatório C4](../../reports/TELEGRAM_3_CLI_V1_SLICE_C_C4_CLOSURE_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-SLICE-C-IMPLEMENTATION-01 — 2026-11-04
+
+Slice C implementada somente offline. O plano confirmado é revalidado e executado pela fila S5 com um worker, após autorização sintética distinta; o sandbox controla banco/destino temporários e gateway em memória. Progresso Rich e resumo por identidade distinguem bytes recebidos, prova, sobreposição, orçamento e dados validados; visualização lenta/falha não interrompe o motor. Cancelamento preserva parcial/evidência do sandbox. A bateria final teve 162 testes offline PASS; Ruff, compileall e diff check PASS. O comando público não habilita execução Slice C nem Telegram real. Nenhum banco operacional, sessão, Telegram RPC, download real, commit ou push. O relatório foi aceito pelo MCP e observado no readback; o chat canônico respondeu recomendando revisão independente C1–C4 e propôs `SLICE_C_REVIEW_PENDING`. Essa recomendação não autoriza automaticamente outra atividade. Slice D exige autorização separada. Ver [relatório](../../reports/TELEGRAM_3_CLI_V1_SLICE_C_IMPLEMENTATION_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-SLICE-B-FINAL-REVIEW-01 — 2026-11-04
+
+Slice B pronta para decisão canônica: revisor independente `ACCEPT_WITH_FINDINGS`. Política de disco: variação ≥ 1 GiB exige nova confirmação; variação menor só passa com espaço suficiente; espaço desconhecido ou insuficiente bloqueia pendências. Achado independente de tags Rich interpretadas em tabelas foi corrigido usando texto literal e revisado. Passaram 61 testes focados e 5 adicionais offline; Ruff, compileall e diff check passaram. Não houve Telegram RPC, download real, acesso a banco operacional, commit ou push. Navegação manual PowerShell 5.1 e E2E real continuam pendentes; estado de disco é pontual. O relatório foi aceito pelo MCP e observado no readback. Aguardar aceite canônico; Slice C requer autorização própria. Ver [relatório](../../reports/TELEGRAM_3_CLI_V1_SLICE_B_FINAL_REVIEW_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — correção de disco da Slice B — 2026-11-04
+
+Por instrução do usuário, a comparação após confirmação inclui o valor de espaço livre mostrado; alteração desse valor descarta a confirmação. Espaço indeterminado bloqueia planos com itens pendentes, sem bloquear a revisão de itens já válidos. Quatro testes novos cobrem comparação, bloqueio e interação; 56 testes focados offline passaram, assim como Ruff e `git diff --check`. Alterações frequentes no espaço podem exigir reconfirmações; nenhuma atomicidade entre sistema de arquivos e plano é alegada. A revisão independente e os casos não demonstrados do card de revisão permanecem pendentes. Ver [PROJECT_STATE](../PROJECT_STATE.md) e [guia Windows](../../GUIA_WINDOWS_USO.md).
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-SLICE-B-REVIEW-01 — 2026-11-04
+
+Revisão direta da Slice B: `SLICE_B_REVISION_REQUIRED`. Reprodução sintética mostrou que mudanças de espaço livre entre valores suficientes não alteram o fingerprint; espaço não verificado também permite confirmação. Os 52 testes offline passaram, porém os casos individuais do card não foram todos reproduzidos. A revisão ocorreu na mesma conversa que implementou a slice e não comprova independência. Relatório enviado ao chat canônico e observado no readback. Aguardar decisão e revisão independente antes de qualquer correção ou Slice C. Ver [relatório](../../reports/TELEGRAM_3_CLI_V1_SLICE_B_REVIEW_01/REPORT.md) e [PROJECT_STATE](../PROJECT_STATE.md).
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-SLICE-B-IMPLEMENTATION-01 — 2026-11-04
+
+Slice B offline implementada sob autorização do card do usuário. A CLI reutiliza o `DownloadPlanner` S5 para planejar arquivos selecionados por identidade exata ou todos os arquivos elegíveis catalogados daquele curso. A lista tem paginação simples de 20 itens com índices globais. Catálogo parcial, associações inválidas, tamanhos desconhecidos, limites, destino e exclusões aparecem na revisão; “todos” não significa o canal inteiro nem completude remota. A sequência S5 continua determinística e não é apresentada como ordem pedagógica.
+
+A confirmação compara novamente seleção/identidade, ordem, status, tamanho, destino, integridade, limites e contexto do catálogo. Mudança descarta a confirmação e exige revisão fresca. Confirmar somente valida intenção e consistência: a fila, o downloader e o Telegram não foram chamados.
+
+Validação final: 52 testes offline focados passaram; Ruff, compileall e `git diff --check` passaram. Fixtures usaram SQLite e arquivos sintéticos. Nenhum banco operacional foi acessado; nenhum Telegram RPC, download real, commit ou push ocorreu. O WIP existente foi preservado.
+
+Riscos remanescentes: navegação manual em PowerShell 5.1 nativo ainda não verificada nesta atividade; catálogo parcial e ordem pedagógica podem permanecer desconhecidos; a revalidação reduz mudanças entre revisão e confirmação, mas não cria atomicidade entre SQLite e filesystem; o fluxo real ponta a ponta do curso não foi demonstrado. O MCP aceitou o envio do relatório sanitizado ao chat canônico e o readback mostrou a mensagem. A revisão canônica da Slice B ainda está pendente.
+
+Próximo passo seguro: aguardar revisão canônica da Slice B. Slice C, operações Telegram/download e Git publication exigem autorização própria. Ver [PROJECT_STATE](../PROJECT_STATE.md), [guia Windows](../../GUIA_WINDOWS_USO.md), [contrato CLI V1 v0.2](../../contracts/TELEGRAM_3_CLI_V1_PYTHON_RICH_IMPLEMENTATION_CONTRACT_DRAFT.md) e [relatório da Slice B](../../reports/TELEGRAM_3_CLI_V1_SLICE_B_IMPLEMENTATION_01/REPORT.md).
+
+PROJECT_STATE_RECONCILIATION = PASS / Slice B, evidência offline, limites e handoff registrados.
+
+## Handoff anterior — TELEGRAM-3-CLI-V1-SLICE-A-IMPLEMENTATION-01 — 2026-11-04
+
+Slice A offline implementada para consulta e seleção no catálogo local. O comando `telegram-courses interactive --database <caminho>` usa queries read-only, não executa migrations nem chama o Telegram. Lista canais e cursos com IDs locais, torna visíveis mídias sem associação classificável, sinaliza catálogo parcial e tamanho desconhecido, permite selecionar/deselecionar por índices/listas/intervalos e revisar a seleção. A sequência é determinística, usa desempate por identidade local e não afirma ordem pedagógica; ordinal ausente/repetido gera aviso e a revisão mostra as identidades estáveis dos itens.
+
+Validação final: 24 testes novos focados passaram; 33 regressões de catálogo, `smoke` e descoberta com gateway sintético passaram. Ruff, compileall, `git diff --check` e verificação de que importar `telegram_courses.cli` não carrega `telethon_session` passaram. A execução usou somente SQLite sintético temporário. O SQLite pode criar sidecars WAL transitórios numa abertura read-only; os hashes dos arquivos principais de teste permaneceram iguais. Banco operacional não foi acessado.
+
+Contrato CLI V1 v0.2 permanece aprovado com a correção documental registrada. O card autorizou somente esta Slice A offline. Slices B/C/D, RPC Telegram, downloads reais, acesso a sessão/credenciais, commit e push permanecem fora da execução. Elegibilidade sob limites, política de tamanho desconhecido para caps e progresso/velocidade/ETA reais aguardam slices autorizadas; não houve E2E real.
+
+Relatório sanitizado enviado via MCP ao chat canônico `Projeto Telegram 3.0` e observado no readback. A revisão canônica respondeu `PASS_WITH_LIMITS`, recomendando paginação simples e mantendo documentado/verificado o risco de sidecars WAL antes do uso operacional. A paginação simples foi incorporada na Slice B; a verificação manual em PowerShell 5.1 permanece pendente. Ver [PROJECT_STATE](../PROJECT_STATE.md), [guia Windows](../../GUIA_WINDOWS_USO.md) e [contrato CLI V1 v0.2](../../contracts/TELEGRAM_3_CLI_V1_PYTHON_RICH_IMPLEMENTATION_CONTRACT_DRAFT.md).
+
+PROJECT_STATE_RECONCILIATION = PASS / Slice A, validação offline, limites e estado da entrega foram reconciliados.
+
 ## Handoff vigente — TELEGRAM-3-585-FINAL-CLOSURE-01 — 2026-11-03
 
 Gate 1 passou tecnicamente com findings: regressão completa 829 PASS + 11 subtests PASS, bateria focada 569 PASS e sequência scan→G1 2/2; Ruff do escopo e compileall passaram. O Analyst isolou timeout de `socketpair()`/event loop no Codex supervisionado com sucesso no PowerShell nativo e vazamento do handler `capsys` na fixture scan, corrigido com finalização em `finally`. Revisão independente `ACCEPT_WITH_FINDINGS`; três findings Ruff globais em `manual_proofs` permanecem fora do escopo.
@@ -3842,3 +3912,25 @@ duplicidade.
 ## Ultimo handoff — Checkpoint global 2026-11-03
 
 Checkpoint atual: TELEGRAM-3-GLOBAL-CHECKPOINT-20261103. Design MIDNIGHT_GLASS_V1 aprovado, ainda nao implementado. Downloader do piloto 585 recuperado e validado (4 tentativas, REMOTE_HASH_FULL), sem aprovar globalmente S9; 586/587 permanecem pendentes. A fase seguinte e apresentar telas prontas em mockups para decisao do operador, antes da implementacao TUI. Preservar artefatos locais de testes e WIP; ver docs/continuity/checkpoints/TELEGRAM_3_GLOBAL_CHECKPOINT_20261103.md e docs/design/TELEGRAM_COURSES_TUI_MIDNIGHT_GLASS_V1.md.
+
+## Handoff prioritario — selecionar arquivos ou baixar curso em ordem — 2026-11-03
+
+NEXT_ACTIVITY = COURSE_DOWNLOAD_E2E_GATE / OFFLINE_READ_ONLY_AUDIT_FIRST
+USER_GOAL = marcar arquivos especificos de um curso OU Baixar tudo no curso selecionado, em sequencia deterministica.
+EVIDENCE_GAP = descarga e validacao de curso inteiro nunca comprovada; S5 prova cinco midias com CATALOG_SCOPE=PARTIAL; 585 prova recuperacao isolada.
+FIRST_ACTION = examinar implementacao atual para detectar o que ja funciona e quais lacunas existem, sem novos downloads nem suites extensas por rotina.
+REAL_TRANSFER = REQUIRES_SEPARATE_OPERATOR_AUTHORIZATION / COURSE_AND_LIMITS
+DESIGN = MIDNIGHT_GLASS_APPROVED / IMPLEMENTATION_AFTER_E2E
+DO_NOT = alterar S9 congelado, iniciar S10, declarar curso completo com catalogo parcial, executar Telegram RPC por este handoff.
+CANONICAL_PLAN = docs/continuity/planning/ROADMAP.md; docs/continuity/planning/SPRINTS.md; docs/product/REQUIREMENTS.md.
+
+## Handoff vigente — CLI V1 minima em Python + Rich — 2026-11-03
+
+LATEST_USER_DECISION = SIMPLE_PYTHON_RICH_CLI_V1_FIRST / GUI_LATER
+CURRENT_GOAL = selecionar arquivos individuais ou todos os arquivos do curso em ordem e baixar com progresso, tamanho, MB/s e ETA.
+DO_NEXT = auditar offline a CLI e o backend existentes; corrigir somente gaps funcionais dos dois modos e provar ciclo completo de curso no escopo autorizado.
+DO_NOT_NEXT = construir TUI fullscreen Midnight Glass; implementar GUI; executar download real sem autorizacao propria; repetir rotineiramente o piloto 585 ou as suites globais.
+GATE = COURSE_DOWNLOAD_E2E_GATE / NOT_YET_PROVEN
+GUI = AFTER_ACCEPTED_E2E / TECHNOLOGY_AND_DESIGN_TO_BE_DECIDED
+S9_AND_S10 = UNCHANGED
+ROADMAP = docs/continuity/planning/ROADMAP.md
