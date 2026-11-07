@@ -31,6 +31,7 @@ from telegram_courses.channel_discovery import (
     ChannelDiscoveryApplication,
     ChannelDiscoveryError,
     DiscoveryErrorCategory,
+    DiscoveryLimits,
     DiscoveryOutcomeState,
     DiscoveryResult,
     select_channel,
@@ -67,9 +68,16 @@ from telegram_courses.s9_supervisor_handshake import (
     ConfirmationHandshakeError,
     supervised_confirmation,
 )
-from telegram_courses.telethon_gateway import TelethonGateway
+
+
+def _default_gateway(credentials: TelegramCredentials) -> object:
+    """Load the Telegram adapter only for commands that actually use it."""
+    from telegram_courses.telethon_gateway import TelethonGateway
+
+    return TelethonGateway(credentials)
 
 if TYPE_CHECKING:
+    from telegram_courses.course_execution import ConfirmedCoursePlan
     from telegram_courses.download_repository import DownloadCandidate
     from telegram_courses.s9_operational_ledger import _PrivateDirectoryGuard
 
@@ -153,7 +161,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
 
     parser = _ArgumentParser(prog="telegram-courses", add_help=True)
     parser.add_argument(
-        "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog", "download")
+        "command", choices=("smoke", "auth", "channels", "scan", "credentials", "catalog", "download", "interactive", "demo")
     )
     parser.add_argument(
         "credentials_action", nargs="?", choices=("setup", "status", "build", "list", "show", "items", "plan", "queue")
@@ -172,6 +180,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--incremental", action="store_true")
     parser.add_argument("--reconcile-window", type=int)
     parser.add_argument("--database", default="data/catalog.sqlite3")
+    parser.add_argument("--workspace")
     parser.add_argument("--parser-key")
     parser.add_argument("--scope", choices=("channel", "course", "module", "lesson"), default="channel")
     parser.add_argument("--workers", type=int, default=2)
@@ -194,6 +203,13 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument("--pilot-require-already-valid-id", type=int)
     parser.add_argument("--pilot-resume-585-once", action="store_true")
     args = parser.parse_args(raw_arguments)
+    if (args.command == "demo") != (args.workspace is not None):
+        raise ConfigurationError from None
+    if args.command == "demo" and not (
+        len(raw_arguments) == 3 and "--workspace" in raw_arguments
+        or len(raw_arguments) == 2 and any(x.startswith("--workspace=") for x in raw_arguments)
+    ):
+        raise ConfigurationError from None
     if (args.config is not None and len(args.config) != 1) or (
         args.log_level is not None and len(args.log_level) != 1
     ):
@@ -204,6 +220,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         args.download_dir if supplied_once("--download-dir") else None
     )
     args.cli_database_path = args.database if supplied_once("--database") else None
+    args.cli_scope = args.scope if supplied_once("--scope") else None
     args.cli_workers = args.workers if supplied_once("--workers") else None
     args.cli_attempts_per_media = (
         args.attempts_per_media
@@ -267,7 +284,7 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
         and args.private_downloads and not args.confirm
     ):
         raise ConfigurationError from None
-    if args.command != "download" and (
+    if args.command not in {"download", "interactive"} and (
         args.max_media_items is not None or args.max_transfer_bytes is not None
         or args.integrity_mode != "REMOTE_HASH_REQUIRED" or args.reference_manifest is not None
     ):
@@ -337,6 +354,23 @@ def _parse_arguments(argv: Sequence[str] | None) -> argparse.Namespace:
             args.credentials_action in {"list"} and args.channel_id is not None
         ):
             raise ConfigurationError from None
+    elif args.command == "interactive":
+        if (
+            args.credentials_action is not None
+            or args.confirm
+            or args.cli_workers is not None
+            or args.cli_attempts_per_media is not None
+            or args.cli_scope is not None
+            or args.integrity_mode != "REMOTE_HASH_REQUIRED"
+            or args.reference_manifest is not None
+            or args.max_media_items is not None and args.max_media_items <= 0
+            or args.max_transfer_bytes is not None and args.max_transfer_bytes <= 0
+            or any(value is not None for value in (
+                args.channel_id, args.telegram_message_id, args.media_ordinal,
+                args.max_messages, args.timeout_seconds,
+            ))
+        ):
+            raise ConfigurationError from None
     elif any(value is not None for value in (args.channel_id, args.max_messages, args.telegram_message_id, args.media_ordinal)):
         raise ConfigurationError from None
     return args
@@ -346,7 +380,7 @@ def _download_single(
     *, channel_id: int, message_id: int, media_ordinal: int, database: str,
     download_dir: str, integrity_mode: str = "REMOTE_HASH_REQUIRED",
     reference_manifest_path: str | None = None,
-    gateway_factory: Callable[[TelegramCredentials], object] = TelethonGateway,
+    gateway_factory: Callable[[TelegramCredentials], object] = _default_gateway,
     credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
 ) -> int:
     if integrity_mode != "REMOTE_HASH_REQUIRED":
@@ -1351,7 +1385,9 @@ def _credentials_status(
     return 0
 
 
-def _discovery_gateway(credentials: TelegramCredentials) -> TelethonGateway:
+def _discovery_gateway(credentials: TelegramCredentials) -> object:
+    from telegram_courses.telethon_gateway import TelethonGateway
+
     return TelethonGateway(
         credentials,
         receive_updates=False,
@@ -1359,7 +1395,9 @@ def _discovery_gateway(credentials: TelegramCredentials) -> TelethonGateway:
     )
 
 
-def _scan_gateway(credentials: TelegramCredentials) -> TelethonGateway:
+def _scan_gateway(credentials: TelegramCredentials) -> object:
+    from telegram_courses.telethon_gateway import TelethonGateway
+
     return TelethonGateway(
         credentials,
         receive_updates=False,
@@ -1408,7 +1446,7 @@ def _render_discovery(result: DiscoveryResult) -> None:
             else ""
         )
         console.print(
-            f"[{index}] {title}{username} | {channel.kind.value}",
+            f"[{index}] {title}{username} | {channel.kind.value} | ID={channel.telegram_chat_id}",
             markup=False,
             highlight=False,
         )
@@ -1510,7 +1548,7 @@ def _discover_channels(
 
 def _authenticate(
     *,
-    gateway_factory: Callable[..., object] = TelethonGateway,
+    gateway_factory: Callable[..., object] = _default_gateway,
     phone_prompt: Callable[[], str] = _phone_prompt,
     code_prompt: Callable[[], str] | None = None,
     password_prompt: Callable[[], str] | None = None,
@@ -1538,10 +1576,389 @@ def _authenticate(
     return 0
 
 
+def _prompt_yes(selection_prompt: Callable[[str], str], prompt: str) -> bool:
+    try:
+        answer = selection_prompt(prompt)
+    except (EOFError, KeyboardInterrupt):
+        return False
+    return answer.strip().casefold() in {"s", "sim", "y", "yes"}
+
+
+def _prompt_positive_int(
+    selection_prompt: Callable[[str], str], console: Console, prompt: str,
+) -> int | None:
+    while True:
+        try:
+            value = selection_prompt(prompt).strip()
+        except (EOFError, KeyboardInterrupt):
+            return None
+        if value.casefold() == "q":
+            return None
+        if value.isdecimal() and 0 < int(value) <= 100_000:
+            return int(value)
+        console.print("Informe um inteiro entre 1 e 100000 ou Q para cancelar.", markup=False)
+
+
+def _prompt_positive_float(
+    selection_prompt: Callable[[str], str], console: Console, prompt: str,
+) -> float | None:
+    while True:
+        try:
+            value = selection_prompt(prompt).strip().replace(",", ".")
+        except (EOFError, KeyboardInterrupt):
+            return None
+        if value.casefold() == "q":
+            return None
+        try:
+            parsed = float(value)
+        except ValueError:
+            parsed = 0.0
+        if 0 < parsed <= 3600:
+            return parsed
+        console.print("Informe um tempo acima de zero e até 3600 segundos, ou Q.", markup=False)
+
+
+def _s9_environment_active() -> bool:
+    return any(name.startswith("TELEGRAM_COURSES_S9_") for name in os.environ)
+
+
+def _interactive_discover_and_catalog(
+    database: str | Path,
+    selection_prompt: Callable[[str], str],
+    *,
+    discovery_gateway_factory: Callable[[TelegramCredentials], object],
+    scan_gateway_factory: Callable[[TelegramCredentials, int], object],
+    credentials_loader: Callable[[], TelegramCredentials],
+    require_tty: bool,
+) -> int:
+    """Discover one selected channel, then perform an explicitly bounded scan."""
+    from telegram_courses.catalog_application import CatalogApplication
+    from telegram_courses.catalog_repository import SQLiteCatalogRepository
+    from telegram_courses.database_preparation import (
+        DatabasePreparationError,
+        apply_database_preparation,
+        create_verified_backup,
+        plan_database_preparation,
+    )
+    from telegram_courses.message_scanner import ScanRequest
+    from telegram_courses.scan_application import ScanApplication
+    from telegram_courses.sqlite_repository import SQLiteMessageRepository
+
+    console = Console(file=sys.stdout, force_terminal=False, no_color=True)
+    if require_tty and not sys.stdin.isatty():
+        console.print("A descoberta real requer um terminal interativo.", markup=False)
+        return 2
+    if _s9_environment_active() or any(os.environ.get(name) for name in (
+        HANDSHAKE_DIR_ENV, HANDSHAKE_NONCE_ENV,
+    )):
+        console.print(
+            "Descoberta interativa bloqueada sob supervisão S9; use o launcher S9 aprovado.",
+            markup=False,
+        )
+        return 4
+    limits = DiscoveryLimits()
+    console.print(
+        "Descoberta limitada: até 1000 diálogos, 20 páginas e 120 segundos. "
+        "Será consultado somente metadado de canais.", markup=False,
+    )
+    if not _prompt_yes(
+        selection_prompt,
+        "Autorizar acesso à sessão e consulta de metadados de canais Telegram? [s/N] ",
+    ):
+        console.print("Acesso a metadados não autorizado; nenhuma sessão foi aberta.", markup=False)
+        return 0
+    try:
+        discovery = ChannelDiscoveryApplication(
+            discovery_gateway_factory,
+            credentials_loader,
+            limits=limits,
+        )
+        outcome = asyncio.run(discovery.discover())
+    except KeyboardInterrupt:
+        console.print("Descoberta cancelada.", markup=False)
+        return 130
+    except ChannelDiscoveryError as error:
+        console.print(f"Descoberta bloqueada: {error.category.value}.", markup=False)
+        return 3
+    if outcome.state in {
+        DiscoveryOutcomeState.AUTH_REQUIRED,
+        DiscoveryOutcomeState.SESSION_INVALID,
+    }:
+        console.print(
+            "Sessão indisponível ou inválida. Use `telegram-courses auth` em "
+            "terminal protegido e tente novamente.", markup=False,
+        )
+        return 3
+    assert outcome.result is not None
+    result = outcome.result
+    _render_discovery(result)
+    if not result.channels:
+        return 0 if result.complete else 4
+    try:
+        selection = selection_prompt("Canal da descoberta ou Q para cancelar: ")
+        selected_id = _select_from_local_snapshot(result, selection)
+    except (KeyboardInterrupt, ChannelDiscoveryError):
+        console.print("Seleção de canal cancelada ou inválida.", markup=False)
+        return 0
+    if selected_id is None:
+        console.print("Seleção de canal cancelada.", markup=False)
+        return 0
+    selected = next(
+        item for item in result.channels if item.telegram_chat_id == selected_id
+    )
+
+    console.print("Parser do catálogo:", markup=False)
+    console.print("[1] generic — preserva mensagens como não classificadas", markup=False)
+    console.print("[2] rasmoo — selecionar somente para um canal RASMOO", markup=False)
+    parser_choice = selection_prompt("Parser [1/2/Q]: ").strip().casefold()
+    if parser_choice == "q":
+        return 0
+    if parser_choice not in {"1", "2"}:
+        console.print("Parser inválido; nada foi catalogado.", markup=False)
+        return 2
+    parser_key = "generic" if parser_choice == "1" else "rasmoo"
+    max_messages = _prompt_positive_int(
+        selection_prompt, console, "Limite máximo de mensagens (1–100000): ",
+    )
+    timeout_seconds = _prompt_positive_float(
+        selection_prompt, console, "Tempo limite da varredura em segundos (máx. 3600): ",
+    )
+    if max_messages is None or timeout_seconds is None:
+        return 0
+
+    try:
+        preparation = plan_database_preparation(database)
+        backup = preparation.backup
+        if preparation.before.exists and backup is None:
+            backup = create_verified_backup(database)
+    except DatabasePreparationError as error:
+        console.print(f"Banco bloqueado: {error.category}.", markup=False)
+        return 4
+    if backup is not None:
+        console.print(
+            f"Backup SQLite verificado: {backup.path} | SHA-256={backup.sha256} | "
+            f"integridade={backup.integrity} | violações FK={backup.foreign_key_violations}",
+            markup=False,
+        )
+    elif preparation.before.kind == "NEW":
+        console.print("Banco novo: será criado somente após a confirmação abaixo.", markup=False)
+    else:
+        console.print(
+            f"Esquema local: {preparation.before.kind}; versões="
+            f"{preparation.before.migration_versions}.", markup=False,
+        )
+
+    console.print(
+        f"Canal selecionado: {_safe_terminal_text(selected.title)} | ID={selected_id} | "
+        f"parser={parser_key} | máximo={max_messages} mensagens | "
+        f"timeout={timeout_seconds:g}s | resultado remoto poderá ser parcial.",
+        markup=False,
+    )
+    if not _prompt_yes(
+        selection_prompt,
+        "Confirmar preparação do catálogo e varredura limitada de metadados? "
+        "Feche outros processos que possam escrever no banco. [s/N] ",
+    ):
+        console.print("Varredura cancelada; nenhum write de catálogo foi iniciado.", markup=False)
+        return 0
+    try:
+        asyncio.run(apply_database_preparation(preparation, confirmed=True))
+        pre_scan_backup = create_verified_backup(database)
+        console.print(
+            f"Backup do esquema pronto antes da varredura: {pre_scan_backup.path} | "
+            f"SHA-256={pre_scan_backup.sha256}", markup=False,
+        )
+        message_repository = SQLiteMessageRepository(database)
+        asyncio.run(message_repository.update_channel_metadata(
+            selected_id, title=selected.title, username=selected.username,
+        ))
+        scan = ScanApplication(
+            lambda credentials: scan_gateway_factory(credentials, selected_id),
+            credentials_loader,
+            message_repository,
+        )
+        outcome_scan = asyncio.run(scan.scan(
+            selected_id,
+            ScanRequest(
+                max_messages=max_messages,
+                timeout_seconds=timeout_seconds,
+                mode="FULL",
+            ),
+        ))
+    except KeyboardInterrupt:
+        console.print("Varredura interrompida; o checkpoint foi preservado.", markup=False)
+        return 130
+    except (DatabasePreparationError, ScanGatewayError, OSError) as error:
+        category = getattr(error, "category", "SCAN_FAILED")
+        console.print(f"Varredura não concluída: {category}.", markup=False)
+        return 4
+    console.print(
+        f"Varredura local: status={outcome_scan.status.value} "
+        f"mensagens observadas={outcome_scan.messages_seen} "
+        f"mídias observadas={outcome_scan.media_seen}"
+        + (f" stop={outcome_scan.stop_reason}" if outcome_scan.stop_reason else ""),
+        markup=False,
+    )
+
+    try:
+        post_scan_backup = create_verified_backup(database)
+    except DatabasePreparationError as error:
+        console.print(
+            f"Snapshot do banco após a varredura bloqueado: {error.category}. "
+            "As mensagens já persistidas foram preservadas.", markup=False,
+        )
+        return 4
+    console.print(
+        f"Backup pré-catalogação verificado: {post_scan_backup.path} | "
+        f"SHA-256={post_scan_backup.sha256}", markup=False,
+    )
+    if not _prompt_yes(
+        selection_prompt,
+        f"Construir o catálogo {parser_key} sobre as {outcome_scan.messages_seen} "
+        "mensagens locais observadas? Isso não declara completude remota. [s/N] ",
+    ):
+        console.print("Mensagens preservadas localmente; catálogo não reconstruído.", markup=False)
+        return 0
+    try:
+        catalog_result = asyncio.run(
+            CatalogApplication(SQLiteCatalogRepository(database)).build(
+                selected_id, explicit_parser_key=parser_key,
+            )
+        )
+    except Exception as error:
+        category = getattr(error, "category", type(error).__name__.upper())
+        console.print(f"Catálogo não concluído: {category}.", markup=False)
+        return 4
+    console.print(
+        f"Catálogo local construído: parser={catalog_result.parser_key} "
+        f"mensagens={catalog_result.source_message_count} "
+        f"nós={catalog_result.catalog_node_count} "
+        f"sem classificação={catalog_result.unresolved_count}. "
+        "A cobertura remota permanece determinada pelo estado da varredura.",
+        markup=False,
+    )
+    return 0 if outcome_scan.status.value == "COMPLETE" else 4
+
+
+def _interactive_scan_gateway(
+    credentials: TelegramCredentials, channel_id: int,
+) -> object:
+    from telegram_courses.telethon_gateway import TelethonGateway
+
+    return TelethonGateway(
+        credentials,
+        receive_updates=False,
+        catch_up=False,
+        bounded_metadata_channel_id=channel_id,
+        request_retries=0,
+        connection_retries=0,
+    )
+
+
+def _interactive_download_gateway(
+    credentials: TelegramCredentials, channel_id: int,
+) -> object:
+    from telegram_courses.telethon_gateway import TelethonGateway
+
+    return TelethonGateway(
+        credentials,
+        receive_updates=False,
+        catch_up=False,
+        bounded_metadata_channel_id=channel_id,
+        allow_bounded_peer_recovery=True,
+        request_retries=0,
+        connection_retries=0,
+    )
+
+
+def _interactive_live_executor(
+    confirmation: ConfirmedCoursePlan,
+    *,
+    selection_prompt: Callable[[str], str],
+    credentials_loader: Callable[[], TelegramCredentials],
+    gateway_factory: Callable[[TelegramCredentials, int], object],
+    attempts_per_media: int,
+    require_tty: bool,
+) -> int:
+    from telegram_courses.course_execution import summarize_execution
+    from telegram_courses.course_live_execution import LiveCourseExecutor
+    from telegram_courses.course_progress_rich import (
+        render_execution_summary,
+        run_live_with_rich,
+    )
+    from telegram_courses.database_preparation import (
+        DatabasePreparationError,
+        create_verified_backup,
+    )
+
+    console = Console(file=sys.stdout, force_terminal=False, no_color=True)
+    if _s9_environment_active() or any(os.environ.get(name) for name in (
+        HANDSHAKE_DIR_ENV, HANDSHAKE_NONCE_ENV,
+    )):
+        console.print(
+            "Execução interativa bloqueada sob supervisão S9; use o launcher S9 aprovado.",
+            markup=False,
+        )
+        return 4
+    if not confirmation.review.plan.pending:
+        render_execution_summary(
+            summarize_execution(
+                confirmation.review.plan,
+                observed_exclusions=confirmation.review.observed_exclusions,
+            ),
+            console,
+        )
+        return 0
+    try:
+        backup = create_verified_backup(confirmation.database)
+    except DatabasePreparationError as error:
+        console.print(
+            f"Execução real bloqueada; backup do banco não foi verificado: {error.category}.",
+            markup=False,
+        )
+        return 4
+    console.print(
+        f"Backup pré-execução verificado: {backup.path} | SHA-256={backup.sha256}",
+        markup=False,
+    )
+    executor = LiveCourseExecutor(
+        gateway_factory,
+        credentials_loader,
+        attempts_per_media=attempts_per_media,
+    )
+    try:
+        authorization = executor.authorize(
+            confirmation,
+            backup,
+            selection_prompt=selection_prompt,
+            require_tty=require_tty,
+        )
+    except DownloadError as error:
+        console.print(f"Execução real bloqueada: {error.category}.", markup=False)
+        return 4
+    if authorization is None:
+        console.print("Execução real não autorizada; nenhum gateway foi criado.", markup=False)
+        return 0
+    try:
+        summary = asyncio.run(run_live_with_rich(executor, authorization, console))
+    except KeyboardInterrupt:
+        console.print(
+            "Interrupção solicitada; a fila S5 cancelou cooperativamente e preservou estado.",
+            markup=False,
+        )
+        return 130
+    return (
+        0
+        if summary.status in {"CONCLUIDO", "TODOS_JA_VALIDOS"}
+        and not summary.cleanup_failed
+        else 4
+    )
+
+
 def main(
     argv: Sequence[str] | None = None,
     *,
-    gateway_factory: Callable[..., object] = TelethonGateway,
+    gateway_factory: Callable[..., object] = _default_gateway,
     discovery_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
     scan_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
     phone_prompt: Callable[[], str] = _phone_prompt,
@@ -1553,9 +1970,15 @@ def main(
     credential_vault_factory: Callable[[], CredentialVault] = CredentialVault,
     credentials_loader: Callable[[], TelegramCredentials] = load_telegram_credentials,
     download_gateway_factory: Callable[[TelegramCredentials], object] | None = None,
+    interactive_scan_gateway_factory: Callable[[TelegramCredentials, int], object] | None = None,
+    interactive_live_gateway_factory: Callable[[TelegramCredentials, int], object] | None = None,
 ) -> int:
     try:
         args = _parse_arguments(argv)
+        if args.command == "demo":
+            from telegram_courses.demo_cli import run_demo
+
+            return run_demo(args.workspace, selection_prompt=selection_prompt)
         configuration = load_configuration(
             config_path=args.config,
             log_level=args.log_level,
@@ -1579,6 +2002,47 @@ def main(
             return _credentials_status(vault_factory=credential_vault_factory)
         if args.command == "catalog":
             return _catalog_command(args, selection_prompt)
+        if args.command == "interactive":
+            from telegram_courses.interactive_catalog_cli import run_interactive_program
+
+            require_tty = selection_prompt is input
+            scan_factory = interactive_scan_gateway_factory or _interactive_scan_gateway
+            live_factory = interactive_live_gateway_factory or _interactive_download_gateway
+
+            def live_executor(confirmation: ConfirmedCoursePlan) -> int:
+                return _interactive_live_executor(
+                    confirmation,
+                    selection_prompt=selection_prompt,
+                    credentials_loader=credentials_loader,
+                    gateway_factory=live_factory,
+                    attempts_per_media=args.attempts_per_media,
+                    require_tty=require_tty,
+                )
+
+            def discover_and_catalog(
+                database: str | Path, prompt: Callable[[str], str],
+            ) -> int:
+                return _interactive_discover_and_catalog(
+                    database,
+                    prompt,
+                    discovery_gateway_factory=(
+                        discovery_gateway_factory or _discovery_gateway
+                    ),
+                    scan_gateway_factory=scan_factory,
+                    credentials_loader=credentials_loader,
+                    require_tty=require_tty,
+                )
+
+            return run_interactive_program(
+                args.database,
+                download_root=args.download_dir,
+                max_media_items=args.max_media_items,
+                max_transfer_bytes=args.max_transfer_bytes,
+                selection_prompt=selection_prompt,
+                require_tty=require_tty,
+                live_executor=live_executor,
+                discover_and_catalog=discover_and_catalog,
+            )
         if args.command == "auth":
             return _authenticate(
                 gateway_factory=gateway_factory,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sqlite3
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -93,6 +94,37 @@ class CatalogItemView:
     media: tuple[CatalogMediaView, ...]
 
 
+@dataclass(frozen=True)
+class InteractiveCatalogMediaView:
+    media_item_id: int
+    channel_id: int
+    telegram_message_id: int
+    media_ordinal: int
+    catalog_node_id: int | None
+    kind: str
+    telegram_media_id: str | None
+    original_filename: str | None
+    mime_type: str | None
+    file_size_bytes: int | None
+    catalog_kind: str | None
+    catalog_active: bool | None
+
+
+@dataclass(frozen=True)
+class InteractiveCatalogSnapshot:
+    channel: CatalogChannelView
+    scan_status: str | None
+    scan_stop_reason: str | None
+    scan_finished_at: str | None
+    catalog_finished_at: str | None
+    nodes: tuple[CatalogNodeView, ...]
+    media: tuple[InteractiveCatalogMediaView, ...]
+
+    @property
+    def catalog_complete(self) -> bool:
+        return self.scan_status == "COMPLETE" and not self.scan_stop_reason
+
+
 class SQLiteCatalogRepository:
     """Owns all S3 SQL and preserves the S2 schema and source rows."""
 
@@ -112,6 +144,169 @@ class SQLiteCatalogRepository:
         await db.execute(f"PRAGMA busy_timeout = {self.busy_timeout_ms}")
         await db.execute("PRAGMA journal_mode = WAL")
         return db
+
+    async def _connect_readonly(self) -> aiosqlite.Connection:
+        """Read existing catalog data without migrations or catalog-data writes.
+
+        SQLite may create transient WAL coordination sidecars for a read-only
+        connection; the database contents and schema remain unchanged.
+        """
+        path = self.database_path.expanduser().absolute()
+        if not path.is_file():
+            raise CatalogError("CATALOG_NOT_FOUND")
+        try:
+            db = await aiosqlite.connect(
+                f"{path.as_uri()}?mode=ro", uri=True,
+                timeout=self.busy_timeout_ms / 1000,
+            )
+        except (OSError, sqlite3.Error):
+            raise CatalogError("CATALOG_READ_FAILED") from None
+        db.row_factory = aiosqlite.Row
+        try:
+            await db.execute("PRAGMA query_only=ON")
+            return db
+        except sqlite3.Error:
+            await db.close()
+            raise CatalogError("CATALOG_READ_FAILED") from None
+
+    async def list_interactive_channels(self) -> tuple[CatalogChannelView, ...]:
+        """Read channel summaries without creating directories or migrating schema."""
+        db = await self._connect_readonly()
+        try:
+            await db.execute("BEGIN")
+            rows = await (
+                await db.execute(
+                    "SELECT c.telegram_chat_id, c.title, c.parser_key, "
+                    "(SELECT r.status FROM catalog_runs r WHERE r.channel_id=c.telegram_chat_id "
+                    "ORDER BY r.finished_at DESC, r.rowid DESC LIMIT 1) AS catalog_status, "
+                    "(SELECT r.source_message_count FROM catalog_runs r WHERE r.channel_id=c.telegram_chat_id "
+                    "ORDER BY r.finished_at DESC, r.rowid DESC LIMIT 1) AS source_message_count, "
+                    "(SELECT COUNT(*) FROM catalog_nodes n WHERE n.channel_id=c.telegram_chat_id "
+                    "AND n.is_active=1) AS active_node_count, "
+                    "(SELECT COUNT(*) FROM catalog_nodes n WHERE n.channel_id=c.telegram_chat_id "
+                    "AND n.is_active=1 AND n.kind='unclassified') AS unclassified_count "
+                    "FROM channels c WHERE EXISTS(SELECT 1 FROM catalog_runs r "
+                    "WHERE r.channel_id=c.telegram_chat_id) "
+                    "ORDER BY c.title COLLATE NOCASE, c.telegram_chat_id"
+                )
+            ).fetchall()
+            return tuple(
+                CatalogChannelView(
+                    channel_id=row["telegram_chat_id"], title=row["title"],
+                    parser_key=row["parser_key"], catalog_status=row["catalog_status"],
+                    source_message_count=row["source_message_count"],
+                    active_node_count=row["active_node_count"],
+                    unclassified_count=row["unclassified_count"],
+                ) for row in rows
+            )
+        except sqlite3.Error as error:
+            category = (
+                "CATALOG_SCHEMA_UNSUPPORTED"
+                if "no such table" in str(error).casefold()
+                or "no such column" in str(error).casefold()
+                else "CATALOG_READ_FAILED"
+            )
+            raise CatalogError(category) from None
+        finally:
+            await db.close()
+
+    async def load_interactive_snapshot(
+        self, channel_id: int
+    ) -> InteractiveCatalogSnapshot:
+        """Read channel, hierarchy, media, and scan status in one read snapshot."""
+        db = await self._connect_readonly()
+        try:
+            await db.execute("BEGIN")
+            channel_row = await (
+                await db.execute(
+                    "SELECT c.telegram_chat_id, c.title, c.parser_key, "
+                    "(SELECT r.status FROM catalog_runs r WHERE r.channel_id=c.telegram_chat_id "
+                    "ORDER BY r.finished_at DESC, r.rowid DESC LIMIT 1) AS catalog_status, "
+                    "(SELECT r.source_message_count FROM catalog_runs r WHERE r.channel_id=c.telegram_chat_id "
+                    "ORDER BY r.finished_at DESC, r.rowid DESC LIMIT 1) AS source_message_count, "
+                    "(SELECT r.finished_at FROM catalog_runs r WHERE r.channel_id=c.telegram_chat_id "
+                    "ORDER BY r.finished_at DESC, r.rowid DESC LIMIT 1) AS catalog_finished_at, "
+                    "(SELECT COUNT(*) FROM catalog_nodes n WHERE n.channel_id=c.telegram_chat_id "
+                    "AND n.is_active=1) AS active_node_count, "
+                    "(SELECT COUNT(*) FROM catalog_nodes n WHERE n.channel_id=c.telegram_chat_id "
+                    "AND n.is_active=1 AND n.kind='unclassified') AS unclassified_count "
+                    "FROM channels c WHERE c.telegram_chat_id=? AND EXISTS("
+                    "SELECT 1 FROM catalog_runs r WHERE r.channel_id=c.telegram_chat_id)",
+                    (channel_id,),
+                )
+            ).fetchone()
+            if channel_row is None:
+                raise CatalogError("CHANNEL_NOT_FOUND")
+            scan_row = await (
+                await db.execute(
+                    "SELECT status, stop_reason, finished_at FROM scan_runs "
+                    "WHERE channel_id=? AND finished_at IS NOT NULL "
+                    "ORDER BY finished_at DESC, rowid DESC LIMIT 1", (channel_id,),
+                )
+            ).fetchone()
+            node_rows = await (
+                await db.execute(
+                    "SELECT id, parent_id, kind, code, ordinal, title, "
+                    "source_message_id, is_active FROM catalog_nodes "
+                    "WHERE channel_id=? ORDER BY is_active DESC, "
+                    "COALESCE(ordinal,0), kind, id", (channel_id,),
+                )
+            ).fetchall()
+            media_rows = await (
+                await db.execute(
+                    "SELECT m.id, m.channel_id, m.telegram_message_id, "
+                    "m.media_ordinal, m.catalog_node_id, m.kind, m.telegram_media_id, "
+                    "m.original_filename, m.mime_type, m.file_size_bytes, "
+                    "n.kind AS catalog_kind, n.is_active AS catalog_active "
+                    "FROM media_items m LEFT JOIN catalog_nodes n "
+                    "ON n.id=m.catalog_node_id AND n.channel_id=m.channel_id "
+                    "WHERE m.channel_id=? ORDER BY m.telegram_message_id, "
+                    "m.media_ordinal, m.id", (channel_id,),
+                )
+            ).fetchall()
+            return InteractiveCatalogSnapshot(
+                channel=CatalogChannelView(
+                    channel_id=channel_row["telegram_chat_id"],
+                    title=channel_row["title"], parser_key=channel_row["parser_key"],
+                    catalog_status=channel_row["catalog_status"],
+                    source_message_count=channel_row["source_message_count"],
+                    active_node_count=channel_row["active_node_count"],
+                    unclassified_count=channel_row["unclassified_count"],
+                ),
+                scan_status=scan_row["status"] if scan_row else None,
+                scan_stop_reason=scan_row["stop_reason"] if scan_row else None,
+                scan_finished_at=scan_row["finished_at"] if scan_row else None,
+                catalog_finished_at=channel_row["catalog_finished_at"],
+                nodes=tuple(CatalogNodeView(
+                    node_id=row["id"], parent_id=row["parent_id"],
+                    kind=row["kind"], code=row["code"], ordinal=row["ordinal"],
+                    title=row["title"], source_message_id=row["source_message_id"],
+                    is_active=bool(row["is_active"]),
+                ) for row in node_rows),
+                media=tuple(InteractiveCatalogMediaView(
+                    media_item_id=row["id"], channel_id=row["channel_id"],
+                    telegram_message_id=row["telegram_message_id"],
+                    media_ordinal=row["media_ordinal"],
+                    catalog_node_id=row["catalog_node_id"], kind=row["kind"],
+                    telegram_media_id=row["telegram_media_id"],
+                    original_filename=row["original_filename"],
+                    mime_type=row["mime_type"],
+                    file_size_bytes=row["file_size_bytes"],
+                    catalog_kind=row["catalog_kind"],
+                    catalog_active=(None if row["catalog_active"] is None
+                                    else bool(row["catalog_active"])),
+                ) for row in media_rows),
+            )
+        except sqlite3.Error as error:
+            category = (
+                "CATALOG_SCHEMA_UNSUPPORTED"
+                if "no such table" in str(error).casefold()
+                or "no such column" in str(error).casefold()
+                else "CATALOG_READ_FAILED"
+            )
+            raise CatalogError(category) from None
+        finally:
+            await db.close()
 
     async def migrate(self) -> None:
         await SQLiteMessageRepository(

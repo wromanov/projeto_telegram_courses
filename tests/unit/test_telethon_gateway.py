@@ -586,6 +586,7 @@ def test_message_gateway_cache_miss_fails_closed_without_dialog_or_history_reads
     adapter = object.__new__(TelethonGateway)
     adapter._client = CacheMissClient()
     adapter._state = AuthState.AUTHENTICATED
+    adapter._bounded_metadata_channel_id = None
 
     async def exercise() -> None:
         with pytest.raises(ScanGatewayError) as caught:
@@ -1065,6 +1066,9 @@ def test_telethon_resume_offset_is_aligned_and_preserves_stream_boundary() -> No
     captured = {"request_order": []}
 
     class _DirectDownloadIter:
+        def __init__(self):
+            self.request = SimpleNamespace(offset=offset, limit=256 * 1024, precise=False)
+
         def __aiter__(self):
             return self
 

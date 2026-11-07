@@ -349,6 +349,8 @@ def test_cancelled_inflight_request_is_charged_conservatively() -> None:
     ).run(pending_plan()))
     assert result.cancelled is True
     assert result.transferred_bytes == 0
+    assert result.budget_consumed_bytes == 4
+    assert result.budget_uncertain_bytes == 4
     assert result.outcomes[0][1:] == ("CANCELLED", "CANCELLED")
 
 

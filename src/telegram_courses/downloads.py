@@ -380,6 +380,7 @@ class SingleMediaDownloadApplication:
         chunk_callback: Callable[[int], None] | None = None,
         free_space: Callable[[Path], int] | None = None,
         prefix_proof_observer: Callable[[S6PrefixProofObservation], None] | None = None,
+        traffic_observer: Callable[[str, int], None] | None = None,
         require_full_remote_hash: bool = False,
         allow_prefix_terminal_eof: bool = False,
     ) -> None:
@@ -393,6 +394,7 @@ class SingleMediaDownloadApplication:
         self.chunk_callback = chunk_callback
         self.free_space = free_space or (lambda path: shutil.disk_usage(path).free)
         self.prefix_proof_observer = prefix_proof_observer
+        self.traffic_observer = traffic_observer
         if type(require_full_remote_hash) is not bool:
             raise ValueError("require_full_remote_hash must be boolean")
         if type(allow_prefix_terminal_eof) is not bool or (
@@ -404,6 +406,13 @@ class SingleMediaDownloadApplication:
         self.chunk_reserver: Callable[[int], Awaitable[ChunkReservation | None]] | None = None
         self.operation_reserver: Callable[[int], Awaitable[object | None]] | None = None
         self.pre_append_check: Callable[[int], Awaitable[bool]] | None = None
+
+    def _observe_traffic(self, kind: str, byte_count: int) -> None:
+        if self.traffic_observer is not None:
+            try:
+                self.traffic_observer(kind, byte_count)
+            except Exception:
+                pass
 
     async def download(
         self, channel_id: int, message_id: int, media_ordinal: int, *,
@@ -581,8 +590,15 @@ class SingleMediaDownloadApplication:
                     except Exception:
                         raise DownloadError("PREFIX_PROOF_PERSISTENCE_FAILED") from None
 
-            wire_offset = (physical // CHUNK_BYTES) * CHUNK_BYTES
-            overlap_size = physical - wire_offset
+            complete_local_file = (
+                self.require_full_remote_hash
+                and physical == candidate.expected_bytes
+            )
+            wire_offset = (
+                physical if complete_local_file
+                else (physical // CHUNK_BYTES) * CHUNK_BYTES
+            )
+            overlap_size = 0 if complete_local_file else physical - wire_offset
             overlap = b""
             if overlap_size:
                 with partial.open("rb") as source:
@@ -592,57 +608,62 @@ class SingleMediaDownloadApplication:
                     raise DownloadError("PARTIAL_CHANGED")
             overlap_seen = 0
             append_buffer = bytearray()
-            open_mode = "r+b" if physical else "wb"
-            with partial.open(open_mode) as output:
-                if physical:
-                    output.seek(0, os.SEEK_END)
-                    if output.tell() != physical:
-                        raise DownloadError("PARTIAL_CHANGED")
-                stream_kwargs = {
-                    "telegram_media_id": candidate.telegram_media_id,
-                    "expected_bytes": candidate.expected_bytes,
-                }
-                if wire_offset:
-                    stream_kwargs["offset"] = wire_offset
-                stream_kwargs["reserve_chunk"] = self.chunk_reserver or _reserve_unbounded_chunk
-                async for chunk in self.gateway.stream_media(
-                    candidate.channel_id, candidate.telegram_message_id, candidate.media_ordinal,
-                    **stream_kwargs,
-                ):
-                    if not isinstance(chunk, bytes) or not chunk or len(chunk) > self.chunk_bytes:
-                        raise DownloadError("INVALID_CHUNK")
-                    received += len(chunk)
-                    continuation_received += len(chunk)
-                    if self.chunk_callback is not None:
-                        self.chunk_callback(len(chunk))
-                    if wire_offset + continuation_received > candidate.expected_bytes:
-                        raise DownloadError("SIZE_EXCEEDED")
-                    data = chunk
-                    if overlap_seen < overlap_size:
-                        compare_count = min(len(data), overlap_size - overlap_seen)
-                        append_buffer.extend(data[:compare_count])
-                        overlap_seen += compare_count
-                        data = data[compare_count:]
-                        if overlap_seen == overlap_size:
-                            if bytes(append_buffer) != overlap:
-                                raise DownloadError("OVERLAP_MISMATCH")
-                            append_buffer.clear()
-                    if data:
-                        if overlap_seen != overlap_size:
-                            raise DownloadError("OVERLAP_INCOMPLETE")
-                        output.write(data)
-                        output.flush()
-                        os.fsync(output.fileno())
-                        total += len(data)
-                        await self.repository.checkpoint(candidate.media_item_id, total)
-                    if self.progress_callback is not None and (
-                        total == candidate.expected_bytes or total % (1024 * 1024) < len(chunk)
+            if complete_local_file:
+                if partial.stat().st_size != candidate.expected_bytes:
+                    raise DownloadError("PARTIAL_CHANGED")
+            else:
+                open_mode = "r+b" if physical else "wb"
+                with partial.open(open_mode) as output:
+                    if physical:
+                        output.seek(0, os.SEEK_END)
+                        if output.tell() != physical:
+                            raise DownloadError("PARTIAL_CHANGED")
+                    stream_kwargs = {
+                        "telegram_media_id": candidate.telegram_media_id,
+                        "expected_bytes": candidate.expected_bytes,
+                    }
+                    if wire_offset:
+                        stream_kwargs["offset"] = wire_offset
+                    stream_kwargs["reserve_chunk"] = self.chunk_reserver or _reserve_unbounded_chunk
+                    async for chunk in self.gateway.stream_media(
+                        candidate.channel_id, candidate.telegram_message_id, candidate.media_ordinal,
+                        **stream_kwargs,
                     ):
-                        self.progress_callback(total, candidate.expected_bytes)
-                if overlap_seen != overlap_size:
-                    raise DownloadError("OVERLAP_INCOMPLETE")
-                output.flush()
-                os.fsync(output.fileno())
+                        if not isinstance(chunk, bytes) or not chunk or len(chunk) > self.chunk_bytes:
+                            raise DownloadError("INVALID_CHUNK")
+                        received += len(chunk)
+                        continuation_received += len(chunk)
+                        if self.chunk_callback is not None:
+                            self.chunk_callback(len(chunk))
+                        if wire_offset + continuation_received > candidate.expected_bytes:
+                            raise DownloadError("SIZE_EXCEEDED")
+                        data = chunk
+                        if overlap_seen < overlap_size:
+                            compare_count = min(len(data), overlap_size - overlap_seen)
+                            self._observe_traffic("overlap", compare_count)
+                            append_buffer.extend(data[:compare_count])
+                            overlap_seen += compare_count
+                            data = data[compare_count:]
+                            if overlap_seen == overlap_size:
+                                if bytes(append_buffer) != overlap:
+                                    raise DownloadError("OVERLAP_MISMATCH")
+                                append_buffer.clear()
+                        if data:
+                            if overlap_seen != overlap_size:
+                                raise DownloadError("OVERLAP_INCOMPLETE")
+                            output.write(data)
+                            output.flush()
+                            os.fsync(output.fileno())
+                            total += len(data)
+                            await self.repository.checkpoint(candidate.media_item_id, total)
+                        if self.progress_callback is not None and (
+                            total == candidate.expected_bytes or total % (1024 * 1024) < len(chunk)
+                        ):
+                            self.progress_callback(total, candidate.expected_bytes)
+                    if overlap_seen != overlap_size:
+                        raise DownloadError("OVERLAP_INCOMPLETE")
+                    output.flush()
+                    os.fsync(output.fileno())
             physical = partial.stat().st_size
             if physical != candidate.expected_bytes:
                 raise DownloadError("SIZE_MISMATCH")
@@ -1120,6 +1141,7 @@ class SingleMediaDownloadApplication:
                                 data = chunk
                                 if overlap_seen < stream_overlap_bytes:
                                     count = min(len(data), stream_overlap_bytes - overlap_seen)
+                                    self._observe_traffic("overlap", count)
                                     overlap_buffer.extend(data[:count])
                                     overlap_seen += count
                                     data = data[count:]
@@ -1462,6 +1484,7 @@ class SingleMediaDownloadApplication:
         self, candidate: DownloadCandidate, required_bytes: int, *,
         allow_terminal_eof: bool = False,
         allow_prefix_terminal_eof: bool = False,
+        prefix_proof: bool = False,
     ) -> tuple[RemoteFileHash, ...]:
         getter = getattr(self.gateway, "get_file_hashes", None)
         if not callable(getter):
@@ -1522,6 +1545,8 @@ class SingleMediaDownloadApplication:
                 if digest is None:
                     raise DownloadError("REMOTE_HASH_RESPONSE_INVALID")
                 collected.append(RemoteFileHash(start, size, digest))
+                if prefix_proof and end >= required_bytes:
+                    break
             if end <= cursor:
                 raise DownloadError("REMOTE_HASHES_INCOMPLETE")
             cursor = end
@@ -1531,6 +1556,10 @@ class SingleMediaDownloadApplication:
         self, candidate: DownloadCandidate, partial: Path, physical: int
     ) -> tuple[str, int, S6PrefixProofObservation]:
         block_size = 128 * 1024
+        complete_file_proof = (
+            self.require_full_remote_hash
+            and physical == candidate.expected_bytes
+        )
         if (self.allow_prefix_terminal_eof and self.require_full_remote_hash
                 and physical < candidate.expected_bytes
                 and candidate.expected_bytes % block_size
@@ -1542,7 +1571,10 @@ class SingleMediaDownloadApplication:
             and physical % block_size == 0
         )
         ranges = await self._remote_hashes(
-            candidate, physical, allow_prefix_terminal_eof=aligned_pilot,
+            candidate, physical,
+            allow_terminal_eof=complete_file_proof,
+            allow_prefix_terminal_eof=aligned_pilot,
+            prefix_proof=physical < candidate.expected_bytes,
         )
         verified_ranges: list[RemoteFileHash] = []
         cursor = 0
@@ -1568,7 +1600,7 @@ class SingleMediaDownloadApplication:
                         digest.update(block)
                         full_digest.update(block)
                         remaining -= len(block)
-                    if end > physical:
+                    if end > physical and not complete_file_proof:
                         verification_bytes += await self._hash_remote_complement(
                             candidate, physical, end, digest
                         )
@@ -1618,6 +1650,7 @@ class SingleMediaDownloadApplication:
                     raise DownloadError("SIZE_EXCEEDED")
                 if self.chunk_callback is not None:
                     self.chunk_callback(len(chunk))
+                self._observe_traffic("proof", len(chunk))
                 received += len(chunk)
                 segment_start = max(physical - position, 0)
                 segment_end = min(end - position, len(chunk))

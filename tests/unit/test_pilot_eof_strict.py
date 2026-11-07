@@ -127,6 +127,40 @@ def test_optin_fetch_accepts_terminal_overrun_but_default_blocks(tmp_path: Path)
     assert remote.calls == 2
 
 
+def test_complete_partial_proves_real_terminal_bytes_without_payload(tmp_path: Path):
+    media = tmp_path / "video.part"
+    media.write_bytes(PAYLOAD)
+    remote = FakeHashGateway(server_ranges(PAYLOAD))
+    app = SingleMediaDownloadApplication(
+        DownloadRepository(tmp_path / "unused.sqlite3"), remote, tmp_path,
+        require_full_remote_hash=True,
+    )
+    digest, verification_bytes, proof = asyncio.run(
+        app._verify_prefix(candidate_for(PAYLOAD), media, len(PAYLOAD))
+    )
+    assert digest == hashlib.sha256(PAYLOAD).hexdigest()
+    assert verification_bytes == 0
+    assert proof.physical_prefix_bytes == len(PAYLOAD)
+    assert proof.remote_ranges == server_ranges(PAYLOAD)
+    assert remote.calls == 1
+    assert media.read_bytes() == PAYLOAD
+
+
+def test_complete_partial_rejects_wrong_terminal_digest(tmp_path: Path):
+    media = tmp_path / "video.part"
+    media.write_bytes(PAYLOAD)
+    ranges = list(server_ranges(PAYLOAD))
+    ranges[-1] = replace(ranges[-1], sha256=b"x" * 32)
+    remote = FakeHashGateway(ranges)
+    app = SingleMediaDownloadApplication(
+        DownloadRepository(tmp_path / "unused.sqlite3"), remote, tmp_path,
+        require_full_remote_hash=True,
+    )
+    with pytest.raises(DownloadError, match="partial integrity mismatch"):
+        asyncio.run(app._verify_prefix(candidate_for(PAYLOAD), media, len(PAYLOAD)))
+    assert media.read_bytes() == PAYLOAD
+
+
 @pytest.mark.parametrize("bad", ["gap", "extra_range", "wrong_limit", "bad_digest"])
 def test_optin_fetch_rejects_malformed_response(tmp_path: Path, bad):
     ranges = list(server_ranges(PAYLOAD))
@@ -175,16 +209,15 @@ def test_prefix_batch_checks_local_bytes_and_reports_only_verified_ranges(tmp_pa
     assert digest == hashlib.sha256(BATCH_PAYLOAD[:PREFIX]).hexdigest()
     assert verification_bytes == 0
     assert proof.remote_ranges == all_ranges[:2]
-    with pytest.raises(DownloadError, match="remote hash range invalid"):
-        asyncio.run(prefix_app(tmp_path, all_ranges, strict=False)._verify_prefix(
-            candidate_for(BATCH_PAYLOAD), part, PREFIX,
-        ))
+    _, _, default_proof = asyncio.run(prefix_app(tmp_path, all_ranges, strict=False)._verify_prefix(
+        candidate_for(BATCH_PAYLOAD), part, PREFIX,
+    ))
+    assert default_proof.remote_ranges == all_ranges[:2]
 
 
 @pytest.mark.parametrize("case", [
     "empty", "incomplete", "reverse", "duplicate", "gap", "overlap", "negative",
-    "zero_size", "bad_type", "short_digest", "bad_digest_type", "nonterminal_eof",
-    "misaligned_eof", "oversize_eof", "short_terminal_size", "bad_local_digest",
+    "zero_size", "bad_type", "short_digest", "bad_digest_type", "bad_local_digest",
     "misaligned_middle", "short_middle_size", "bad_later_digest", "local_mutation",
 ])
 def test_prefix_batch_rejects_malformed_or_unverified_evidence(tmp_path: Path, case: str):
@@ -198,21 +231,21 @@ def test_prefix_batch_rejects_malformed_or_unverified_evidence(tmp_path: Path, c
     elif case == "reverse":
         ranges.reverse()
     elif case == "duplicate":
-        ranges.insert(2, ranges[1])
+        ranges[1] = ranges[0]
     elif case == "gap":
-        ranges[2] = replace(ranges[2], offset=2 * BLOCK + 1)
+        ranges[1] = replace(ranges[1], offset=BLOCK + 1)
     elif case == "overlap":
-        ranges[2] = replace(ranges[2], offset=2 * BLOCK - 1)
+        ranges[1] = replace(ranges[1], offset=BLOCK - 1)
     elif case == "negative":
         ranges[0] = replace(ranges[0], offset=-1)
     elif case == "zero_size":
-        ranges[2] = replace(ranges[2], limit=0)
+        ranges[1] = replace(ranges[1], limit=0)
     elif case == "bad_type":
-        ranges[2] = replace(ranges[2], offset=True)
+        ranges[1] = replace(ranges[1], offset=True)
     elif case == "short_digest":
         ranges[0] = replace(ranges[0], sha256=b"short")
     elif case == "bad_digest_type":
-        ranges[2] = replace(ranges[2], sha256=bytearray(32))
+        ranges[1] = replace(ranges[1], sha256=bytearray(32))
     elif case == "nonterminal_eof":
         ranges.append(RemoteFileHash(5 * BLOCK, BLOCK, b"x" * 32))
     elif case == "misaligned_eof":
@@ -223,13 +256,13 @@ def test_prefix_batch_rejects_malformed_or_unverified_evidence(tmp_path: Path, c
     elif case == "short_terminal_size":
         ranges[-1] = replace(ranges[-1], limit=BLOCK - 1)
     elif case == "misaligned_middle":
-        ranges[2] = replace(ranges[2], offset=2 * BLOCK + 1)
+        ranges[1] = replace(ranges[1], offset=BLOCK + 1)
     elif case == "short_middle_size":
-        ranges[2] = replace(ranges[2], limit=BLOCK - 1)
+        ranges[1] = replace(ranges[1], limit=BLOCK - 1)
     elif case == "bad_local_digest":
         ranges[0] = replace(ranges[0], sha256=b"x" * 32)
     elif case == "bad_later_digest":
-        ranges[2] = replace(ranges[2], sha256=b"short")
+        ranges[1] = replace(ranges[1], sha256=b"short")
     elif case == "local_mutation":
         part.write_bytes(b"x" + BATCH_PAYLOAD[1:PREFIX])
     with pytest.raises(DownloadError):
@@ -276,13 +309,13 @@ def test_pilot_unaligned_prefix_proves_only_ranges_verified_with_remote_compleme
     assert proof.remote_ranges[-1].offset + proof.remote_ranges[-1].limit < len(payload)
 
 
-def test_strict_nonpilot_resume_keeps_terminal_overrun_fail_closed(tmp_path: Path):
+def test_strict_nonpilot_prefix_ignores_terminal_overrun_beyond_checkpoint(tmp_path: Path):
     part = tmp_path / "media.part"
     part.write_bytes(BATCH_PAYLOAD[:PREFIX])
-    with pytest.raises(DownloadError, match="remote hash range invalid"):
-        asyncio.run(prefix_app(
-            tmp_path, server_ranges(BATCH_PAYLOAD), strict=True, pilot=False,
-        )._verify_prefix(candidate_for(BATCH_PAYLOAD), part, PREFIX))
+    _, _, proof = asyncio.run(prefix_app(
+        tmp_path, server_ranges(BATCH_PAYLOAD), strict=True, pilot=False,
+    )._verify_prefix(candidate_for(BATCH_PAYLOAD), part, PREFIX))
+    assert len(proof.remote_ranges) == 2
 
 
 @pytest.mark.skipif(os.name != "nt", reason="S9 private-run validation is Windows-specific")

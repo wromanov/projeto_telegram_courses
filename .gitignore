@@ -13,3 +13,31 @@ __pycache__/
 logs/
 *.log
 *.egg-info/
+
+# Estado operacional local: nunca versionar bancos, parciais ou backups
+/data/
+/dist/
+*.sqlite3
+*.sqlite3-*
+*.part
+
+# Workspaces locais gerados por testes e homologa??es
+/.pytest*/
+/.g4_*/
+/.demo_*/
+/.dbprep*/
+/.final_*/
+/.peer_diag*/
+/.rpa*/
+/.s6-*/
+/.s9-*/
+/.timeout*/
+/.test-*/
+/.dry*/
+/.preflight*/
+/.s6m*/
+/.s6r*/
+/.s6target*/
+/.r7-*/
+/s6-v2-real-proof-*/
+/.telethon_*/

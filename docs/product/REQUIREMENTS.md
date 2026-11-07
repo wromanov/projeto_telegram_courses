@@ -1,5 +1,18 @@
 # Requisitos — projeto_telegram_courses
 
+## Diretriz vigente da experiencia de uso — CLI V1 Rich (2026-11-03)
+
+APPROVED_INTERFACE_V1 = PYTHON + RICH / SIMPLE_CLI
+NEXT_INTERFACE = GUI_AFTER_COMPLETE_COURSE_OPERATIONAL_VALIDATION
+MIDNIGHT_GLASS = HISTORICAL_VISUAL_REFERENCE_ONLY
+
+O operador quer somente dois caminhos: (1) marcar arquivos desejados de um curso; (2) selecionar "Baixar tudo" para os arquivos catalogados do curso, em ordem de modulo/aula/midia, inicialmente com um worker. A CLI deve permitir confirmar o plano, mostrar quantidade, tamanho de arquivo/lote, velocidade real MB/s, ETA fundamentado, erros, progresso, arquivos ja validos e resumo final. A implementacao deve usar componentes Rich simples, sem impor uma TUI fullscreen ou criar GUI agora.
+
+A capacidade deve ser aferida com auditoria do fluxo existente e prova de um curso completo no escopo aprovado. O design e a implementacao de uma GUI sao trabalho posterior e independente do aceite da CLI. A referencia Midnight Glass nao define automaticamente o desenho final da GUI. Os limites, autorizacoes, dados sensiveis e condicoes de integridade existentes continuam aplicaveis.
+
+---
+
+
 DOCUMENT_ROLE = REQUIREMENTS  
 BASELINE_STATUS = APPROVED_USER_BASELINE_RECONCILED  
 RECONCILED_AT = 2026-10-05 / America/Sao_Paulo  
@@ -84,3 +97,14 @@ Somente conteúdo normalmente acessível à própria conta e permitido pelas int
 ## Rastreabilidade
 
 [ARCHITECTURE.md](../architecture/ARCHITECTURE.md) define limites/ADRs; [ENGINEERING_FOUNDATION.md](../engineering/ENGINEERING_FOUNDATION.md) define contratos; [ROADMAP.md](../continuity/planning/ROADMAP.md) e [SPRINTS.md](../continuity/planning/SPRINTS.md) definem sequência/evidências. O aceite real depende dos gates de cada unidade; este documento não inicia nem autoriza execução.
+
+## Refinamento de uso da CLI — 2026-11-03
+
+USER_DECISION = SELECIONAR_ARQUIVOS_OU_BAIXAR_TUDO_EM_ORDEM
+SCOPE = SELECTED_COURSE / NOT_ENTIRE_TELEGRAM_CHANNEL
+BASELINE_FR = FR-06, FR-07, FR-09, FR-11, FR-13, FR-14
+STATUS = USER_EXPECTATION / END_TO_END_PRODUCT_PROOF_PENDING
+
+A experiencia minima utilizavel e: abrir catalogo de cursos, escolher um curso, marcar/desmarcar arquivos especificos (multi-selecao entre modulos) OU escolher 'Baixar tudo' para enfileirar todos os arquivos conhecidos do curso em ordem de modulo/aula/midia. O plano mostra quantidade, tamanho total conhecido, limites e arquivos desconhecidos. Executar somente apos confirmacao apropriada; mostrar progresso/velocidade MB/s/ETA quando mensuraveis e status; validar e organizar arquivos, persistir estado e deduplicar apos reinicio.
+
+Selecionar tudo em um catalogo parcial nao e evidencia de que todas as midias do curso remoto foram descobertas. Exibir cobertura/indeterminacao e nunca chamar o curso de 'completamente baixado' sem validar o conjunto completo elegivel. A nova especificacao nao autoriza downloads reais, elimina controles de integridade ou muda o escopo dos contratos congelados. Ver COURSE_DOWNLOAD_E2E_GATE no plano de sprints.
